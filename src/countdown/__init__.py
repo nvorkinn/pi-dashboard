@@ -1,2 +1,3 @@
-def main() -> None:
-    print("Hello from countdown!")
+from .app import main
+
+__all__ = ["main"]
