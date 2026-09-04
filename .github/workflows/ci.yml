@@ -46,8 +46,5 @@ jobs:
       - name: Build package
         run: uv build
 
-      - name: Publish to PyPI repository
-        env:
-          UV_PUBLISH_URL: https://github.com/nvorkinn/pypi-nikolai.git
-          UV_PUBLISH_TOKEN: ${{ secrets.INDEX_REPO_PAT }}
-        run: uv publish
+      - name: Publish to Test PyPI repository
+        run: uv publish --index testpypi
