@@ -8,10 +8,6 @@ jobs:
   test:
     runs-on: ubuntu-latest
 
-    permissions:
-      id-token: write    # Required to fetch the OIDC token
-      contents: read     # Required to check out the repository code
-
     steps:
     - name: Checkout repository
       uses: actions/checkout@v4
@@ -34,6 +30,10 @@ jobs:
     needs: test
     runs-on: ubuntu-latest
     if: github.event_name == 'push' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master')
+
+    permissions:
+      id-token: write    # Required to fetch the OIDC token
+      contents: read     # Required to check out the repository code
 
     steps:
       - name: Checkout repository
