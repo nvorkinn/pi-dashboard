@@ -27,3 +27,29 @@ jobs:
 
     - name: Run tests
       run: uv run pytest
+
+  deploy:
+    needs: test
+    runs-on: ubuntu-latest
+    if: github.event_name == 'push' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master')
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up uv
+        uses: astral-sh/setup-uv@v5
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Build package
+        run: uv build
+
+      - name: Publish to PyPI repository
+        env:
+          UV_PUBLISH_URL: https://github.com/nikolaivorkinn/pypi-nikolai.git
+          UV_PUBLISH_TOKEN: ${{ secrets.INDEX_REPO_PAT }}
+        run: uv publish
