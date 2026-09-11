@@ -1,6 +1,22 @@
 {
-    "postcode": "SE17 2PX",
-    "compass_point": "N",
+    "bus": {
+        "postcode": "SE17 2PX",
+        "compass_point": "N",
+        "stop_ids": [
+        ]
+    },
+    "tube": {
+        "stop_ids": [
+            "940GZZLUEAC",
+            "940GZZLUKNG"
+        ]
+    },
     "interval": 10,
-    "config_port": 4000
+    "config_port": 4000,
+    "spotify": {
+        "enabled": true,
+        "clientID": "ae2e2d7c1d884e9ab28f65691d9d4631",
+        "clientSecret": "2bb9a7e01df94e5ba8b6976163a6239e",
+        "redirectUrl": "http://127.0.0.1:8888/callback"
+    }
 }
