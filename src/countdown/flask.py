@@ -1,5 +1,6 @@
 from flask import Flask, render_template_string, request, redirect
 from countdown.config_manager import config_manager
+from countdown.models import Mode
 
 app = Flask(__name__)
 
@@ -29,7 +30,7 @@ def settings():
         config["postcode"] = request.form.get("postcode", "").strip()
         # Parse comma-separated stop IDs into a clean list
         raw_stops = request.form.get("stop_ids", "")
-        config["stop_ids"] = [s.strip() for s in raw_stops.split(",") if s.strip()]
+        # config[Mode.BUS]["stop_ids"] = [s.strip() for s in raw_stops.split(",") if s.strip()]
         config_manager.save_config(config)
         return redirect("/")
 
