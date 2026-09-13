@@ -24,4 +24,8 @@ jobs:
       run: uv sync --frozen
 
     - name: Run tests
-      run: uv run pytest
+      run: uv run pytest --cov --cov-report=term-missing --cov-report=xml
+
+    - name: Add coverage summary
+      if: always()
+      run: uv run coverage report --format=markdown >> "$GITHUB_STEP_SUMMARY"

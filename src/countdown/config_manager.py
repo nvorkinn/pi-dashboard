@@ -34,7 +34,6 @@ class AppConfig(BaseSettings):
         env_file=".env",
         env_file_encoding="utf-8",
         env_nested_delimiter="__",
-        json_file="config.json",
         extra="ignore",
     )
 
