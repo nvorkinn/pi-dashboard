@@ -82,9 +82,17 @@ class ConfigManager:
             self._last_mtime = self.config_path.stat().st_mtime
         return AppConfig()
 
+    # Secrets live in .env only; never persist them to config.json.
+    SECRET_FIELDS = {
+        "tfl_api_app_key": True,
+        "glowmarkt": True,
+        "spotify": {"client_id", "client_secret"},
+        "weather": {"api_key"},
+    }
+
     def save_config(self, new_config: AppConfig):
-        # Dump model while omitting sensitive credentials from being written to config.json
-        dump = new_config.model_dump(mode="json", exclude={"glowmarkt"})
-        self.config_path.write_text(new_config.model_dump_json(indent=4, exclude={"glowmarkt"}))
+        self.config_path.write_text(
+            new_config.model_dump_json(indent=4, exclude=self.SECRET_FIELDS)
+        )
 
 config_manager = ConfigManager()
