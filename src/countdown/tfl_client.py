@@ -4,28 +4,29 @@ from math import ceil
 from pydantic import TypeAdapter
 
 from countdown.config_manager import AppConfig
+from countdown.http import DEFAULT_TIMEOUT, build_retrying_session
 from countdown.models import StopPointResponse, StopPoint, ArrivalUnion, StopPointUnion, SingleStopPoint, \
     MetroStopPoint
 from display.abstract_arrival_panel import AbstractArrivalPanel
 from display.bus_arrival_panel import BusArrivalPanel
 from display.tube_arrival_panel import TubeArrivalPanel
 
-def _get_lat_and_lon(postcode: str) -> Tuple[float, float]:
+def _get_lat_and_lon(postcode: str, session: requests.Session) -> Tuple[float, float]:
     geo_url = f"https://api.postcodes.io/postcodes/{postcode}"
-    response = requests.get(geo_url)
+    response = session.get(geo_url, timeout=DEFAULT_TIMEOUT)
     response.raise_for_status()
     data = response.json()['result']
     return data['latitude'], data['longitude']
 
 
-def _get_nearest_stops(lat: float, lon: float, compass_point = None) -> list[str]:
+def _get_nearest_stops(lat: float, lon: float, session: requests.Session, compass_point = None) -> list[str]:
     tfl_url = "https://api.tfl.gov.uk/StopPoint/"
     params = {
         "lat": lat,
         "lon": lon,
         "stopTypes": "NaptanPublicBusCoachTram"
     }
-    response = requests.get(tfl_url, params=params)
+    response = session.get(tfl_url, params=params, timeout=DEFAULT_TIMEOUT)
     response.raise_for_status()
     json = response.json()
     stop_points_response = StopPointResponse.model_validate(json)
@@ -57,7 +58,7 @@ class TflClient:
         self.stops: list[SingleStopPoint | MetroStopPoint] = []
         self.current_stop = 0
         self.params = {"app_key": config.tfl_api_app_key} if config.tfl_api_app_key else {}
-        self.session = requests.Session()
+        self.session = build_retrying_session()
 
         # If a flat ordered list of stops is configured, use it directly
         if config.stops:
@@ -66,8 +67,8 @@ class TflClient:
             stop_ids = []
             stop_ids.extend(config.bus.stop_ids)
             if config.bus.postcode:
-                lat, lon = _get_lat_and_lon(config.bus.postcode)
-                nearest_stops = _get_nearest_stops(lat, lon, config.bus.compass_point)
+                lat, lon = _get_lat_and_lon(config.bus.postcode, self.session)
+                nearest_stops = _get_nearest_stops(lat, lon, self.session, config.bus.compass_point)
                 stop_ids.extend(nearest_stops)
             stop_ids.extend(config.tube.stop_ids)
 
@@ -86,7 +87,7 @@ class TflClient:
                 print(f"Warning: Error fetching stop ID {stop_id}: {e}")
 
     def _get_stop_info(self, stop_id: str) -> SingleStopPoint | MetroStopPoint | None:
-        response = self.session.get(f"https://api.tfl.gov.uk/StopPoint/{stop_id}", params=self.params)
+        response = self.session.get(f"https://api.tfl.gov.uk/StopPoint/{stop_id}", params=self.params, timeout=DEFAULT_TIMEOUT)
         response.raise_for_status()
         json = response.json()
         info = TypeAdapter(StopPointUnion).validate_python(json)
@@ -112,7 +113,7 @@ class TflClient:
         for _ in range(count_to_fetch):
             stop = self._get_next_stop()
             try:
-                response = self.session.get(f"https://api.tfl.gov.uk/StopPoint/{stop.naptan_id}/Arrivals", params=self.params)
+                response = self.session.get(f"https://api.tfl.gov.uk/StopPoint/{stop.naptan_id}/Arrivals", params=self.params, timeout=DEFAULT_TIMEOUT)
                 response.raise_for_status()
                 json = response.json()
                 arrivals = TypeAdapter(list[ArrivalUnion]).validate_python(json)

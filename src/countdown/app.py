@@ -26,6 +26,20 @@ def safe_fetch(func, fallback):
         print(f"Pydantic validation error: {e}")
         return fallback
 
+
+def _reload_tfl_client_if_changed(tfl: TflClient, config_manager) -> TflClient:
+    """Reload the TfL client if config.json changed on disk. Building a new TflClient
+    can hit the network (resolving a postcode to nearby stops), so a failure here must
+    not take down the whole display loop -- keep serving with the old client instead."""
+    if not config_manager.has_changed():
+        return tfl
+    try:
+        new_config = config_manager.load_config()
+        return TflClient(new_config)
+    except (requests.exceptions.RequestException, pydantic.ValidationError) as e:
+        print(f"Failed to reload TfL client after config change, keeping old one: {e}")
+        return tfl
+
 def main() -> None:
     config = config_manager.load_config()
     flask_thread = threading.Thread(
@@ -65,7 +79,7 @@ def main() -> None:
                 energy["year"] = safe_fetch(lambda: glow.get_year_readings(resource_id), energy["year"])
                 energy_panel = EnergyPanel(energy["day"], energy["month"], energy["year"])
                 current_track = spotify.get_current_track()
-                weather_panel = weather.get_weather()
+                weather_panel = safe_fetch(lambda: weather.get_weather(), weather_panel)
                 display.display_screen(arrival_panel, energy_panel, current_track, weather_panel)
             else:
                 display.display_partial(arrival_panel, energy_panel, current_track, weather_panel)
@@ -76,9 +90,7 @@ def main() -> None:
 
         time.sleep(config.interval)
 
-        if config_manager.has_changed():
-            new_config = config_manager.load_config()
-            tfl = TflClient(new_config)
+        tfl = _reload_tfl_client_if_changed(tfl, config_manager)
 
         page += 1
         if page == page_count:

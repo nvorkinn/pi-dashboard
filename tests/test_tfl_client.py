@@ -1,8 +1,11 @@
 from unittest.mock import MagicMock
 
+from requests.adapters import HTTPAdapter
+
 from countdown.config_manager import AppConfig
+from countdown.http import DEFAULT_TIMEOUT
 from countdown.models import AdditionalProperty, MetroStopPoint, SingleStopPoint
-from countdown.tfl_client import TflClient, _find_stop_child, _is_stop_in_right_direction
+from countdown.tfl_client import TflClient, _find_stop_child, _get_lat_and_lon, _get_nearest_stops, _is_stop_in_right_direction
 from display.bus_arrival_panel import BusArrivalPanel
 from display.tube_arrival_panel import TubeArrivalPanel
 
@@ -100,7 +103,7 @@ def test_get_next_departures_builds_correct_panels(monkeypatch):
     client = empty_client()
     client.stops = [make_bus_stop(), make_metro_stop()]
 
-    def fake_get(url, params=None):
+    def fake_get(url, params=None, timeout=None):
         response = MagicMock()
         response.raise_for_status = MagicMock()
         if "490000123W" in url:
@@ -128,7 +131,7 @@ def test_get_next_departures_skips_stop_on_request_failure(monkeypatch):
     client = empty_client()
     client.stops = [make_bus_stop()]
 
-    def failing_get(url, params=None):
+    def failing_get(url, params=None, timeout=None):
         raise ConnectionError("network is down")
 
     monkeypatch.setattr(client.session, "get", failing_get)
@@ -136,3 +139,60 @@ def test_get_next_departures_skips_stop_on_request_failure(monkeypatch):
     panels = client.get_next_departures()
 
     assert panels == []
+
+
+def test_get_next_departures_passes_a_timeout(monkeypatch):
+    client = empty_client()
+    client.stops = [make_bus_stop()]
+
+    get_mock = MagicMock()
+    get_mock.return_value.raise_for_status = MagicMock()
+    get_mock.return_value.json.return_value = [{
+        "naptanId": "490000123W", "lineName": "N155", "timeToStation": 300,
+        "modeName": "bus", "destinationName": "Somewhere",
+    }]
+    monkeypatch.setattr(client.session, "get", get_mock)
+
+    client.get_next_departures()
+
+    assert get_mock.call_args.kwargs["timeout"] == DEFAULT_TIMEOUT
+
+
+def test_get_stop_info_passes_a_timeout(monkeypatch):
+    client = empty_client()
+
+    get_mock = MagicMock()
+    get_mock.return_value.raise_for_status = MagicMock()
+    get_mock.return_value.json.return_value = METRO_STOP_JSON
+    monkeypatch.setattr(client.session, "get", get_mock)
+
+    client._get_stop_info("940GZZLUKNG")
+
+    assert get_mock.call_args.kwargs["timeout"] == DEFAULT_TIMEOUT
+
+
+def test_get_lat_and_lon_passes_a_timeout():
+    session = MagicMock()
+    session.get.return_value.raise_for_status = MagicMock()
+    session.get.return_value.json.return_value = {"result": {"latitude": 51.5, "longitude": -0.1}}
+
+    _get_lat_and_lon("SE17 2PX", session)
+
+    assert session.get.call_args.kwargs["timeout"] == DEFAULT_TIMEOUT
+
+
+def test_get_nearest_stops_passes_a_timeout():
+    session = MagicMock()
+    session.get.return_value.raise_for_status = MagicMock()
+    session.get.return_value.json.return_value = {"stopPoints": []}
+
+    _get_nearest_stops(51.5, -0.1, session)
+
+    assert session.get.call_args.kwargs["timeout"] == DEFAULT_TIMEOUT
+
+
+def test_session_has_retry_adapter_mounted():
+    client = empty_client()
+    adapter = client.session.get_adapter("https://api.tfl.gov.uk")
+    assert isinstance(adapter, HTTPAdapter)
+    assert adapter.max_retries.total == 3
