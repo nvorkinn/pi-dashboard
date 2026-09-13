@@ -1,51 +1,67 @@
+import signal
+import sys
 import threading
 import time
 import requests
-import sys
-sys.path.insert(1, "./lib")
-
-import epd7in5_V2
 
 from countdown.glow_client import GlowClient
 from countdown.tfl_client import TflClient
 from countdown.spotify_client import SpotifyClient
 from countdown.flask import app
 from countdown.config_manager import config_manager
-from display.display import display_screen
+from display.combined_arrival_panel import CombinedArrivalPanel
+from display.display import DisplayController
+from display.energy_panel import EnergyPanel
 
+def safe_fetch(func, fallback):
+    try:
+        return func()
+    except Exception:
+        return fallback
 
 def main() -> None:
+
+
     config = config_manager.load_config()
     sleep_interval = get_sleep_interval(config)
     flask_thread = threading.Thread(
         target=lambda: app.run(host="0.0.0.0", port=config.get("config_port")),
         daemon=True
     )
-    epd = epd7in5_V2.EPD()
-    epd.init()
-    epd.Clear()
     flask_thread.start()
+    display = DisplayController()
+    # Setup graceful signal handling
+    def handle_shutdown(signum, frame):
+        print("\nShutting down gracefully...")
+        # Put your ePaper display to sleep to prevent burn-in
+        # epd.sleep()
+        sys.exit(0)
+
+    signal.signal(signal.SIGINT, handle_shutdown)
+    signal.signal(signal.SIGTERM, handle_shutdown)
     tfl = TflClient(config)
     glow = GlowClient(config)
     spotify = SpotifyClient(config["spotify"])
     resource_id = glow.get_electricity_resource_id()
-    show_bus = False
+    energy = {
+        "day": None,
+        "month": None,
+        "year": None
+    }
     while True:
         try:
-            next_departures = tfl.get_next_departures(show_bus := not show_bus)
-            readings = (
-                glow.get_day_readings(resource_id),
-                glow.get_month_readings(resource_id),
-                glow.get_year_readings(resource_id)
-            )
+            arrival_panel = CombinedArrivalPanel(tfl.get_next_departures())
+            energy["day"] = safe_fetch(lambda: glow.get_day_readings(resource_id), energy["day"])
+            energy["month"] = safe_fetch(lambda: glow.get_month_readings(resource_id), energy["month"])
+            energy["year"] = safe_fetch(lambda: glow.get_year_readings(resource_id), energy["year"])
+            energy_panel = EnergyPanel(energy["day"], energy["month"], energy["year"])
             current_track = spotify.get_current_track()
-            display_screen(epd, next_departures, readings, current_track)
+            display.display_screen(arrival_panel, energy_panel, current_track)
         except requests.exceptions.RequestException as e:
             print(f"Network error encountered: {e}")
         except Exception as e:
             print(f"Unexpected error: {e}")
 
-        epd.sleep()
         time.sleep(sleep_interval)
 
         if config_manager.has_changed():
