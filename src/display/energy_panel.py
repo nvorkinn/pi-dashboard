@@ -12,7 +12,7 @@ height = 200
 margin_left = 40
 margin_right = 30
 margin_top = 40
-margin_bottom = 40
+margin_bottom = 20
 
 class EnergyPanel(Panel):
     def __init__(self, readings_day: list[float] | None, readings_month: list[float] | None, readings_year: list[float] | None):
@@ -39,10 +39,10 @@ class EnergyPanel(Panel):
         image = Image.new("RGB", (width, height), "white")
         draw = ImageDraw.Draw(image)
 
-        draw.text((image.size[0] / 2, margin_top - 22), header, anchor="ma", fill="#333333")
+        draw.text((image.size[0] / 2, margin_top - 22), header, anchor="ma", fill="black")
 
         if data is None:
-            draw.text((image.size[0] / 2, height / 2), "Connecting...", anchor="ma", fill="#333333")
+            draw.text((image.size[0] / 2, height / 2), "Connecting...", anchor="ma", fill="black")
             return image
 
         chart_width = width - margin_left - margin_right
@@ -52,11 +52,11 @@ class EnergyPanel(Panel):
 
         # Draw axes
         baseline_y = height - margin_bottom
-        draw.line([(margin_left, baseline_y), (width - margin_right, baseline_y)], fill="#333333", width=2)  # X-axis
-        draw.line([(margin_left, margin_top), (margin_left, baseline_y)], fill="#333333", width=2)  # Y-axis
+        draw.line([(margin_left, baseline_y), (width - margin_right, baseline_y)], fill="black", width=2)  # X-axis
+        draw.line([(margin_left, margin_top), (margin_left, baseline_y)], fill="black", width=2)  # Y-axis
 
         # Y-axis label
-        draw.text((margin_left - 10, margin_top - 22), "kWh", fill="#333333")
+        draw.text((margin_left - 10, margin_top - 22), "kWh", fill="black")
 
         # Y-axis ticks, gridlines, and numerical labels (3 tiers: 0, midpoint, max)
         num_ticks = 3
@@ -67,11 +67,11 @@ class EnergyPanel(Panel):
 
             # Draw faint horizontal grid line across the plot area
             if i > 0:
-                draw.line([(margin_left, tick_y), (width - margin_right, tick_y)], fill="#E5E5E5", width=1)
+                draw.line([(margin_left, tick_y), (width - margin_right, tick_y)], fill="black", width=1)
 
             # Draw numerical label
             label = f"{tick_val:.1f}"
-            draw.text((margin_left - 30, tick_y - 6), label, fill="#666666")
+            draw.text((margin_left - 30, tick_y - 6), label, fill="black")
 
         # Calculate widths for 24 hourly columns
         num_bars = len(data)
@@ -89,12 +89,12 @@ class EnergyPanel(Panel):
             y1 = baseline_y
 
             # Draw the energy column
-            draw.rectangle([x0, y0, x1, y1], fill="#2A7B9B")
+            draw.rectangle([x0, y0, x1, y1], fill="black")
 
             # Add hour labels every 3 hours
             if i % label_modulo == 0:
                 time_label = f"{i:02d}:00"
-                draw.text((x0, baseline_y + 8), time_label, fill="#666666")
+                draw.text((x0, baseline_y + 8), time_label, fill="black")
 
         return image
 
@@ -106,19 +106,19 @@ class EnergyPanel(Panel):
         chart_width = width - margin_left - margin_right
         chart_height = height - margin_top - margin_bottom
 
-        draw.text((image.size[0] / 2, margin_top - 22), month, anchor="ma", fill="#333333")
+        draw.text((image.size[0] / 2, margin_top - 22), month, anchor="ma", fill="black")
 
         if data is None:
-            draw.text((image.size[0] / 2, height / 2), "Connecting...", anchor="ma", fill="#333333")
+            draw.text((image.size[0] / 2, height / 2), "Connecting...", anchor="ma", fill="black")
             return image
 
         max_val = max(data) if data and max(data) > 0 else 1.0
 
         baseline_y = height - margin_bottom
-        draw.line([(margin_left, baseline_y), (width - margin_right, baseline_y)], fill="#333333", width=2)  # X-axis
-        draw.line([(margin_left, margin_top), (margin_left, baseline_y)], fill="#333333", width=2)  # Y-axis
+        draw.line([(margin_left, baseline_y), (width - margin_right, baseline_y)], fill="black", width=2)  # X-axis
+        draw.line([(margin_left, margin_top), (margin_left, baseline_y)], fill="black", width=2)  # Y-axis
 
-        draw.text((margin_left - 10, margin_top - 22), "kWh", fill="#333333")
+        draw.text((margin_left - 10, margin_top - 22), "kWh", fill="black")
 
         # Y-axis ticks, gridlines, and numerical labels
         num_ticks = 3
@@ -128,10 +128,10 @@ class EnergyPanel(Panel):
             tick_val = max_val * val_fraction
 
             if i > 0:
-                draw.line([(margin_left, tick_y), (width - margin_right, tick_y)], fill="#E5E5E5", width=1)
+                draw.line([(margin_left, tick_y), (width - margin_right, tick_y)], fill="black", width=1)
 
             label = f"{tick_val:.1f}"
-            draw.text((margin_left - 30, tick_y - 6), label, fill="#666666")
+            draw.text((margin_left - 30, tick_y - 6), label, fill="black")
 
         # Calculate widths for up to 31 daily columns
         num_bars = len(data)
@@ -148,12 +148,12 @@ class EnergyPanel(Panel):
             x1 = x0 + bar_width
             y1 = baseline_y
 
-            draw.rectangle([x0, y0, x1, y1], fill="#2A7B9B")
+            draw.rectangle([x0, y0, x1, y1], fill="black")
 
             # Add day-of-the-month labels on day 1 and every 5 days to prevent clutter
             day_num = i + 1
             if day_num == 1 or day_num % label_modulo == 0:
-                draw.text(((x0 + x1) / 2, baseline_y + 8), str(day_num), anchor="ma", fill="#666666")
+                draw.text(((x0 + x1) / 2, baseline_y + 8), str(day_num), anchor="ma", fill="black")
 
         return image
 
@@ -165,19 +165,19 @@ class EnergyPanel(Panel):
         chart_width = width - margin_left - margin_right
         chart_height = height - margin_top - margin_bottom
 
-        draw.text((image.size[0] / 2, margin_top - 22), year, anchor="ma", fill="#333333")
+        draw.text((image.size[0] / 2, margin_top - 22), year, anchor="ma", fill="black")
 
         if data is None:
-            draw.text((image.size[0] / 2, height / 2), "Connecting...", anchor="ma", fill="#333333")
+            draw.text((image.size[0] / 2, height / 2), "Connecting...", anchor="ma", fill="black")
             return image
 
         max_val = max(data) if data and max(data) > 0 else 1.0
 
         baseline_y = height - margin_bottom
-        draw.line([(margin_left, baseline_y), (width - margin_right, baseline_y)], fill="#333333", width=2)  # X-axis
-        draw.line([(margin_left, margin_top), (margin_left, baseline_y)], fill="#333333", width=2)  # Y-axis
+        draw.line([(margin_left, baseline_y), (width - margin_right, baseline_y)], fill="black", width=2)  # X-axis
+        draw.line([(margin_left, margin_top), (margin_left, baseline_y)], fill="black", width=2)  # Y-axis
 
-        draw.text((margin_left - 10, margin_top - 22), "kWh", fill="#333333")
+        draw.text((margin_left - 10, margin_top - 22), "kWh", fill="black")
 
         # Y-axis ticks, gridlines, and numerical labels
         num_ticks = 3
@@ -187,10 +187,10 @@ class EnergyPanel(Panel):
             tick_val = max_val * val_fraction
 
             if i > 0:
-                draw.line([(margin_left, tick_y), (width - margin_right, tick_y)], fill="#E5E5E5", width=1)
+                draw.line([(margin_left, tick_y), (width - margin_right, tick_y)], fill="black", width=1)
 
             label = f"{tick_val:.1f}"
-            draw.text((margin_left - 30, tick_y - 6), label, fill="#666666")
+            draw.text((margin_left - 30, tick_y - 6), label, fill="black")
 
         # Calculate widths for up to 31 daily columns
         num_bars = len(data)
@@ -205,9 +205,9 @@ class EnergyPanel(Panel):
             x1 = x0 + bar_width
             y1 = baseline_y
 
-            draw.rectangle([x0, y0, x1, y1], fill="#2A7B9B")
+            draw.rectangle([x0, y0, x1, y1], fill="black")
 
             label = calendar.month_name[i + 1][0]
-            draw.text(((x0 + x1) / 2, baseline_y + 8), label, anchor="ma", fill="#666666")
+            draw.text(((x0 + x1) / 2, baseline_y + 8), label, anchor="ma", fill="black")
 
         return image

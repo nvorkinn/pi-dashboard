@@ -16,9 +16,10 @@ class DisplayController:
             import epd7in5_V2
             self.display_enabled = True
             self.epd = epd7in5_V2.EPD()
-        except ImportError:
-            print("Error importing epd7in5_V2")
+        except (ImportError, ModuleNotFoundError) as e:
+            print(f"Error importing epd7in5_V2: {e}")
             self.display_enabled = False
+            self.epd = None
 
     def display_screen(self, arrival_panel: CombinedArrivalPanel, energy_panel: EnergyPanel,
                        current_track: dict[str, str] | None, weather_panel: WeatherPanel) -> None:
@@ -46,7 +47,7 @@ class DisplayController:
 
         draw.text((2, TOTAL_HEIGHT - 2), f"Updated: {datetime.now().isoformat()}", "LightGray", anchor="ld")
 
-        if self.display_enabled:
+        if self.display_enabled and self.epd:
             self.epd.init()
             self.epd.Clear()
             self.epd.display(self.epd.getbuffer(img))
@@ -81,13 +82,19 @@ class DisplayController:
                 weather_panel = weather_panel.render(TOTAL_WIDTH - spotify_x, TOTAL_HEIGHT - energy_panel.size[1])
                 img.paste(weather_panel, (spotify_x - 5, 5), weather_panel)
 
-        draw.text((2, TOTAL_HEIGHT - 2), f"Updated: {datetime.now().isoformat()}", "LightGray", anchor="ld")
+        if self.display_enabled and self.epd:
+            self.epd.init_part()
+            x_start = 0
+            y_start = 5
+            x_end = (bus_stop_panel.size[0] + 9) // 8 * 8  # round up to nearest multiple of 8
+            y_end = bus_stop_panel.size[1] + 5
 
-        if self.display_enabled:
-            self.epd.init()
-            self.epd.Clear()
-            buffer = self.epd.getbuffer(img)
-            self.epd.display_Partial(buffer, (0, 0, bus_stop_panel.size[0], bus_stop_panel.size[1]))
+            cropped = img.crop((x_start, y_start, x_end, y_end)).convert("1")
+            buf = bytearray(cropped.tobytes("raw"))
+            for i in range(len(buf)):
+                buf[i] ^= 0xFF
+
+            self.epd.display_Partial(buf, 0, 5, bus_stop_panel.size[0] + 9, bus_stop_panel.size[1] + 5)
             self.epd.sleep()
         else:
             img.show()

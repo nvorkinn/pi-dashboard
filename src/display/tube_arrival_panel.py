@@ -24,8 +24,8 @@ class TubeArrivalPanel(AbstractArrivalPanel):
         y = 0
         for line, departures in arrivals_by_line.items():
             if len(arrivals_by_line) > 1:
-                draw.text((0, y), line, "#48494B", anchor="la")
-                y += 11
+                draw.text((0, y), line, "black", anchor="la")
+                y += 13
             for departure in self._limit_arrivals_per_line(departures, len(arrivals_by_line)):
                 arrival_string = self._get_time_text(departure.time_to_station // 60)
                 departure_panel = self._create_panel_for_stop_departure(
