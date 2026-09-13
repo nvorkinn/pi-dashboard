@@ -16,13 +16,8 @@ import io
 import responses
 from PIL import Image
 
-from countdown.app import DisplayState, run_display_cycle
+from countdown.app import DisplayLoop
 from countdown.config_manager import AppConfig
-from countdown.glow_client import GlowClient
-from countdown.spotify_client import SpotifyClient
-from countdown.tfl_client import TflClient
-from countdown.weather_client import WeatherClient
-from display.display import DisplayController
 
 BUS_STOP_JSON = {
     "naptanId": "490000123W",
@@ -90,13 +85,12 @@ def _make_config() -> AppConfig:
     return config
 
 
-def _build_clients(config: AppConfig) -> tuple[TflClient, GlowClient, SpotifyClient, WeatherClient, str]:
-    tfl = TflClient(config.tfl)
-    glow = GlowClient(config)
-    spotify = SpotifyClient(config.spotify)
-    weather = WeatherClient(config.weather)
-    resource_id = glow.get_electricity_resource_id()
-    return tfl, glow, spotify, weather, resource_id
+def _build_loop(config: AppConfig, monkeypatch, spotify_track: dict | None) -> DisplayLoop:
+    loop = DisplayLoop(config)
+    monkeypatch.setattr(loop.spotify, "get_current_track", lambda: spotify_track)
+    monkeypatch.setattr(loop.weather, "get_weather", lambda: _StubWeatherPanel())
+    monkeypatch.setattr(Image.Image, "show", lambda self, *a, **kw: None)
+    return loop
 
 
 @responses.activate
@@ -108,21 +102,13 @@ def test_full_render_cycle_without_spotify_track(isolated_cwd, monkeypatch):
         {"490000123W": BUS_ARRIVALS_JSON, "940GZZLUKNG": METRO_ARRIVALS_JSON},
     )
 
-    tfl, glow, spotify, weather, resource_id = _build_clients(config)
-    monkeypatch.setattr(spotify, "get_current_track", lambda: None)
-    monkeypatch.setattr(weather, "get_weather", lambda: _StubWeatherPanel())
-
-    display = DisplayController()
-    monkeypatch.setattr(Image.Image, "show", lambda self, *a, **kw: None)
-
-    state = DisplayState()
-    page_count = run_display_cycle(display, tfl, glow, resource_id, spotify, weather, state)
+    loop = _build_loop(config, monkeypatch, spotify_track=None)
+    page_count = loop.run_cycle()
 
     assert page_count == 1
-    assert state.energy_panel is not None
-    assert state.energy["day"] == [1.5, 2.25]
-    assert state.current_track is None
-    assert len(tfl.stops) == 2
+    assert loop.energy["day"] == [1.5, 2.25]
+    assert loop.current_track is None
+    assert len(loop.tfl.stops) == 2
 
 
 @responses.activate
@@ -135,20 +121,13 @@ def test_full_render_cycle_with_spotify_track(isolated_cwd, monkeypatch):
     )
     responses.add(responses.GET, "https://example.com/album.jpg", body=_png_bytes(), content_type="image/png")
 
-    tfl, glow, spotify, weather, resource_id = _build_clients(config)
-    monkeypatch.setattr(spotify, "get_current_track", lambda: {
+    loop = _build_loop(config, monkeypatch, spotify_track={
         "song": "Test Song", "artist": "Test Artist", "album": "Test Album",
         "album_image": "https://example.com/album.jpg", "is_playing": True,
     })
-    monkeypatch.setattr(weather, "get_weather", lambda: _StubWeatherPanel())
+    loop.run_cycle()
 
-    display = DisplayController()
-    monkeypatch.setattr(Image.Image, "show", lambda self, *a, **kw: None)
-
-    state = DisplayState()
-    run_display_cycle(display, tfl, glow, resource_id, spotify, weather, state)
-
-    assert state.current_track["song"] == "Test Song"
+    assert loop.current_track["song"] == "Test Song"
 
 
 @responses.activate
@@ -172,26 +151,19 @@ def test_partial_render_cycle_reuses_prior_state_without_refetching(isolated_cwd
         },
     )
 
-    tfl, glow, spotify, weather, resource_id = _build_clients(config)
-    monkeypatch.setattr(spotify, "get_current_track", lambda: None)
-    monkeypatch.setattr(weather, "get_weather", lambda: _StubWeatherPanel())
-
-    display = DisplayController()
-    monkeypatch.setattr(Image.Image, "show", lambda self, *a, **kw: None)
-
-    state = DisplayState()
-    page_count = run_display_cycle(display, tfl, glow, resource_id, spotify, weather, state)
+    loop = _build_loop(config, monkeypatch, spotify_track=None)
+    page_count = loop.run_cycle()
     assert page_count == 2
-    first_cycle_energy_panel = state.energy_panel
+    energy_after_first_cycle = dict(loop.energy)
 
     def glowmarkt_call_count() -> int:
         return sum(1 for call in responses.calls if "glowmarkt.com" in call.request.url)
 
-    state.page = 1
+    loop.page = 1
     glow_calls_before = glowmarkt_call_count()
-    run_display_cycle(display, tfl, glow, resource_id, spotify, weather, state)
+    loop.run_cycle()
 
     # Partial refresh must not have hit Glowmarkt again -- only the arrival panels
     # (which do get refreshed every cycle) should have caused new requests.
     assert glowmarkt_call_count() == glow_calls_before
-    assert state.energy_panel is first_cycle_energy_panel
+    assert loop.energy == energy_after_first_cycle
