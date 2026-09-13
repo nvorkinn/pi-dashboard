@@ -1,0 +1,20 @@
+{
+    "stops": [],
+    "bus": {
+        "postcode": "",
+        "compass_point": "N",
+        "stop_ids": []
+    },
+    "tube": {
+        "stop_ids": []
+    },
+    "interval": 15,
+    "config_port": 4000,
+    "spotify": {
+        "enabled": false,
+        "redirect_uri": "http://127.0.0.1:8888/callback"
+    },
+    "weather": {
+        "location": "London,GB"
+    }
+}

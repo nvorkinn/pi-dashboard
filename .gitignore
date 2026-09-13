@@ -221,3 +221,12 @@ __marimo__/
 
 # Streamlit
 .streamlit/secrets.toml
+
+# Local runtime config (device-specific stops/settings; see config.example.json)
+config.json
+
+# JetBrains IDE settings
+.idea/
+
+# pyinstrument profiler output
+profile.html
