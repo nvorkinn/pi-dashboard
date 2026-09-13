@@ -44,7 +44,7 @@ def main() -> None:
 
     signal.signal(signal.SIGINT, handle_shutdown)
     signal.signal(signal.SIGTERM, handle_shutdown)
-    tfl = TflClient(config.tfl.stop_ids, config.tfl.app_key)
+    tfl = TflClient(config.tfl)
     glow = GlowClient(config)
     spotify = SpotifyClient(config.spotify)
     weather = WeatherClient(config.weather)
@@ -83,7 +83,7 @@ def main() -> None:
             # Building a fresh TflClient can never fail: construction does no network
             # I/O, and stop resolution is retried lazily (and safely) on next use.
             config = config_manager.load_config()
-            tfl = TflClient(config.tfl.stop_ids, config.tfl.app_key)
+            tfl = TflClient(config.tfl)
 
         page += 1
         if page == page_count:

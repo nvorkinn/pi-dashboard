@@ -2,6 +2,7 @@ from math import ceil
 
 from pydantic import TypeAdapter
 
+from countdown.config_manager import TflConfig
 from countdown.http import DEFAULT_TIMEOUT, build_retrying_session
 from countdown.models import ArrivalUnion, StopPoint, StopPointUnion, SingleStopPoint, MetroStopPoint
 from display.abstract_arrival_panel import AbstractArrivalPanel
@@ -20,23 +21,23 @@ def _find_stop_child(stop: StopPoint, naptan_id: str) -> SingleStopPoint | Metro
 
 
 class TflClient:
-    def __init__(self, stop_ids: list[str], app_key: str = ""):
+    def __init__(self, config: TflConfig):
         """Construction never touches the network -- stops are resolved lazily on first
         use (see _ensure_stops), so a flaky TfL API can never prevent this object from
         being created. Safe to just build a fresh TflClient whenever config changes."""
-        self._stop_ids = stop_ids
+        self._config = config
         self.stops: list[SingleStopPoint | MetroStopPoint] = []
         self.current_stop = 0
-        self.params = {"app_key": app_key} if app_key else {}
+        self.params = {"app_key": config.app_key} if config.app_key else {}
         self.session = build_retrying_session()
 
     def _ensure_stops(self) -> None:
-        """Resolve self._stop_ids into self.stops if not already done. Safe to call
-        repeatedly and safe to fail: self.stops is only ever assigned once fully built,
-        so a failed attempt just leaves it empty for the next call to retry."""
+        """Resolve self._config.stop_ids into self.stops if not already done. Safe to
+        call repeatedly and safe to fail: self.stops is only ever assigned once fully
+        built, so a failed attempt just leaves it empty for the next call to retry."""
         if self.stops:
             return
-        self.stops = self.init_stops(self._stop_ids)
+        self.stops = self.init_stops(self._config.stop_ids)
 
     def init_stops(self, stop_ids: list[str]) -> list[SingleStopPoint | MetroStopPoint]:
         stops: list[SingleStopPoint | MetroStopPoint] = []

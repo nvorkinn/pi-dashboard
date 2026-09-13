@@ -2,6 +2,7 @@ from unittest.mock import MagicMock
 
 from requests.adapters import HTTPAdapter
 
+from countdown.config_manager import TflConfig
 from countdown.http import DEFAULT_TIMEOUT
 from countdown.models import MetroStopPoint, SingleStopPoint
 from countdown.tfl_client import TflClient, _find_stop_child
@@ -36,6 +37,10 @@ def make_metro_stop(naptan_id="940GZZLUKNG"):
     return MetroStopPoint.model_validate(dict(METRO_STOP_JSON, naptanId=naptan_id))
 
 
+def make_config(stop_ids: list[str] | None = None, app_key: str = "") -> TflConfig:
+    return TflConfig(stop_ids=stop_ids or [], app_key=app_key)
+
+
 def test_find_stop_child_direct_match():
     stop = make_metro_stop()
     assert _find_stop_child(stop, stop.naptan_id) is stop
@@ -57,13 +62,13 @@ def test_find_stop_child_not_found_returns_none():
 def test_construction_never_touches_the_network():
     """__init__ must be cheap and unable to fail -- stop resolution is deferred to
     first use, so a flaky TfL API can never prevent a TflClient from being built."""
-    client = TflClient(["940GZZLUKNG"], "app-key")
+    client = TflClient(make_config(["940GZZLUKNG"], "app-key"))
     assert client.stops == []
     assert client.params == {"app_key": "app-key"}
 
 
 def test_get_page_count_lazily_resolves_stops(monkeypatch):
-    client = TflClient(["940GZZLUKNG"])
+    client = TflClient(make_config(["940GZZLUKNG"]))
     get_mock = MagicMock()
     get_mock.return_value.raise_for_status = MagicMock()
     get_mock.return_value.json.return_value = METRO_STOP_JSON
@@ -75,19 +80,19 @@ def test_get_page_count_lazily_resolves_stops(monkeypatch):
 
 
 def test_get_page_count_empty_when_no_stops_configured():
-    client = TflClient([])
+    client = TflClient(make_config())
     assert client.get_page_count() == 1
     assert client.stops == []
 
 
 def test_get_page_count_rounds_up():
-    client = TflClient([])
+    client = TflClient(make_config())
     client.stops = [make_bus_stop(), make_metro_stop(), make_bus_stop("490000456X")]
     assert client.get_page_count() == 2
 
 
 def test_ensure_stops_is_not_repeated_once_populated(monkeypatch):
-    client = TflClient(["940GZZLUKNG"])
+    client = TflClient(make_config(["940GZZLUKNG"]))
     get_mock = MagicMock()
     get_mock.return_value.raise_for_status = MagicMock()
     get_mock.return_value.json.return_value = METRO_STOP_JSON
@@ -100,7 +105,7 @@ def test_ensure_stops_is_not_repeated_once_populated(monkeypatch):
 
 
 def test_failed_setup_leaves_stops_empty_and_is_retried_on_next_call(monkeypatch):
-    client = TflClient(["940GZZLUKNG"])
+    client = TflClient(make_config(["940GZZLUKNG"]))
     get_mock = MagicMock(side_effect=ConnectionError("network is down"))
     monkeypatch.setattr(client.session, "get", get_mock)
 
@@ -117,7 +122,7 @@ def test_failed_setup_leaves_stops_empty_and_is_retried_on_next_call(monkeypatch
 
 
 def test_init_stops_is_a_pure_function_returning_resolved_stops(monkeypatch):
-    client = TflClient([])
+    client = TflClient(make_config())
     get_mock = MagicMock()
     get_mock.return_value.raise_for_status = MagicMock()
     get_mock.return_value.json.return_value = METRO_STOP_JSON
@@ -130,7 +135,7 @@ def test_init_stops_is_a_pure_function_returning_resolved_stops(monkeypatch):
 
 
 def test_get_next_stop_cycles_and_wraps():
-    client = TflClient([])
+    client = TflClient(make_config())
     a, b = make_bus_stop("A"), make_metro_stop("B")
     client.stops = [a, b]
     assert client._get_next_stop() is a
@@ -139,7 +144,7 @@ def test_get_next_stop_cycles_and_wraps():
 
 
 def test_get_next_arrivals_builds_correct_panels(monkeypatch):
-    client = TflClient([])
+    client = TflClient(make_config())
     client.stops = [make_bus_stop(), make_metro_stop()]
 
     def fake_get(url, params=None, timeout=None):
@@ -167,7 +172,7 @@ def test_get_next_arrivals_builds_correct_panels(monkeypatch):
 
 
 def test_get_next_arrivals_skips_stop_on_request_failure(monkeypatch):
-    client = TflClient([])
+    client = TflClient(make_config())
     client.stops = [make_bus_stop()]
 
     def failing_get(url, params=None, timeout=None):
@@ -179,7 +184,7 @@ def test_get_next_arrivals_skips_stop_on_request_failure(monkeypatch):
 
 
 def test_get_next_arrivals_passes_a_timeout(monkeypatch):
-    client = TflClient([])
+    client = TflClient(make_config())
     client.stops = [make_bus_stop()]
 
     get_mock = MagicMock()
@@ -196,7 +201,7 @@ def test_get_next_arrivals_passes_a_timeout(monkeypatch):
 
 
 def test_get_stop_info_passes_a_timeout(monkeypatch):
-    client = TflClient([])
+    client = TflClient(make_config())
 
     get_mock = MagicMock()
     get_mock.return_value.raise_for_status = MagicMock()
@@ -209,7 +214,7 @@ def test_get_stop_info_passes_a_timeout(monkeypatch):
 
 
 def test_session_has_retry_adapter_mounted():
-    client = TflClient([])
+    client = TflClient(make_config())
     adapter = client.session.get_adapter("https://api.tfl.gov.uk")
     assert isinstance(adapter, HTTPAdapter)
     assert adapter.max_retries.total == 3
