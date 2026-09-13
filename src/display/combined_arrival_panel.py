@@ -17,7 +17,7 @@ class CombinedArrivalPanel(Panel):
                 x += 9
                 draw.line((x, 10, x, img.size[1]), fill="gray", width=1)
                 x += 10
-            rendered = panel.render(230, 275)
+            rendered = panel.render(262, 275)
             img.paste(rendered, (x, 0), rendered)
             x += rendered.size[0]
         bus_panel_bbox = img.getbbox()

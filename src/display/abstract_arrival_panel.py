@@ -4,7 +4,7 @@ from PIL import Image, ImageDraw
 
 from countdown.models import ArrivalUnion
 from display.panel import Panel
-from display.utils import TFL_FONT_12, TFL_FONT_15, TFL_MEDIUM_FONT_12
+from display.utils import TFL_FONT_12, TFL_FONT_15, TFL_MEDIUM_FONT_16
 
 
 class AbstractArrivalPanel(Panel, ABC):
@@ -13,7 +13,7 @@ class AbstractArrivalPanel(Panel, ABC):
         self.arrivals = arrivals
 
     def render(self, image_width, image_height) -> Image.Image:
-        img = Image.new("RGBA", (230, 275), (255, 255, 255, 0))
+        img = Image.new("RGBA", (image_width, image_height), (255, 255, 255, 0))
         draw = ImageDraw.Draw(img)
         draw.font = TFL_FONT_15
         draw.rounded_rectangle((0, 0, img.size[0], 20), 10, "black")
@@ -36,8 +36,8 @@ class AbstractArrivalPanel(Panel, ABC):
         d = ImageDraw.Draw(img)
         d.circle((radius, radius), radius, "black")
         d.text((radius, radius), route, "white", font=TFL_FONT_12, anchor="mm")
-        d.text((35, radius), destination, "black", font=TFL_MEDIUM_FONT_12, anchor="lm")
-        d.text((img.size[0], radius), eta, "black", font=TFL_MEDIUM_FONT_12, anchor="rm")
+        d.text((30, radius), destination, "black", font=TFL_MEDIUM_FONT_16, anchor="lm")
+        d.text((img.size[0], radius), eta, "black", font=TFL_MEDIUM_FONT_16, anchor="rm")
         return img
 
     @staticmethod
