@@ -27,10 +27,10 @@ HTML_TEMPLATE = """
 def settings():
     config = config_manager.load_config()
     if request.method == "POST":
-        config["postcode"] = request.form.get("postcode", "").strip()
+        config.postcode = request.form.get("postcode", "").strip()
         # Parse comma-separated stop IDs into a clean list
         raw_stops = request.form.get("stop_ids", "")
-        # config[Mode.BUS]["stop_ids"] = [s.strip() for s in raw_stops.split(",") if s.strip()]
+        config.bus.stop_ids = [s.strip() for s in raw_stops.split(",") if s.strip()]
         config_manager.save_config(config)
         return redirect("/")
 

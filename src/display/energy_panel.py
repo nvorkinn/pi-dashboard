@@ -21,8 +21,8 @@ class EnergyPanel(Panel):
         self.readings_month = readings_month
         self.readings_year = readings_year
 
-    def render(self) -> Image.Image:
-        img = Image.new("L", (TOTAL_WIDTH, 200), "white")
+    def render(self, image_width: int, image_height: int) -> Image.Image:
+        img = Image.new("L", (image_width, image_height), "white")
 
         now = datetime.now()
         today_header = now.strftime("%-d %B %Y")

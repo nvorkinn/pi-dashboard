@@ -4,27 +4,19 @@ from PIL import Image, ImageDraw
 
 from countdown.models import TubeArrival, MetroStopPoint
 from display.abstract_arrival_panel import AbstractArrivalPanel
-from display.utils import TFL_FONT_15, ROUNDEL, TFL_MEDIUM_FONT_10
+from display.utils import ROUNDEL, TFL_MEDIUM_FONT_10
 
 class TubeArrivalPanel(AbstractArrivalPanel):
     def __init__(self, stop: MetroStopPoint, arrivals: list[TubeArrival]):
-        super().__init__()
+        super().__init__([a for a in arrivals if a.naptan_id != a.destination_naptan_id])
         self.stop = stop
-        # Remove arrivals that are going to the same station as the stop
-        self.arrivals = [a for a in arrivals if a.naptan_id != a.destination_naptan_id]
 
-    def render(self) -> Image.Image:
-        img = Image.new("RGBA", (230, 275), (255, 255, 255, 0))
-        draw = ImageDraw.Draw(img)
-        draw.font = TFL_FONT_15
-        draw.rounded_rectangle((0, 0, img.size[0], 20), 10, "black")
+    def add_header(self, img: Image.Image, draw: ImageDraw.ImageDraw) -> None:
         img.paste(ROUNDEL, (5, 2), ROUNDEL)
         station = self.stop.common_name.removesuffix(" Underground Station")
         draw.text((10 + ROUNDEL.size[0], 10), station, "white", anchor="lm")
-        img.paste(self._create_panel_for_tube_arrivals(self.arrivals, img.size[0], img.size[1] - 25), (0, 25))
-        return img
 
-    def _create_panel_for_tube_arrivals(self, arrivals: list[TubeArrival], max_x: int, max_y: int) -> Image.Image:
+    def _create_panel_for_arrivals(self, arrivals: list[TubeArrival], max_x: int, max_y: int) -> Image.Image:
         img = Image.new("RGBA", (max_x, max_y), (255, 255, 255, 0))
         draw = ImageDraw.Draw(img)
         draw.font = TFL_MEDIUM_FONT_10
