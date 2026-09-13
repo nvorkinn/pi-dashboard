@@ -1,9 +1,12 @@
-from collections import defaultdict
-from typing import Tuple, Any
+from typing import Tuple
 import requests
 from pydantic import TypeAdapter
 
-from countdown.models import Arrival, StopPointResponse, StopPoint, Mode
+from countdown.models import StopPointResponse, StopPoint, Mode, ArrivalUnion, StopPointUnion, SingleStopPoint, \
+    MetroStopPoint
+from display.abstract_arrival_panel import AbstractArrivalPanel
+from display.bus_arrival_panel import BusArrivalPanel
+from display.tube_arrival_panel import TubeArrivalPanel
 
 PARAMS = {"app_key": "84cd47599291449091f5cc9a5b747c6d"}  # Optional, but increases rate limits
 
@@ -40,38 +43,68 @@ def _is_stop_in_right_direction(stop: StopPoint, desired_direction: str | None) 
             return additional_property.value == desired_direction
     return True # If there is no CompassPoint, include it
 
+def _find_stop_child(stop: StopPoint, naptan_id: str) -> SingleStopPoint | MetroStopPoint | None:
+    if stop.naptan_id == naptan_id and (isinstance(stop, SingleStopPoint) or isinstance(stop, MetroStopPoint)):
+        return stop
+    for child in stop.children:
+        grandchild = _find_stop_child(child, naptan_id)
+        if grandchild is not None:
+            return grandchild
+    return None
+
 class TflClient:
-    stop_ids = {
-        Mode.BUS: [],
-        Mode.TUBE: []
-    }
+    stops: list[SingleStopPoint | MetroStopPoint] = []
+    current_stop = 0
 
     def __init__(self, config: dict):
-        for mode in Mode:
+        stop_ids = []
+        for mode in [Mode.BUS, Mode.TUBE]:
             if "stop_ids" in config[mode]:
-                self.stop_ids[mode].extend(config[mode]['stop_ids'])
+                stop_ids.extend(config[mode]['stop_ids'])
             if "postcode" in config[mode]:
                 lat, lon = _get_lat_and_lon(config[mode]['postcode'])
                 nearest_stops = _get_nearest_stops(lat, lon, config[mode].get("compass_point"))
-                self.stop_ids[mode].extend(nearest_stops)
+                stop_ids.extend(nearest_stops)
             # else:
             #     raise ValueError(f"No stop_ids or postcode set in config for {mode}")
         self.session = requests.Session()
+        self.init_stops(stop_ids)
 
-    def get_next_departures(self, show_bus: bool) -> list[Any]:
-        dep_groups = []
-        arrivals_type_adapter = TypeAdapter(list[Arrival])
-        mode = Mode.BUS if show_bus else Mode.TUBE
-        for stop_id in self.stop_ids[mode]:
-            response = self.session.get(f"https://api.tfl.gov.uk/StopPoint/{stop_id}/Arrivals", params=PARAMS)
+    def init_stops(self, stop_ids: list[str]) -> None:
+        for stop_id in stop_ids:
+            info = self._get_stop_info(stop_id)
+            if info is None:
+                raise ValueError(f"Stop ID {stop_id} not found in TfL API")
+            self.stops.append(info)
+
+    def _get_stop_info(self, stop_id: str) -> SingleStopPoint | MetroStopPoint | None:
+        response = self.session.get(f"https://api.tfl.gov.uk/StopPoint/{stop_id}")
+        response.raise_for_status()
+        json = response.json()
+        info = TypeAdapter(StopPointUnion).validate_python(json)
+        return _find_stop_child(info, stop_id)
+
+    def _get_next_stop(self) -> SingleStopPoint | MetroStopPoint:
+        if not self.stops:
+            raise ValueError("No stops initialised")
+        stop = self.stops[self.current_stop]
+        self.current_stop += 1
+        if self.current_stop >= len(self.stops):
+            self.current_stop = 0
+        return stop
+
+    def get_next_departures(self) -> list[AbstractArrivalPanel]:
+        stop_and_arrivals = []
+        for stop in [self._get_next_stop(), self._get_next_stop()]:
+            response = self.session.get(f"https://api.tfl.gov.uk/StopPoint/{stop.naptan_id}/Arrivals", params=PARAMS)
             response.raise_for_status()
             json = response.json()
-            arrivals = arrivals_type_adapter.validate_python(json)
-            if not arrivals:
-                continue
+            arrivals = TypeAdapter(list[ArrivalUnion]).validate_python(json)
             sortd = sorted(arrivals, key=lambda x: x.time_to_station)
-            if mode == Mode.BUS:
-                dep_groups.append((Mode.BUS, sortd, sortd[0].station, stop_id[-1]))
-            elif mode == Mode.TUBE:
-                dep_groups.append((Mode.TUBE, sortd, sortd[0].station.removesuffix(" Underground Station")))
-        return sorted(dep_groups, reverse=True, key=lambda x : len(x[1]))
+            if isinstance(stop, SingleStopPoint):
+                stop_and_arrivals.append(BusArrivalPanel(stop, sortd))
+            elif isinstance(stop, MetroStopPoint):
+                stop_and_arrivals.append(TubeArrivalPanel(stop, sortd))
+            else:
+                raise ValueError(f"Unsupported mode: {stop.modes[0]}")
+        return stop_and_arrivals

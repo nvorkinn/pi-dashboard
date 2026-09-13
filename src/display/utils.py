@@ -5,6 +5,7 @@ TOTAL_HEIGHT = 480
 
 TFL_FONT_12 = ImageFont.truetype('resources/fonts/Johnston100-Regular.ttf', 12)
 TFL_FONT_15 = ImageFont.truetype('resources/fonts/Johnston100-Regular.ttf', 15)
+TFL_MEDIUM_FONT_10 = ImageFont.truetype('resources/fonts/Johnston100-Medium.ttf', 10)
 HELVETICA = ImageFont.truetype('resources/fonts/Helvetica.ttf', 11)
 
 def add_border(img: Image.Image) -> None:

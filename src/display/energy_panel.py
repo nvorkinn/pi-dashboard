@@ -4,6 +4,7 @@ from datetime import datetime
 from PIL import Image, ImageDraw
 from math import ceil
 
+from display.panel import Panel
 from display.utils import TOTAL_WIDTH
 
 width = ceil(TOTAL_WIDTH / 3)
@@ -13,178 +14,200 @@ margin_right = 30
 margin_top = 40
 margin_bottom = 40
 
-def _create_day_panel(header: str, data: list[float]) -> Image.Image:
-    image = Image.new("RGB", (width, height), "white")
-    draw = ImageDraw.Draw(image)
+class EnergyPanel(Panel):
+    def __init__(self, readings_day: list[float] | None, readings_month: list[float] | None, readings_year: list[float] | None):
+        super().__init__()
+        self.readings_day = readings_day
+        self.readings_month = readings_month
+        self.readings_year = readings_year
 
-    draw.text((image.size[0] / 2, margin_top - 22), header, anchor="ma", fill="#333333")
+    def render(self) -> Image.Image:
+        img = Image.new("L", (TOTAL_WIDTH, 200), "white")
 
-    chart_width = width - margin_left - margin_right
-    chart_height = height - margin_top - margin_bottom
+        now = datetime.now()
+        today_header = now.strftime("%-d %B %Y")
+        month_name = now.strftime("%B")
+        year = now.strftime("%Y")
 
-    max_val = max(data) if data and max(data) > 0 else 1.0
+        img.paste(self._create_day_panel(today_header, self.readings_day), (0, 0))
+        img.paste(self._create_month_panel(month_name, self.readings_month), (width, 0))
+        img.paste(self._create_year_panel(year, self.readings_year), (width * 2, 0))
+        return img
 
-    # Draw axes
-    baseline_y = height - margin_bottom
-    draw.line([(margin_left, baseline_y), (width - margin_right, baseline_y)], fill="#333333", width=2)  # X-axis
-    draw.line([(margin_left, margin_top), (margin_left, baseline_y)], fill="#333333", width=2)  # Y-axis
+    @staticmethod
+    def _create_day_panel(header: str, data: list[float] | None) -> Image.Image:
+        image = Image.new("RGB", (width, height), "white")
+        draw = ImageDraw.Draw(image)
 
-    # Y-axis label
-    draw.text((margin_left - 10, margin_top - 22), "kWh", fill="#333333")
+        draw.text((image.size[0] / 2, margin_top - 22), header, anchor="ma", fill="#333333")
 
-    # Y-axis ticks, gridlines, and numerical labels (3 tiers: 0, midpoint, max)
-    num_ticks = 3
-    for i in range(num_ticks):
-        val_fraction = i / (num_ticks - 1)
-        tick_y = baseline_y - (chart_height * val_fraction)
-        tick_val = max_val * val_fraction
+        if data is None:
+            draw.text((image.size[0] / 2, height / 2), "Connecting...", anchor="ma", fill="#333333")
+            return image
 
-        # Draw faint horizontal grid line across the plot area
-        if i > 0:
-            draw.line([(margin_left, tick_y), (width - margin_right, tick_y)], fill="#E5E5E5", width=1)
+        chart_width = width - margin_left - margin_right
+        chart_height = height - margin_top - margin_bottom
 
-        # Draw numerical label
-        label = f"{tick_val:.1f}"
-        draw.text((margin_left - 30, tick_y - 6), label, fill="#666666")
+        max_val = max(data) if data and max(data) > 0 else 1.0
 
-    # Calculate widths for 24 hourly columns
-    num_bars = len(data)
-    slot_width = chart_width / num_bars
-    bar_width = slot_width * 0.75  # leaves a small gap between columns
+        # Draw axes
+        baseline_y = height - margin_bottom
+        draw.line([(margin_left, baseline_y), (width - margin_right, baseline_y)], fill="#333333", width=2)  # X-axis
+        draw.line([(margin_left, margin_top), (margin_left, baseline_y)], fill="#333333", width=2)  # Y-axis
 
-    label_modulo = 3 if len(data) <= 15 else 5
+        # Y-axis label
+        draw.text((margin_left - 10, margin_top - 22), "kWh", fill="#333333")
 
-    for i, val in enumerate(data):
-        bar_height = (val / max_val) * chart_height
+        # Y-axis ticks, gridlines, and numerical labels (3 tiers: 0, midpoint, max)
+        num_ticks = 3
+        for i in range(num_ticks):
+            val_fraction = i / (num_ticks - 1)
+            tick_y = baseline_y - (chart_height * val_fraction)
+            tick_val = max_val * val_fraction
 
-        x0 = margin_left + (i * slot_width) + (slot_width - bar_width) / 2
-        y0 = baseline_y - bar_height
-        x1 = x0 + bar_width
-        y1 = baseline_y
+            # Draw faint horizontal grid line across the plot area
+            if i > 0:
+                draw.line([(margin_left, tick_y), (width - margin_right, tick_y)], fill="#E5E5E5", width=1)
 
-        # Draw the energy column
-        draw.rectangle([x0, y0, x1, y1], fill="#2A7B9B")
+            # Draw numerical label
+            label = f"{tick_val:.1f}"
+            draw.text((margin_left - 30, tick_y - 6), label, fill="#666666")
 
-        # Add hour labels every 3 hours
-        if i % label_modulo == 0:
-            time_label = f"{i:02d}:00"
-            draw.text((x0, baseline_y + 8), time_label, fill="#666666")
+        # Calculate widths for 24 hourly columns
+        num_bars = len(data)
+        slot_width = chart_width / num_bars
+        bar_width = slot_width * 0.75  # leaves a small gap between columns
 
-    return image
+        label_modulo = 3 if len(data) <= 15 else 5
 
-def _create_month_panel(month: str, data):
-    image = Image.new("RGB", (width, height), "white")
-    draw = ImageDraw.Draw(image)
+        for i, val in enumerate(data):
+            bar_height = (val / max_val) * chart_height
 
-    chart_width = width - margin_left - margin_right
-    chart_height = height - margin_top - margin_bottom
+            x0 = margin_left + (i * slot_width) + (slot_width - bar_width) / 2
+            y0 = baseline_y - bar_height
+            x1 = x0 + bar_width
+            y1 = baseline_y
 
-    draw.text((image.size[0] / 2, margin_top - 22), month, anchor="ma", fill="#333333")
+            # Draw the energy column
+            draw.rectangle([x0, y0, x1, y1], fill="#2A7B9B")
 
-    max_val = max(data) if data and max(data) > 0 else 1.0
+            # Add hour labels every 3 hours
+            if i % label_modulo == 0:
+                time_label = f"{i:02d}:00"
+                draw.text((x0, baseline_y + 8), time_label, fill="#666666")
 
-    baseline_y = height - margin_bottom
-    draw.line([(margin_left, baseline_y), (width - margin_right, baseline_y)], fill="#333333", width=2)  # X-axis
-    draw.line([(margin_left, margin_top), (margin_left, baseline_y)], fill="#333333", width=2)  # Y-axis
+        return image
 
-    draw.text((margin_left - 10, margin_top - 22), "kWh", fill="#333333")
+    @staticmethod
+    def _create_month_panel(month: str, data: list[float] | None):
+        image = Image.new("RGB", (width, height), "white")
+        draw = ImageDraw.Draw(image)
 
-    # Y-axis ticks, gridlines, and numerical labels
-    num_ticks = 3
-    for i in range(num_ticks):
-        val_fraction = i / (num_ticks - 1)
-        tick_y = baseline_y - (chart_height * val_fraction)
-        tick_val = max_val * val_fraction
+        chart_width = width - margin_left - margin_right
+        chart_height = height - margin_top - margin_bottom
 
-        if i > 0:
-            draw.line([(margin_left, tick_y), (width - margin_right, tick_y)], fill="#E5E5E5", width=1)
+        draw.text((image.size[0] / 2, margin_top - 22), month, anchor="ma", fill="#333333")
 
-        label = f"{tick_val:.1f}"
-        draw.text((margin_left - 30, tick_y - 6), label, fill="#666666")
+        if data is None:
+            draw.text((image.size[0] / 2, height / 2), "Connecting...", anchor="ma", fill="#333333")
+            return image
 
-    # Calculate widths for up to 31 daily columns
-    num_bars = len(data)
-    slot_width = chart_width / num_bars
-    bar_width = slot_width * 0.75  # leaves a small gap between columns
+        max_val = max(data) if data and max(data) > 0 else 1.0
 
-    label_modulo = 1 if len(data) <= 15 else 5
+        baseline_y = height - margin_bottom
+        draw.line([(margin_left, baseline_y), (width - margin_right, baseline_y)], fill="#333333", width=2)  # X-axis
+        draw.line([(margin_left, margin_top), (margin_left, baseline_y)], fill="#333333", width=2)  # Y-axis
 
-    for i, val in enumerate(data):
-        bar_height = (val / max_val) * chart_height
+        draw.text((margin_left - 10, margin_top - 22), "kWh", fill="#333333")
 
-        x0 = margin_left + (i * slot_width) + (slot_width - bar_width) / 2
-        y0 = baseline_y - bar_height
-        x1 = x0 + bar_width
-        y1 = baseline_y
+        # Y-axis ticks, gridlines, and numerical labels
+        num_ticks = 3
+        for i in range(num_ticks):
+            val_fraction = i / (num_ticks - 1)
+            tick_y = baseline_y - (chart_height * val_fraction)
+            tick_val = max_val * val_fraction
 
-        draw.rectangle([x0, y0, x1, y1], fill="#2A7B9B")
+            if i > 0:
+                draw.line([(margin_left, tick_y), (width - margin_right, tick_y)], fill="#E5E5E5", width=1)
 
-        # Add day-of-the-month labels on day 1 and every 5 days to prevent clutter
-        day_num = i + 1
-        if day_num == 1 or day_num % label_modulo == 0:
-            draw.text(((x0 + x1) / 2, baseline_y + 8), str(day_num), anchor="ma", fill="#666666")
+            label = f"{tick_val:.1f}"
+            draw.text((margin_left - 30, tick_y - 6), label, fill="#666666")
 
-    return image
+        # Calculate widths for up to 31 daily columns
+        num_bars = len(data)
+        slot_width = chart_width / num_bars
+        bar_width = slot_width * 0.75  # leaves a small gap between columns
 
-def _create_year_panel(year: str, data):
-    image = Image.new("RGB", (width, height), "white")
-    draw = ImageDraw.Draw(image)
+        label_modulo = 1 if len(data) <= 15 else 5
 
-    chart_width = width - margin_left - margin_right
-    chart_height = height - margin_top - margin_bottom
+        for i, val in enumerate(data):
+            bar_height = (val / max_val) * chart_height
 
-    draw.text((image.size[0] / 2, margin_top - 22), year, anchor="ma", fill="#333333")
+            x0 = margin_left + (i * slot_width) + (slot_width - bar_width) / 2
+            y0 = baseline_y - bar_height
+            x1 = x0 + bar_width
+            y1 = baseline_y
 
-    max_val = max(data) if data and max(data) > 0 else 1.0
+            draw.rectangle([x0, y0, x1, y1], fill="#2A7B9B")
 
-    baseline_y = height - margin_bottom
-    draw.line([(margin_left, baseline_y), (width - margin_right, baseline_y)], fill="#333333", width=2)  # X-axis
-    draw.line([(margin_left, margin_top), (margin_left, baseline_y)], fill="#333333", width=2)  # Y-axis
+            # Add day-of-the-month labels on day 1 and every 5 days to prevent clutter
+            day_num = i + 1
+            if day_num == 1 or day_num % label_modulo == 0:
+                draw.text(((x0 + x1) / 2, baseline_y + 8), str(day_num), anchor="ma", fill="#666666")
 
-    draw.text((margin_left - 10, margin_top - 22), "kWh", fill="#333333")
+        return image
 
-    # Y-axis ticks, gridlines, and numerical labels
-    num_ticks = 3
-    for i in range(num_ticks):
-        val_fraction = i / (num_ticks - 1)
-        tick_y = baseline_y - (chart_height * val_fraction)
-        tick_val = max_val * val_fraction
+    @staticmethod
+    def _create_year_panel(year: str, data: list[float] | None):
+        image = Image.new("RGB", (width, height), "white")
+        draw = ImageDraw.Draw(image)
 
-        if i > 0:
-            draw.line([(margin_left, tick_y), (width - margin_right, tick_y)], fill="#E5E5E5", width=1)
+        chart_width = width - margin_left - margin_right
+        chart_height = height - margin_top - margin_bottom
 
-        label = f"{tick_val:.1f}"
-        draw.text((margin_left - 30, tick_y - 6), label, fill="#666666")
+        draw.text((image.size[0] / 2, margin_top - 22), year, anchor="ma", fill="#333333")
 
-    # Calculate widths for up to 31 daily columns
-    num_bars = len(data)
-    slot_width = chart_width / num_bars
-    bar_width = slot_width * 0.75  # leaves a small gap between columns
+        if data is None:
+            draw.text((image.size[0] / 2, height / 2), "Connecting...", anchor="ma", fill="#333333")
+            return image
 
-    for i, val in enumerate(data):
-        bar_height = (val / max_val) * chart_height
+        max_val = max(data) if data and max(data) > 0 else 1.0
 
-        x0 = margin_left + (i * slot_width) + (slot_width - bar_width) / 2
-        y0 = baseline_y - bar_height
-        x1 = x0 + bar_width
-        y1 = baseline_y
+        baseline_y = height - margin_bottom
+        draw.line([(margin_left, baseline_y), (width - margin_right, baseline_y)], fill="#333333", width=2)  # X-axis
+        draw.line([(margin_left, margin_top), (margin_left, baseline_y)], fill="#333333", width=2)  # Y-axis
 
-        draw.rectangle([x0, y0, x1, y1], fill="#2A7B9B")
+        draw.text((margin_left - 10, margin_top - 22), "kWh", fill="#333333")
 
-        label = calendar.month_name[i + 1][0]
-        draw.text(((x0 + x1) / 2, baseline_y + 8), label, anchor="ma", fill="#666666")
+        # Y-axis ticks, gridlines, and numerical labels
+        num_ticks = 3
+        for i in range(num_ticks):
+            val_fraction = i / (num_ticks - 1)
+            tick_y = baseline_y - (chart_height * val_fraction)
+            tick_val = max_val * val_fraction
 
-    return image
+            if i > 0:
+                draw.line([(margin_left, tick_y), (width - margin_right, tick_y)], fill="#E5E5E5", width=1)
 
-def build_energy_panel(readings: tuple[list[float], list[float], list[float]]) -> Image.Image:
-    img = Image.new("L", (TOTAL_WIDTH, 200), "white")
+            label = f"{tick_val:.1f}"
+            draw.text((margin_left - 30, tick_y - 6), label, fill="#666666")
 
-    now = datetime.now()
-    today_header = now.strftime("%-d %B %Y")
-    month_name = now.strftime("%B")
-    year = now.strftime("%Y")
+        # Calculate widths for up to 31 daily columns
+        num_bars = len(data)
+        slot_width = chart_width / num_bars
+        bar_width = slot_width * 0.75  # leaves a small gap between columns
 
-    img.paste(_create_day_panel(today_header, readings[0]), (0, 0))
-    img.paste(_create_month_panel(month_name, readings[1]), (width, 0))
-    img.paste(_create_year_panel(year, readings[2]), (width * 2, 0))
-    return img
+        for i, val in enumerate(data):
+            bar_height = (val / max_val) * chart_height
+
+            x0 = margin_left + (i * slot_width) + (slot_width - bar_width) / 2
+            y0 = baseline_y - bar_height
+            x1 = x0 + bar_width
+            y1 = baseline_y
+
+            draw.rectangle([x0, y0, x1, y1], fill="#2A7B9B")
+
+            label = calendar.month_name[i + 1][0]
+            draw.text(((x0 + x1) / 2, baseline_y + 8), label, anchor="ma", fill="#666666")
+
+        return image
