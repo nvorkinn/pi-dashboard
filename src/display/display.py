@@ -25,7 +25,7 @@ class DisplayController:
                        current_track: dict[str, str] | None, weather_panel: WeatherPanel) -> None:
         img = Image.new("RGBA", (TOTAL_WIDTH, TOTAL_HEIGHT), (255, 255, 255, 255))
 
-        # Departures
+        # Arrivals
         bus_stop_panel = arrival_panel.render(TOTAL_WIDTH, 275)
         img.paste(bus_stop_panel, (5, 5), bus_stop_panel)
 
@@ -59,7 +59,7 @@ class DisplayController:
                        current_track: dict[str, str] | None, weather_panel: WeatherPanel | None) -> None:
         img = Image.new("RGBA", (TOTAL_WIDTH, TOTAL_HEIGHT), (255, 255, 255, 255))
 
-        # Departures
+        # Arrivals
         bus_stop_panel = arrival_panel.render(TOTAL_WIDTH, 275)
         img.paste(bus_stop_panel, (5, 5), bus_stop_panel)
 

@@ -11,7 +11,7 @@ TFL_API_BASE = "https://api.tfl.gov.uk"
 
 def _get_tfl_params() -> dict[str, str]:
     config = config_manager.load_config()
-    return {"app_key": config.tfl_api_app_key} if config.tfl_api_app_key else {}
+    return {"app_key": config.tfl.app_key} if config.tfl.app_key else {}
 
 
 def _resolve_stop_info(stop_id: str, session: requests.Session) -> dict[str, Any] | None:
@@ -136,7 +136,7 @@ def index():
         # Form submitted to update stops and settings
         raw_stops = request.form.get("stops_order", "")
         stop_ids = [s.strip() for s in raw_stops.split(",") if s.strip()]
-        config.stops = stop_ids
+        config.tfl.stop_ids = stop_ids
 
         interval_val = request.form.get("interval", "10").strip()
         if interval_val.isdigit() and int(interval_val) > 0:
@@ -154,7 +154,7 @@ def index():
 
     # Resolve existing stops to display details
     session = requests.Session()
-    existing_stop_ids = config.stops if config.stops else (config.bus.stop_ids + config.tube.stop_ids)
+    existing_stop_ids = config.tfl.stop_ids
     resolved_stops = []
     for sid in existing_stop_ids:
         info = _resolve_stop_info(sid, session)
@@ -525,7 +525,7 @@ HTML_TEMPLATE = """
             <!-- Ordered Stops List -->
             <div class="card">
                 <div class="card-header">
-                    <h2 class="card-title">Configured Departure Stops</h2>
+                    <h2 class="card-title">Configured Arrival Stops</h2>
                     <p class="card-subtitle">The display shows 2 stops at a time and cycles through this list on each refresh cycle.</p>
                 </div>
 
