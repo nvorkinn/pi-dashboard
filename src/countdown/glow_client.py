@@ -1,10 +1,11 @@
-from datetime import datetime
+from datetime import datetime, timedelta
 
 import requests
 from math import floor
 
 from pydantic import TypeAdapter
 
+from countdown.config_manager import AppConfig
 from countdown.models import Entity, Readings
 
 
@@ -19,12 +20,12 @@ def _get_utc_offset(now: datetime) -> str:
 class GlowClient:
     base_url = 'https://api.glowmarkt.com/api/v0-1'
     app_id = 'b0f1b774-a586-4f72-9edd-27ead8aa7a8d'
-    username = 'n.vorkinn@gmail.com'
-    password = 'mazzot-purze0-jyrQyf'
 
-    def __init__(self, _config: dict):
+    def __init__(self, config: AppConfig):
         self.session = requests.Session()
         self.token: str | None = None
+        self.username = config.glowmarkt.username
+        self.password = config.glowmarkt.password
 
     def _authenticate(self):
         """Internal method to fetch and store the session token."""
@@ -54,7 +55,7 @@ class GlowClient:
         }
 
         url = f"{self.base_url}{endpoint}"
-        response = requests.request(method, url, params=params, headers=headers)
+        response = requests.request(method, url, params=params, headers=headers, timeout=5)
 
         # Handle token expiration (HTTP 401 Unauthorized) gracefully
         if response.status_code == 401:
@@ -62,7 +63,7 @@ class GlowClient:
             if not self.token:
                 return None
             headers["token"] = self.token
-            response = requests.request(method, url, params=params, headers=headers)
+            response = requests.request(method, url, params=params, headers=headers, timeout=5)
 
         response.raise_for_status()
         return response.json()
@@ -78,11 +79,13 @@ class GlowClient:
 
     def get_day_readings(self, resource_id: str) -> list[float]:
         now = datetime.now()
-        start_of_today = now.replace(hour=0, minute=0, second=0, microsecond=0)
+        yesterday = now - timedelta(days=1)
+        start_of_yesterday = yesterday.replace(hour=0, minute=0, second=0, microsecond=0)
+        end_of_yesterday = yesterday.replace(hour=23, minute=59, second=59, microsecond=999999)
         params = {
             "period": "PT1H",
-            "from": start_of_today.isoformat(timespec="seconds"),
-            "to": now.isoformat(timespec="seconds"),
+            "from": start_of_yesterday.isoformat(timespec="seconds"),
+            "to": end_of_yesterday.isoformat(timespec="seconds"),
             "offset": _get_utc_offset(now),
             "function": "sum"
         }

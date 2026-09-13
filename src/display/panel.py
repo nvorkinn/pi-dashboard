@@ -7,5 +7,5 @@ class Panel(ABC):
         pass
 
     @abstractmethod
-    def render(self) -> Image.Image:
+    def render(self, image_width: int, image_height: int) -> Image.Image:
         raise NotImplementedError("Subclasses must implement the render method.")
