@@ -30,7 +30,7 @@ class AbstractArrivalPanel(Panel, ABC):
         raise NotImplementedError("Subclasses must implement the _create_panel_for_arrivals method.")
 
     @staticmethod
-    def _create_panel_for_stop_departure(route: str, destination: str, eta: str, max_x: int) -> Image.Image:
+    def _create_panel_for_stop_arrival(route: str, destination: str, eta: str, max_x: int) -> Image.Image:
         radius = 12
         img = Image.new("RGBA", (max_x, radius * 2 + 1), (255, 255, 255, 0))
         d = ImageDraw.Draw(img)

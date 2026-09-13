@@ -1,11 +1,11 @@
 from datetime import datetime, timedelta
 
-import requests
 from math import floor
 
 from pydantic import TypeAdapter
 
 from countdown.config_manager import AppConfig
+from countdown.http import DEFAULT_TIMEOUT, build_retrying_session
 from countdown.models import Entity, Readings
 
 
@@ -22,7 +22,7 @@ class GlowClient:
     app_id = 'b0f1b774-a586-4f72-9edd-27ead8aa7a8d'
 
     def __init__(self, config: AppConfig):
-        self.session = requests.Session()
+        self.session = build_retrying_session()
         self.token: str | None = None
         self.username = config.glowmarkt.username
         self.password = config.glowmarkt.password
@@ -35,7 +35,7 @@ class GlowClient:
             "password": self.password,
             "applicationId": self.app_id
         }
-        response = requests.post(url, json=payload)
+        response = self.session.post(url, json=payload, timeout=DEFAULT_TIMEOUT)
         response.raise_for_status()
 
         # Adjust key based on the actual Glowmarkt token response structure
@@ -55,7 +55,7 @@ class GlowClient:
         }
 
         url = f"{self.base_url}{endpoint}"
-        response = requests.request(method, url, params=params, headers=headers, timeout=5)
+        response = self.session.request(method, url, params=params, headers=headers, timeout=DEFAULT_TIMEOUT)
 
         # Handle token expiration (HTTP 401 Unauthorized) gracefully
         if response.status_code == 401:
@@ -63,7 +63,7 @@ class GlowClient:
             if not self.token:
                 return None
             headers["token"] = self.token
-            response = requests.request(method, url, params=params, headers=headers, timeout=5)
+            response = self.session.request(method, url, params=params, headers=headers, timeout=DEFAULT_TIMEOUT)
 
         response.raise_for_status()
         return response.json()

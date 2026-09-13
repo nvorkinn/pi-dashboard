@@ -22,19 +22,19 @@ class TubeArrivalPanel(AbstractArrivalPanel):
         draw.font = TFL_MEDIUM_FONT_10
         arrivals_by_line = self._categorise_arrivals_by_line(arrivals)
         y = 0
-        for line, departures in arrivals_by_line.items():
+        for line, line_arrivals in arrivals_by_line.items():
             if len(arrivals_by_line) > 1:
                 draw.text((0, y), line, "black", anchor="la")
                 y += 13
-            for departure in self._limit_arrivals_per_line(departures, len(arrivals_by_line)):
-                arrival_string = self._get_time_text(departure.time_to_station // 60)
-                departure_panel = self._create_panel_for_stop_departure(
-                    departure.line[0], departure.towards, arrival_string, max_x)
-                departure_panel_bottom = y + departure_panel.size[1]
-                if departure_panel_bottom > img.size[1]:
+            for arrival in self._limit_arrivals_per_line(line_arrivals, len(arrivals_by_line)):
+                arrival_string = self._get_time_text(arrival.time_to_station // 60)
+                arrival_panel = self._create_panel_for_stop_arrival(
+                    arrival.line[0], arrival.towards, arrival_string, max_x)
+                arrival_panel_bottom = y + arrival_panel.size[1]
+                if arrival_panel_bottom > img.size[1]:
                     return img
-                img.paste(departure_panel, (0, y))
-                y = departure_panel_bottom + 3
+                img.paste(arrival_panel, (0, y))
+                y = arrival_panel_bottom + 3
         return img
 
     @staticmethod

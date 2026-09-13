@@ -26,6 +26,7 @@ def safe_fetch(func, fallback):
         print(f"Pydantic validation error: {e}")
         return fallback
 
+
 def main() -> None:
     config = config_manager.load_config()
     flask_thread = threading.Thread(
@@ -43,7 +44,7 @@ def main() -> None:
 
     signal.signal(signal.SIGINT, handle_shutdown)
     signal.signal(signal.SIGTERM, handle_shutdown)
-    tfl = TflClient(config)
+    tfl = TflClient(config.tfl)
     glow = GlowClient(config)
     spotify = SpotifyClient(config.spotify)
     weather = WeatherClient(config.weather)
@@ -54,18 +55,20 @@ def main() -> None:
         "year": None
     }
     energy_panel = current_track = weather_panel = None
-    page_count = tfl.get_page_count()
     page = 0
     while True:
         try:
-            arrival_panel = CombinedArrivalPanel(tfl.get_next_departures())
+            # Cheap: a no-op once stops are resolved, and self-heals by retrying
+            # setup here if an earlier attempt (initial or after a config change) failed.
+            page_count = tfl.get_page_count()
+            arrival_panel = CombinedArrivalPanel(tfl.get_next_arrivals())
             if page % page_count == 0:
                 energy["day"] = safe_fetch(lambda: glow.get_day_readings(resource_id), energy["day"])
                 energy["month"] = safe_fetch(lambda: glow.get_month_readings(resource_id), energy["month"])
                 energy["year"] = safe_fetch(lambda: glow.get_year_readings(resource_id), energy["year"])
                 energy_panel = EnergyPanel(energy["day"], energy["month"], energy["year"])
                 current_track = spotify.get_current_track()
-                weather_panel = weather.get_weather()
+                weather_panel = safe_fetch(lambda: weather.get_weather(), weather_panel)
                 display.display_screen(arrival_panel, energy_panel, current_track, weather_panel)
             else:
                 display.display_partial(arrival_panel, energy_panel, current_track, weather_panel)
@@ -77,8 +80,10 @@ def main() -> None:
         time.sleep(config.interval)
 
         if config_manager.has_changed():
-            new_config = config_manager.load_config()
-            tfl = TflClient(new_config)
+            # Building a fresh TflClient can never fail: construction does no network
+            # I/O, and stop resolution is retried lazily (and safely) on next use.
+            config = config_manager.load_config()
+            tfl = TflClient(config.tfl)
 
         page += 1
         if page == page_count:

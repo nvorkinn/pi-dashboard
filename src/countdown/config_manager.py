@@ -7,13 +7,10 @@ from pydantic_settings import (
     SettingsConfigDict,
 )
 
-class BusConfig(BaseModel):
-    postcode: str = Field(default="", pattern=r"^$|^([Gg][Ii][Rr] 0[Aa]{2})|((([A-Za-z][0-9]{1,2})|(([A-Za-z][A-Za-z][0-9]{1,2})|([A-Za-z][0-9][A-Za-z])|([A-Za-z][A-Za-z][0-9][A-Za-z]))) {0,1}[0-9][A-Za-z]{2})$")
-    compass_point: str = Field(default="", pattern=r"^$|^(N|S|E|W)$")
-    stop_ids: list[str] = Field(default=[])
-
-class TubeConfig(BaseModel):
-    stop_ids: list[str] = Field(default=[])
+class TflConfig(BaseModel):
+    app_key: str = Field(default="")
+    # Flat ordered list of NaPTAN stop IDs to cycle through on the display
+    stop_ids: list[str] = Field(default_factory=list)
 
 class SpotifyConfig(BaseModel):
     enabled: bool = Field(default=False)
@@ -37,11 +34,7 @@ class AppConfig(BaseSettings):
         extra="ignore",
     )
 
-    tfl_api_app_key: str = Field(default="")
-    # Flat ordered list of NaPTAN stop IDs to cycle through on the display
-    stops: list[str] = Field(default_factory=list)
-    bus: BusConfig = Field(default_factory=BusConfig)
-    tube: TubeConfig = Field(default_factory=TubeConfig)
+    tfl: TflConfig = Field(default_factory=TflConfig)
     interval: int = Field(default=15, gt=0, description="The interval in seconds between updates.")
     config_port: int = Field(default=4000, description="The port on which the config server will run.")
     spotify: SpotifyConfig = Field(default_factory=SpotifyConfig)
@@ -83,7 +76,7 @@ class ConfigManager:
 
     # Secrets live in .env only; never persist them to config.json.
     SECRET_FIELDS = {
-        "tfl_api_app_key": True,
+        "tfl": {"app_key"},
         "glowmarkt": True,
         "spotify": {"client_id", "client_secret"},
         "weather": {"api_key"},

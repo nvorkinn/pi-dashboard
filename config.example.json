@@ -1,11 +1,5 @@
 {
-    "stops": [],
-    "bus": {
-        "postcode": "",
-        "compass_point": "N",
-        "stop_ids": []
-    },
-    "tube": {
+    "tfl": {
         "stop_ids": []
     },
     "interval": 15,

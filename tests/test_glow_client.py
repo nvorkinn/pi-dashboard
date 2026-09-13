@@ -2,9 +2,11 @@ from datetime import datetime, timezone
 from unittest.mock import MagicMock
 
 import pytest
+from requests.adapters import HTTPAdapter
 
 from countdown.config_manager import AppConfig
 from countdown.glow_client import GlowClient, _get_utc_offset
+from countdown.http import DEFAULT_TIMEOUT
 
 
 def make_client() -> GlowClient:
@@ -24,11 +26,24 @@ def test_authenticate_stores_token(monkeypatch):
     fake_response = MagicMock()
     fake_response.raise_for_status = MagicMock()
     fake_response.json.return_value = {"token": "abc123"}
-    monkeypatch.setattr("countdown.glow_client.requests.post", MagicMock(return_value=fake_response))
+    monkeypatch.setattr(client.session, "post", MagicMock(return_value=fake_response))
 
     client._authenticate()
 
     assert client.token == "abc123"
+
+
+def test_authenticate_passes_a_timeout(monkeypatch):
+    client = make_client()
+    fake_response = MagicMock()
+    fake_response.raise_for_status = MagicMock()
+    fake_response.json.return_value = {"token": "abc123"}
+    post_mock = MagicMock(return_value=fake_response)
+    monkeypatch.setattr(client.session, "post", post_mock)
+
+    client._authenticate()
+
+    assert post_mock.call_args.kwargs["timeout"] == DEFAULT_TIMEOUT
 
 
 def test_request_authenticates_lazily_once(monkeypatch):
@@ -37,19 +52,20 @@ def test_request_authenticates_lazily_once(monkeypatch):
     auth_response.raise_for_status = MagicMock()
     auth_response.json.return_value = {"token": "abc123"}
     post_mock = MagicMock(return_value=auth_response)
-    monkeypatch.setattr("countdown.glow_client.requests.post", post_mock)
+    monkeypatch.setattr(client.session, "post", post_mock)
 
     data_response = MagicMock()
     data_response.status_code = 200
     data_response.raise_for_status = MagicMock()
     data_response.json.return_value = {"ok": True}
     request_mock = MagicMock(return_value=data_response)
-    monkeypatch.setattr("countdown.glow_client.requests.request", request_mock)
+    monkeypatch.setattr(client.session, "request", request_mock)
 
     result = client._request("GET", "/some/endpoint")
 
     assert result == {"ok": True}
     post_mock.assert_called_once()
+    assert request_mock.call_args.kwargs["timeout"] == DEFAULT_TIMEOUT
 
 
 def test_request_reauthenticates_on_401(monkeypatch):
@@ -59,7 +75,7 @@ def test_request_reauthenticates_on_401(monkeypatch):
     auth_response = MagicMock()
     auth_response.raise_for_status = MagicMock()
     auth_response.json.return_value = {"token": "fresh-token"}
-    monkeypatch.setattr("countdown.glow_client.requests.post", MagicMock(return_value=auth_response))
+    monkeypatch.setattr(client.session, "post", MagicMock(return_value=auth_response))
 
     unauthorized_response = MagicMock()
     unauthorized_response.status_code = 401
@@ -71,13 +87,20 @@ def test_request_reauthenticates_on_401(monkeypatch):
     ok_response.json.return_value = {"ok": True}
 
     request_mock = MagicMock(side_effect=[unauthorized_response, ok_response])
-    monkeypatch.setattr("countdown.glow_client.requests.request", request_mock)
+    monkeypatch.setattr(client.session, "request", request_mock)
 
     result = client._request("GET", "/some/endpoint")
 
     assert result == {"ok": True}
     assert client.token == "fresh-token"
     assert request_mock.call_count == 2
+
+
+def test_session_has_retry_adapter_mounted():
+    client = make_client()
+    adapter = client.session.get_adapter("https://api.glowmarkt.com")
+    assert isinstance(adapter, HTTPAdapter)
+    assert adapter.max_retries.total == 3
 
 
 def test_get_electricity_resource_id_finds_electricity_entry(monkeypatch):

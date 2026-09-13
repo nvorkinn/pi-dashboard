@@ -1,4 +1,4 @@
-import pydantic
+from pydantic import BaseModel
 import requests
 
 from countdown.app import safe_fetch
@@ -16,8 +16,6 @@ def test_safe_fetch_returns_fallback_on_request_exception():
 
 
 def test_safe_fetch_returns_fallback_on_validation_error():
-    from pydantic import BaseModel
-
     class Model(BaseModel):
         value: int
 
