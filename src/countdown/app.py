@@ -2,6 +2,7 @@ import signal
 import sys
 import threading
 import time
+from dataclasses import dataclass, field
 
 import pydantic
 import requests
@@ -27,6 +28,47 @@ def safe_fetch(func, fallback):
         return fallback
 
 
+@dataclass
+class DisplayState:
+    """Holds everything that needs to survive between refresh cycles -- last-known
+    panels (so a failed fetch can keep showing stale-but-valid data) and the current
+    page for cycling through stops."""
+    page: int = 0
+    energy: dict = field(default_factory=lambda: {"day": None, "month": None, "year": None})
+    energy_panel: EnergyPanel | None = None
+    current_track: dict | None = None
+    weather_panel: object | None = None
+
+
+def run_display_cycle(
+    display: DisplayController,
+    tfl: TflClient,
+    glow: GlowClient,
+    resource_id: str,
+    spotify: SpotifyClient,
+    weather: WeatherClient,
+    state: DisplayState,
+) -> int:
+    """Render and push exactly one refresh cycle, mutating `state` in place with
+    whatever succeeded. Returns the current page count. Deliberately does not catch
+    anything itself -- the caller decides how to handle a cycle that failed outright."""
+    # Cheap: a no-op once stops are resolved, and self-heals by retrying setup here
+    # if an earlier attempt (initial or after a config change) failed.
+    page_count = tfl.get_page_count()
+    arrival_panel = CombinedArrivalPanel(tfl.get_next_arrivals())
+    if state.page % page_count == 0:
+        state.energy["day"] = safe_fetch(lambda: glow.get_day_readings(resource_id), state.energy["day"])
+        state.energy["month"] = safe_fetch(lambda: glow.get_month_readings(resource_id), state.energy["month"])
+        state.energy["year"] = safe_fetch(lambda: glow.get_year_readings(resource_id), state.energy["year"])
+        state.energy_panel = EnergyPanel(state.energy["day"], state.energy["month"], state.energy["year"])
+        state.current_track = spotify.get_current_track()
+        state.weather_panel = safe_fetch(lambda: weather.get_weather(), state.weather_panel)
+        display.display_screen(arrival_panel, state.energy_panel, state.current_track, state.weather_panel)
+    else:
+        display.display_partial(arrival_panel, state.energy_panel, state.current_track, state.weather_panel)
+    return page_count
+
+
 def main() -> None:
     config = config_manager.load_config()
     flask_thread = threading.Thread(
@@ -49,29 +91,11 @@ def main() -> None:
     spotify = SpotifyClient(config.spotify)
     weather = WeatherClient(config.weather)
     resource_id = glow.get_electricity_resource_id()
-    energy = {
-        "day": None,
-        "month": None,
-        "year": None
-    }
-    energy_panel = current_track = weather_panel = None
-    page = 0
+    state = DisplayState()
+    page_count = 1
     while True:
         try:
-            # Cheap: a no-op once stops are resolved, and self-heals by retrying
-            # setup here if an earlier attempt (initial or after a config change) failed.
-            page_count = tfl.get_page_count()
-            arrival_panel = CombinedArrivalPanel(tfl.get_next_arrivals())
-            if page % page_count == 0:
-                energy["day"] = safe_fetch(lambda: glow.get_day_readings(resource_id), energy["day"])
-                energy["month"] = safe_fetch(lambda: glow.get_month_readings(resource_id), energy["month"])
-                energy["year"] = safe_fetch(lambda: glow.get_year_readings(resource_id), energy["year"])
-                energy_panel = EnergyPanel(energy["day"], energy["month"], energy["year"])
-                current_track = spotify.get_current_track()
-                weather_panel = safe_fetch(lambda: weather.get_weather(), weather_panel)
-                display.display_screen(arrival_panel, energy_panel, current_track, weather_panel)
-            else:
-                display.display_partial(arrival_panel, energy_panel, current_track, weather_panel)
+            page_count = run_display_cycle(display, tfl, glow, resource_id, spotify, weather, state)
         except requests.exceptions.RequestException as e:
             print(f"Network error encountered: {e}")
         except Exception as e:
@@ -85,6 +109,6 @@ def main() -> None:
             config = config_manager.load_config()
             tfl = TflClient(config.tfl)
 
-        page += 1
-        if page == page_count:
-            page = 0
+        state.page += 1
+        if state.page == page_count:
+            state.page = 0
