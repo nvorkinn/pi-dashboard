@@ -1,6 +1,9 @@
 from datetime import datetime
 from typing import Any
+import sys
+sys.path.insert(1, "./lib")
 
+import epd7in5_V2
 from PIL import Image, ImageDraw
 
 from countdown.models import Arrival, Mode
@@ -9,7 +12,7 @@ from display.utils import add_border, TOTAL_WIDTH, TOTAL_HEIGHT
 from display.bus_panel import create_panel_for_station, build_tfl_panel
 from display.energy_panel import build_energy_panel
 
-def display_screen(departures: list[Any], readings: tuple[list[float], list[float], list[float]], current_track: dict[str, str] | None) -> None:
+def display_screen(epd: epd7in5_V2.EPD, departures: list[Any], readings: tuple[list[float], list[float], list[float]], current_track: dict[str, str] | None) -> None:
     img = Image.new("RGBA", (TOTAL_WIDTH, TOTAL_HEIGHT), (255, 255, 255, 255))
 
     # Departures
@@ -28,5 +31,5 @@ def display_screen(departures: list[Any], readings: tuple[list[float], list[floa
         draw.line((spotify_x, spotify_y - 5, TOTAL_WIDTH - 10, spotify_y - 5), fill="black")
 
     draw.text((2, TOTAL_HEIGHT - 2), f"Updated: {datetime.now().isoformat()}", "LightGray", anchor="ld")
-    add_border(img)
-    img.show()
+    print("About to display")
+    epd.display(epd.getbuffer(img))
