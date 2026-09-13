@@ -8,8 +8,8 @@ from pydantic_settings import (
 )
 
 class BusConfig(BaseModel):
-    postcode: str = Field(pattern=r"^([Gg][Ii][Rr] 0[Aa]{2})|((([A-Za-z][0-9]{1,2})|(([A-Za-z][A-Za-z][0-9]{1,2})|([A-Za-z][0-9][A-Za-z])|([A-Za-z][A-Za-z][0-9][A-Za-z]))) {0,1}[0-9][A-Za-z]{2})$")
-    compass_point: str = Field(pattern=r"^(N|S|E|W)$")
+    postcode: str = Field(default="", pattern=r"^$|^([Gg][Ii][Rr] 0[Aa]{2})|((([A-Za-z][0-9]{1,2})|(([A-Za-z][A-Za-z][0-9]{1,2})|([A-Za-z][0-9][A-Za-z])|([A-Za-z][A-Za-z][0-9][A-Za-z]))) {0,1}[0-9][A-Za-z]{2})$")
+    compass_point: str = Field(default="", pattern=r"^$|^(N|S|E|W)$")
     stop_ids: list[str] = Field(default=[])
 
 class TubeConfig(BaseModel):
@@ -19,7 +19,7 @@ class SpotifyConfig(BaseModel):
     enabled: bool = Field(default=False)
     client_id: str = Field(default="")
     client_secret: str = Field(default="")
-    redirect_uri: HttpUrl
+    redirect_uri: HttpUrl = Field(default=HttpUrl("http://127.0.0.1:8888/callback"))
 
 class WeatherConfig(BaseModel):
     api_key: str = Field(default="")
@@ -39,6 +39,8 @@ class AppConfig(BaseSettings):
     )
 
     tfl_api_app_key: str = Field(default="")
+    # Flat ordered list of NaPTAN stop IDs to cycle through on the display
+    stops: list[str] = Field(default_factory=list)
     bus: BusConfig = Field(default_factory=BusConfig)
     tube: TubeConfig = Field(default_factory=TubeConfig)
     interval: int = Field(default=15, gt=0, description="The interval in seconds between updates.")
@@ -83,7 +85,6 @@ class ConfigManager:
     def save_config(self, new_config: AppConfig):
         # Dump model while omitting sensitive credentials from being written to config.json
         dump = new_config.model_dump(mode="json", exclude={"glowmarkt"})
-        # Remove secrets if they were loaded via env so they don't persist back to config.json
         self.config_path.write_text(new_config.model_dump_json(indent=4, exclude={"glowmarkt"}))
 
 config_manager = ConfigManager()
