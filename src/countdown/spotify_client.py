@@ -9,7 +9,7 @@ class SpotifyClient:
         self.spotify = spotipy.Spotify(auth_manager=SpotifyOAuth(
         client_id=config.client_id,
         client_secret=config.client_secret,
-        redirect_uri=config.redirect_uri,
+        redirect_uri=str(config.redirect_uri),
         scope="user-read-currently-playing user-read-playback-state",
         cache_path=".spotify_token_cache",
         open_browser=False

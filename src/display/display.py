@@ -12,7 +12,7 @@ from display.utils import TOTAL_WIDTH, TOTAL_HEIGHT
 class DisplayController:
     def __init__(self):
         try:
-            sys.path.insert(1, "./lib")
+            sys.path.insert(1, "./src/display/lib")
             import epd7in5_V2
             self.display_enabled = True
             self.epd = epd7in5_V2.EPD()
@@ -93,4 +93,5 @@ class DisplayController:
             img.show()
 
     def shutdown(self) -> None:
-        self.epd.sleep()
+        if self.epd:
+            self.epd.sleep()
