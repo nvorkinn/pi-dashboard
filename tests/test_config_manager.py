@@ -1,20 +1,8 @@
 import json
 
-import pytest
-
 from countdown.config_manager import AppConfig, ConfigManager
 
-
-@pytest.fixture
-def isolated_cwd(tmp_path, monkeypatch):
-    """Run in an empty temp directory so no real .env/config.json leak into the test."""
-    monkeypatch.chdir(tmp_path)
-    for key in [
-        "TFL_API_APP_KEY", "WEATHER__API_KEY", "SPOTIFY__CLIENT_ID",
-        "SPOTIFY__CLIENT_SECRET", "GLOWMARKT__USERNAME", "GLOWMARKT__PASSWORD",
-    ]:
-        monkeypatch.delenv(key, raising=False)
-    return tmp_path
+# The `isolated_cwd` fixture used below is defined once, autouse, in tests/conftest.py.
 
 
 def test_defaults_with_no_env_or_json(isolated_cwd):
