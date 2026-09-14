@@ -21,5 +21,10 @@ class CombinedArrivalPanel(Panel):
             img.paste(rendered, (x, 0), rendered)
             x += rendered.size[0]
         bus_panel_bbox = img.getbbox()
-        cropped = img.crop(bus_panel_bbox)
-        return cropped
+        if bus_panel_bbox is None:
+            # No arrival panels to show (e.g. no stops configured yet) -- getbbox()
+            # returns None for a fully transparent image, and crop(None) means "the
+            # whole image" rather than "nothing", which would hand the caller a full-
+            # width panel instead of the empty one this size is supposed to signal.
+            return img.crop((0, 0, 0, image_height))
+        return img.crop(bus_panel_bbox)

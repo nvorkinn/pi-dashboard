@@ -22,7 +22,7 @@ class DisplayController:
             self.epd = None
 
     def display_screen(self, arrival_panel: CombinedArrivalPanel, energy_panel: EnergyPanel,
-                       current_track: dict[str, str] | None, weather_panel: WeatherPanel | None) -> None:
+                       current_track: dict[str, str] | None, weather_panel: WeatherPanel | None) -> Image.Image:
         img = Image.new("RGBA", (TOTAL_WIDTH, TOTAL_HEIGHT), (255, 255, 255, 255))
 
         # Arrivals
@@ -39,11 +39,13 @@ class DisplayController:
             spotify_y = TOTAL_HEIGHT - energy_panel.size[1] - spotify_panel.size[1]
             img.paste(spotify_panel, (spotify_x, spotify_y))
             draw.line((spotify_x, spotify_y - 5, TOTAL_WIDTH - 10, spotify_y - 5), fill="black")
-            weather_panel = weather_panel.render(TOTAL_WIDTH - spotify_x, spotify_y)
-            img.paste(weather_panel, (spotify_x - 5, 5), weather_panel)
+            if weather_panel:
+                rendered_weather = weather_panel.render(TOTAL_WIDTH - spotify_x, spotify_y)
+                img.paste(rendered_weather, (spotify_x - 5, 5), rendered_weather)
         else:
-            weather_panel = weather_panel.render(TOTAL_WIDTH - spotify_x, TOTAL_HEIGHT - energy_panel.size[1])
-            img.paste(weather_panel, (spotify_x - 5, 5), weather_panel)
+            if weather_panel:
+                rendered_weather = weather_panel.render(TOTAL_WIDTH - spotify_x, TOTAL_HEIGHT - energy_panel.size[1])
+                img.paste(rendered_weather, (spotify_x - 5, 5), rendered_weather)
 
         draw.text((2, TOTAL_HEIGHT - 2), f"Updated: {datetime.now().isoformat()}", "LightGray", anchor="ld")
 
@@ -55,8 +57,10 @@ class DisplayController:
         else:
             img.show()
 
+        return img
+
     def display_partial(self, arrival_panel: CombinedArrivalPanel, energy_panel: EnergyPanel | None,
-                       current_track: dict[str, str] | None, weather_panel: WeatherPanel | None) -> None:
+                       current_track: dict[str, str] | None, weather_panel: WeatherPanel | None) -> Image.Image:
         img = Image.new("RGBA", (TOTAL_WIDTH, TOTAL_HEIGHT), (255, 255, 255, 255))
 
         # Arrivals
@@ -98,6 +102,8 @@ class DisplayController:
             self.epd.sleep()
         else:
             img.show()
+
+        return img
 
     def shutdown(self) -> None:
         if self.epd:
