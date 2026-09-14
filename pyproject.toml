@@ -13,6 +13,7 @@ dependencies = [
     "pydantic-settings>=2.15.0",
     "pydantic-tfl-api>=3.1.0",
     "pyowm>=3.5.0",
+    "pytest-mock>=3.15.1",
     "requests>=2.32.5",
     "spidev>=3.8; sys_platform == 'linux'",
     "spotipy>=2.26.0",

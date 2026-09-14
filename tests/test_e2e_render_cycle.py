@@ -12,12 +12,20 @@ in the way TfL/Glowmarkt parsing is, so there's nothing gained by faking their t
 layer here, and it would only go stale the moment #24/#21 land.
 """
 import io
+import subprocess
+import unittest
+from os import system
+from typing import Any
 
+from unittest import mock
+from pytest_mock import MockFixture
 import responses
-from PIL import Image
+from PIL import Image, ImageChops
+from pathlib import Path
 
 from countdown.app import DisplayLoop
 from countdown.config_manager import AppConfig
+from display.display import DisplayController
 
 BUS_STOP_JSON = {
     "naptanId": "490000123W",
@@ -80,16 +88,20 @@ def _make_config() -> AppConfig:
     real SpotifyClient can't even be built without them -- dummy values are fine
     since Spotify is mocked at the method level anyway (see module docstring)."""
     config = AppConfig()
+    config.interval = 0 # Means we just run the loop
     config.spotify.client_id = "dummy-client-id"
     config.spotify.client_secret = "dummy-client-secret"
     return config
 
 
-def _build_loop(config: AppConfig, monkeypatch, spotify_track: dict | None) -> DisplayLoop:
+def _build_loop(config: AppConfig, monkeypatch, spotify_track: dict | None, show_callback = lambda self, *a, **kw: None, config_callback = None) -> DisplayLoop:
+    display = unittest.mock.MagicMock()
     loop = DisplayLoop(config)
     monkeypatch.setattr(loop.spotify, "get_current_track", lambda: spotify_track)
     monkeypatch.setattr(loop.weather, "get_weather", lambda: _StubWeatherPanel())
-    monkeypatch.setattr(Image.Image, "show", lambda self, *a, **kw: None)
+    monkeypatch.setattr(Image.Image, "show", show_callback)
+    if config_callback:
+        monkeypatch.setattr(loop, "reload_config_if_changed", config_callback)
     return loop
 
 
@@ -103,9 +115,9 @@ def test_full_render_cycle_without_spotify_track(isolated_cwd, monkeypatch):
     )
 
     loop = _build_loop(config, monkeypatch, spotify_track=None)
-    page_count = loop.run_cycle()
+    loop.run()
 
-    assert page_count == 1
+    assert loop.page_count == 1
     assert loop.energy["day"] == [1.5, 2.25]
     assert loop.current_track is None
     assert len(loop.tfl.stops) == 2
@@ -125,7 +137,7 @@ def test_full_render_cycle_with_spotify_track(isolated_cwd, monkeypatch):
         "song": "Test Song", "artist": "Test Artist", "album": "Test Album",
         "album_image": "https://example.com/album.jpg", "is_playing": True,
     })
-    loop.run_cycle()
+    loop.run()
 
     assert loop.current_track["song"] == "Test Song"
 
@@ -151,9 +163,21 @@ def test_partial_render_cycle_reuses_prior_state_without_refetching(isolated_cwd
         },
     )
 
-    loop = _build_loop(config, monkeypatch, spotify_track=None)
-    page_count = loop.run_cycle()
-    assert page_count == 2
+    images = []
+    def show(self, *a: Any, **kw: Any) -> None:
+        images.append(self)
+    def reload_config_if_changed(*a: Any, **kw: Any) -> None:
+        loop.interval = 0
+
+
+    # loop = _build_loop(config, monkeypatch, spotify_track={
+    #     "song": "Test Song", "artist": "Test Artist", "album": "Test Album",
+    #     "album_image": "https://example.com/album.jpg", "is_playing": True,
+    # }, show_callback=show, config_callback=reload_config_if_changed)
+    loop = _build_loop(config, monkeypatch, spotify_track=None, show_callback=show,
+                       config_callback=reload_config_if_changed)
+    loop.run()
+    assert loop.page_count == 2
     energy_after_first_cycle = dict(loop.energy)
 
     def glowmarkt_call_count() -> int:
@@ -161,9 +185,15 @@ def test_partial_render_cycle_reuses_prior_state_without_refetching(isolated_cwd
 
     loop.page = 1
     glow_calls_before = glowmarkt_call_count()
-    loop.run_cycle()
+    loop.run()
 
     # Partial refresh must not have hit Glowmarkt again -- only the arrival panels
     # (which do get refreshed every cycle) should have caused new requests.
     assert glowmarkt_call_count() == glow_calls_before
     assert loop.energy == energy_after_first_cycle
+
+    ni = Path(__file__).parent / "images/test_partial_render_cycle_reuses_prior_state_without_refetching1.png"
+    im1 = Image.open(ni)
+    im2 = images[0]
+    bbox = ImageChops.difference(im2, im1).getbbox()
+    assert bbox is None

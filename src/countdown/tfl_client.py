@@ -9,7 +9,6 @@ from display.abstract_arrival_panel import AbstractArrivalPanel
 from display.bus_arrival_panel import BusArrivalPanel
 from display.tube_arrival_panel import TubeArrivalPanel
 
-
 def _find_stop_child(stop: StopPoint, naptan_id: str) -> SingleStopPoint | MetroStopPoint | None:
     if stop.naptan_id == naptan_id and (isinstance(stop, SingleStopPoint) or isinstance(stop, MetroStopPoint)):
         return stop
@@ -31,13 +30,15 @@ class TflClient:
         self.params = {"app_key": config.app_key} if config.app_key else {}
         self.session = build_retrying_session()
 
-    def _ensure_stops(self) -> None:
+    def init(self) -> int:
         """Resolve self._config.stop_ids into self.stops if not already done. Safe to
         call repeatedly and safe to fail: self.stops is only ever assigned once fully
         built, so a failed attempt just leaves it empty for the next call to retry."""
-        if self.stops:
-            return
-        self.stops = self.init_stops(self._config.stop_ids)
+        if not self.stops:
+            self.stops = self.init_stops(self._config.stop_ids)
+        if not self.stops:
+            return 1
+        return ceil(len(self.stops) / 2)
 
     def init_stops(self, stop_ids: list[str]) -> list[SingleStopPoint | MetroStopPoint]:
         stops: list[SingleStopPoint | MetroStopPoint] = []
@@ -68,12 +69,7 @@ class TflClient:
             self.current_stop = 0
         return stop
 
-    def get_page_count(self) -> int:
-        self._ensure_stops()
-        return ceil(len(self.stops) / 2) if self.stops else 1
-
     def get_next_arrivals(self) -> list[AbstractArrivalPanel]:
-        self._ensure_stops()
         if not self.stops:
             return []
         stop_and_arrivals = []
