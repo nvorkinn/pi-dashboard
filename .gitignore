@@ -225,6 +225,11 @@ __marimo__/
 # Local runtime config (device-specific stops/settings; see config.example.json)
 config.json
 
+# Visual regression snapshot failures (actual render + diff, written on a mismatch;
+# see tests/conftest.py's `snapshot` fixture). The golden images themselves
+# (tests/images/*.png) are tracked.
+tests/images/_failures/
+
 # JetBrains IDE settings
 .idea/
 

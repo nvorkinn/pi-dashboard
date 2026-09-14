@@ -14,16 +14,11 @@ layer here, and it would only go stale the moment #24/#21 land.
 import io
 from typing import Any
 
-from unittest import mock
-
-import pytest
 import responses
 from PIL import Image
-from pathlib import Path
 
 from countdown.app import DisplayLoop
 from countdown.config_manager import AppConfig
-from test_utils import images_equal
 
 BUS_STOP_JSON = {
     "naptanId": "490000123W",
@@ -138,11 +133,13 @@ def test_full_render_cycle_with_spotify_track(isolated_cwd, monkeypatch):
 
     assert loop.current_track["song"] == "Test Song"
 
-@pytest.mark.skip
 @responses.activate
 def test_partial_render_cycle_reuses_prior_state_without_refetching(isolated_cwd, monkeypatch):
     """4 stops -> page_count=2, so page=1 lands on the partial-refresh branch, which
-    must reuse the previous cycle's energy/weather/track state rather than refetching."""
+    must reuse the previous cycle's energy/weather/track state rather than refetching.
+    (What a partial-refresh cycle actually looks like is covered separately as a
+    golden-image scenario in test_display_snapshots.py -- this test is purely about
+    the caching/refetch behaviour, not the rendered pixels.)"""
     config = _make_config()
     config.tfl.stop_ids = ["490000123W", "940GZZLUKNG", "490000456X", "940GZZLUABC"]
     _mock_tfl_and_glowmarkt(
@@ -160,19 +157,10 @@ def test_partial_render_cycle_reuses_prior_state_without_refetching(isolated_cwd
         },
     )
 
-    images = []
-    def show(self, *a: Any, **kw: Any) -> None:
-        images.append(self)
     def reload_config_if_changed(*a: Any, **kw: Any) -> None:
         loop.interval = 0
 
-
-    # loop = _build_loop(config, monkeypatch, spotify_track={
-    #     "song": "Test Song", "artist": "Test Artist", "album": "Test Album",
-    #     "album_image": "https://example.com/album.jpg", "is_playing": True,
-    # }, show_callback=show, config_callback=reload_config_if_changed)
-    loop = _build_loop(config, monkeypatch, spotify_track=None, show_callback=show,
-                       config_callback=reload_config_if_changed)
+    loop = _build_loop(config, monkeypatch, spotify_track=None, config_callback=reload_config_if_changed)
     loop.run()
     assert loop.page_count == 2
     energy_after_first_cycle = dict(loop.energy)
@@ -188,10 +176,3 @@ def test_partial_render_cycle_reuses_prior_state_without_refetching(isolated_cwd
     # (which do get refreshed every cycle) should have caused new requests.
     assert glowmarkt_call_count() == glow_calls_before
     assert loop.energy == energy_after_first_cycle
-
-    path = Path(__file__).parent / "images/test_partial_render_cycle_reuses_prior_state_without_refetching1.png"
-    print(f"Path to file is: {path}")
-    on_file = Image.open(path)
-    on_file.load()
-    on_file.show()
-    assert images_equal(on_file, images[0])
