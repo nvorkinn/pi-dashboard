@@ -67,28 +67,28 @@ def test_construction_never_touches_the_network():
     assert client.params == {"app_key": "app-key"}
 
 
-def test_get_page_count_lazily_resolves_stops(monkeypatch):
+def test_init_lazily_resolves_stops(monkeypatch):
     client = TflClient(make_config(["940GZZLUKNG"]))
     get_mock = MagicMock()
     get_mock.return_value.raise_for_status = MagicMock()
     get_mock.return_value.json.return_value = METRO_STOP_JSON
     monkeypatch.setattr(client.session, "get", get_mock)
 
-    assert client.get_page_count() == 1
+    assert client.init() == 1
     assert len(client.stops) == 1
     get_mock.assert_called_once()
 
 
-def test_get_page_count_empty_when_no_stops_configured():
+def test_init_empty_when_no_stops_configured():
     client = TflClient(make_config())
-    assert client.get_page_count() == 1
+    assert client.init() == 1
     assert client.stops == []
 
 
-def test_get_page_count_rounds_up():
+def test_init_rounds_up():
     client = TflClient(make_config())
     client.stops = [make_bus_stop(), make_metro_stop(), make_bus_stop("490000456X")]
-    assert client.get_page_count() == 2
+    assert client.init() == 2
 
 
 def test_ensure_stops_is_not_repeated_once_populated(monkeypatch):
@@ -98,8 +98,8 @@ def test_ensure_stops_is_not_repeated_once_populated(monkeypatch):
     get_mock.return_value.json.return_value = METRO_STOP_JSON
     monkeypatch.setattr(client.session, "get", get_mock)
 
-    client.get_page_count()
-    client.get_page_count()
+    client.init()
+    client.init()
 
     get_mock.assert_called_once()
 
@@ -117,7 +117,7 @@ def test_failed_setup_leaves_stops_empty_and_is_retried_on_next_call(monkeypatch
     get_mock.return_value.raise_for_status = MagicMock()
     get_mock.return_value.json.return_value = METRO_STOP_JSON
 
-    assert client.get_page_count() == 1
+    assert client.init() == 1
     assert len(client.stops) == 1
 
 

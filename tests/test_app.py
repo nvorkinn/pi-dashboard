@@ -1,7 +1,7 @@
 from pydantic import BaseModel
 import requests
 
-from countdown.app import safe_fetch
+from countdown.display_loop import safe_fetch
 
 
 def test_safe_fetch_returns_func_result_on_success():

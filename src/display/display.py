@@ -16,13 +16,13 @@ class DisplayController:
             import epd7in5_V2
             self.display_enabled = True
             self.epd = epd7in5_V2.EPD()
-        except (ImportError, ModuleNotFoundError) as e:
+        except RuntimeError as e:
             print(f"Error importing epd7in5_V2: {e}")
             self.display_enabled = False
             self.epd = None
 
     def display_screen(self, arrival_panel: CombinedArrivalPanel, energy_panel: EnergyPanel,
-                       current_track: dict[str, str] | None, weather_panel: WeatherPanel) -> None:
+                       current_track: dict[str, str] | None, weather_panel: WeatherPanel | None) -> None:
         img = Image.new("RGBA", (TOTAL_WIDTH, TOTAL_HEIGHT), (255, 255, 255, 255))
 
         # Arrivals

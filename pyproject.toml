@@ -7,6 +7,8 @@ requires-python = ">=3.14"
 dependencies = [
     "flask==3.1.3",
     "gpiozero>=2.0.1.post3",
+    "np>=1.0.2",
+    "numpy>=2.5.3",
     "pathlib>=1.0.1",
     "pillow>=12.3.0",
     "pydantic>=2.13.5",
@@ -30,6 +32,8 @@ dev = [
     "pyinstrument>=5.1.3",
     "pytest>=8.4.2",
     "pytest-cov>=7.1.0",
+    "pytest-mock>=3.15.1",
+    "responses>=0.26.3",
 ]
 
 [tool.coverage.run]
