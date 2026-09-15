@@ -1,39 +1,37 @@
+mod system_value_retriever;
+mod telemetry;
+
 use rumqttc::{AsyncClient, MqttOptions, QoS};
 use std::time::Duration;
-use sysinfo::System;
+use system_value_retriever::{get_system, read_telemetry};
+use telemetry::build_payload;
 
 #[tokio::main]
 async fn main() {
-    let mut sys = System::new_all();
-    sys.refresh_all();
+    let sys = get_system();
+    let telemetry = read_telemetry(&sys);
 
-    let total_memory = sys.total_memory();
-    println!("Total memory: {} bytes", total_memory);
-    let used_memory = sys.used_memory();
-    println!("Used memory: {} bytes", used_memory);
-    let cpus = sys.cpus();
-    println!("Number of CPUs: {}", cpus.len());
+    println!("Total memory: {} bytes", telemetry.total_memory);
+    println!("Used memory: {} bytes", telemetry.used_memory);
+    println!("Number of CPUs: {}", telemetry.cpu_count);
 
-    let mut mqttoptions = MqttOptions::new("pi-telemetry", "localhost", 1883);
-    mqttoptions.set_keep_alive(Duration::from_secs(5));
+    let mut mqtt_options = MqttOptions::new("pi-telemetry", "localhost", 1883);
+    mqtt_options.set_keep_alive(Duration::from_secs(5));
 
-    let (client, mut eventloop) = AsyncClient::new(mqttoptions, 10);
+    let (client, mut eventloop) = AsyncClient::new(mqtt_options, 10);
 
     // rumqttc only actually does network I/O while the eventloop is being
     // polled, so we drive it on a background task for the life of the process.
     tokio::spawn(async move {
         loop {
             if let Err(e) = eventloop.poll().await {
-                eprintln!("MQTT eventloop error: {e:?}");
+                eprintln!("MQTT event loop error: {e:?}");
                 break;
             }
         }
     });
 
-    let payload = format!(
-        "{{\"total_memory\":{total_memory},\"used_memory\":{used_memory},\"cpu_count\":{}}}",
-        cpus.len()
-    );
+    let payload = build_payload(&telemetry);
 
     client
         .publish("pi-telemetry/host", QoS::AtLeastOnce, false, payload)
