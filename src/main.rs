@@ -1,6 +1,7 @@
 mod system_value_retriever;
 mod telemetry;
 
+use std::thread;
 use rumqttc::{AsyncClient, MqttOptions, QoS};
 use std::time::Duration;
 use system_value_retriever::{get_system, read_telemetry};
@@ -8,7 +9,9 @@ use telemetry::build_payload;
 
 #[tokio::main]
 async fn main() {
-    let sys = get_system();
+    let mut sys = get_system();
+    thread::sleep(sysinfo::MINIMUM_CPU_UPDATE_INTERVAL);
+    sys.refresh_cpu_usage();
     let telemetry = read_telemetry(&sys);
 
     println!("Total memory: {} bytes", telemetry.total_memory);

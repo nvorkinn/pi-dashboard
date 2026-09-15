@@ -5,6 +5,7 @@ pub trait SystemInfo {
     fn total_memory(&self) -> u64;
     fn used_memory(&self) -> u64;
     fn cpu_count(&self) -> usize;
+    fn global_cpu_usage(&self) -> f32;
 }
 
 impl SystemInfo for System {
@@ -19,6 +20,10 @@ impl SystemInfo for System {
     fn cpu_count(&self) -> usize {
         self.cpus().len()
     }
+
+    fn global_cpu_usage(&self) -> f32 {
+        self.global_cpu_usage()
+    }
 }
 
 // Returns a fully initialized System instance, using `System::new_all`.
@@ -31,6 +36,7 @@ pub fn read_telemetry(sys: &impl SystemInfo) -> Telemetry {
         total_memory: sys.total_memory(),
         used_memory: sys.used_memory(),
         cpu_count: sys.cpu_count(),
+        global_cpu_usage: sys.global_cpu_usage(),
     }
 }
 
@@ -42,6 +48,7 @@ mod tests {
         total_memory: u64,
         used_memory: u64,
         cpu_count: usize,
+        global_cpu_usage: f32,
     }
 
     impl SystemInfo for FakeSystem {
@@ -56,6 +63,10 @@ mod tests {
         fn cpu_count(&self) -> usize {
             self.cpu_count
         }
+
+        fn global_cpu_usage(&self) -> f32 {
+            self.global_cpu_usage
+        }
     }
 
     #[test]
@@ -64,6 +75,7 @@ mod tests {
             total_memory: 111,
             used_memory: 222,
             cpu_count: 4,
+            global_cpu_usage: 46.3,
         };
 
         let telemetry = read_telemetry(&fake);
@@ -71,5 +83,6 @@ mod tests {
         assert_eq!(telemetry.total_memory, 111);
         assert_eq!(telemetry.used_memory, 222);
         assert_eq!(telemetry.cpu_count, 4);
+        assert_eq!(telemetry.global_cpu_usage, 46.3);
     }
 }
