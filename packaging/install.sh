@@ -73,14 +73,6 @@ fi
 mkdir -p "$APP_DIR"
 chown "$TARGET_USER" "$APP_DIR"
 
-if [ ! -f "$APP_DIR/config.json" ]; then
-    echo "Seeding $APP_DIR/config.json from config.example.json..."
-    curl -fsSL "https://raw.githubusercontent.com/$REPO/$TAG/config.example.json" -o "$APP_DIR/config.json"
-    chown "$TARGET_USER" "$APP_DIR/config.json"
-else
-    echo "Keeping existing $APP_DIR/config.json."
-fi
-
 echo "Installing systemd unit..."
 SERVICE_FILE="$(mktemp)"
 trap 'rm -f "$SERVICE_FILE"' EXIT
