@@ -1,0 +1,48 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - "v*"
+
+env:
+  CARGO_TERM_COLOR: always
+  BIN_NAME: pi-telemetry
+  TARGET: aarch64-unknown-linux-gnu
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Check tag matches Cargo.toml version
+        run: |
+          tag_version="${GITHUB_REF_NAME#v}"
+          cargo_version="$(grep -m1 '^version' Cargo.toml | sed -E 's/version = "(.*)"/\1/')"
+          if [ "$tag_version" != "$cargo_version" ]; then
+            echo "::error::Tag $GITHUB_REF_NAME does not match Cargo.toml version $cargo_version"
+            exit 1
+          fi
+
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ env.TARGET }}
+
+      - uses: taiki-e/install-action@v2
+        with:
+          tool: cross
+
+      - name: Build
+        run: cross build --release --target ${{ env.TARGET }}
+
+      - name: Package binary
+        run: cp target/${{ env.TARGET }}/release/${{ env.BIN_NAME }} ${{ env.BIN_NAME }}-${{ env.TARGET }}
+
+      - name: Create release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: ${{ env.BIN_NAME }}-${{ env.TARGET }}
