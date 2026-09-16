@@ -30,9 +30,6 @@ build-backend = "uv_build"
 [tool.uv.build-backend]
 module-name = ["countdown", "display"]
 
-[tool.uv.build-backend.data]
-data = "resources"
-
 [dependency-groups]
 dev = [
     "pyinstrument>=5.1.3",

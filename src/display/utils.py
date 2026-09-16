@@ -1,4 +1,3 @@
-import sys
 from pathlib import Path
 
 from PIL import Image, ImageDraw, ImageFont
@@ -6,11 +5,9 @@ from PIL import Image, ImageDraw, ImageFont
 TOTAL_WIDTH = 800
 TOTAL_HEIGHT = 480
 
-# uv_build installs resources/fonts and resources/images as wheel "data",
-# which lands at sys.prefix/fonts and sys.prefix/images in every environment
-# (uv sync's dev venv, a uv tool install venv, ...) -- not cwd-relative.
-FONTS_DIR = Path(sys.prefix) / "fonts"
-IMAGES_DIR = Path(sys.prefix) / "images"
+PACKAGE_DIR = Path(__file__).resolve().parent
+FONTS_DIR = PACKAGE_DIR / "fonts"
+IMAGES_DIR = PACKAGE_DIR / "images"
 
 TFL_FONT_12 = ImageFont.truetype(str(FONTS_DIR / 'Johnston100-Regular.ttf'), 12)
 TFL_FONT_15 = ImageFont.truetype(str(FONTS_DIR / 'Johnston100-Regular.ttf'), 15)
