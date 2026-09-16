@@ -23,8 +23,21 @@ async fn main() {
     println!("Global CPU usage: {}", telemetry.global_cpu_usage);
     println!("Is countdown alive: {}", is_alive);
 
-    let mut mqtt_options = MqttOptions::new("pi-telemetry", "localhost", 1883);
+    let host = std::env::var("MQTT_BROKER_HOST").unwrap_or_else(|_| "localhost".to_string());
+    let port: u16 = std::env::var("MQTT_BROKER_PORT")
+        .ok()
+        .and_then(|p| p.parse().ok())
+        .unwrap_or(1883);
+
+    let mut mqtt_options = MqttOptions::new("pi-telemetry", host, port);
     mqtt_options.set_keep_alive(Duration::from_secs(5));
+
+    if let (Ok(username), Ok(password)) = (
+        std::env::var("MQTT_BROKER_USERNAME"),
+        std::env::var("MQTT_BROKER_PASSWORD"),
+    ) {
+        mqtt_options.set_credentials(username, password);
+    }
 
     let (client, mut event_loop) = AsyncClient::new(mqtt_options, 10);
 
