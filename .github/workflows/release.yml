@@ -34,6 +34,15 @@ jobs:
     - name: Install dependencies
       run: uv sync --frozen
 
+    - name: Verify tag matches pyproject.toml version
+      run: |
+        project_version="$(uv version --short)"
+        tag_version="${GITHUB_REF_NAME#v}"
+        if [ "$project_version" != "$tag_version" ]; then
+          echo "Tag $GITHUB_REF_NAME does not match pyproject.toml version $project_version." >&2
+          exit 1
+        fi
+
     - name: Build wheel
       run: uv build --wheel
 
