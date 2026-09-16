@@ -46,7 +46,9 @@ jobs:
     - name: Build wheel
       run: uv build --wheel
 
-    - name: Create GitHub release and upload wheel
+    - name: Create GitHub release and upload assets
       env:
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-      run: gh release create "$GITHUB_REF_NAME" dist/*.whl --title "$GITHUB_REF_NAME" --generate-notes
+      run: |
+        gh release create "$GITHUB_REF_NAME" dist/*.whl packaging/systemd/countdown.service \
+          --title "$GITHUB_REF_NAME" --generate-notes

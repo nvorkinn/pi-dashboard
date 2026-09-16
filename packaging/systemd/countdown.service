@@ -1,0 +1,15 @@
+[Unit]
+Description=Countdown e-paper display
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=@USER@
+WorkingDirectory=@WORKING_DIRECTORY@
+ExecStart=@EXEC_START@
+Restart=always
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target

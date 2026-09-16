@@ -42,3 +42,35 @@ Add a function to `tests/test_display_snapshots.py` that builds the panels
 it needs and calls `snapshot.assert_matches("some_name", image)`. Run with
 `--update-snapshots` once to create its golden image, review it, and commit
 it.
+
+# Deploying to a Raspberry Pi
+
+Each tagged release publishes a wheel and a `countdown.service` unit to
+GitHub Releases (see `.github/workflows/release.yml`). `packaging/install.sh`
+downloads a release, installs it with `uv tool install`, and sets it up as a
+systemd service:
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/nvorkinn/countdown/main/packaging/install.sh | sudo bash
+```
+
+This installs `uv` for the invoking user if it isn't already present, runs
+the service as that user, and seeds `/opt/countdown/config.json` from
+`config.example.json` the first time (re-running the installer to update
+never overwrites an existing config). Pass a release tag as an argument to
+install a specific version instead of the latest, e.g. `sudo bash
+install.sh v0.3.0`.
+
+Once installed:
+
+```bash
+systemctl status countdown   # check it's running
+journalctl -u countdown -f   # tail its logs
+```
+
+Edit `/opt/countdown/config.json` and `systemctl restart countdown` to pick
+up changes. Secrets can go in `/opt/countdown/.env` instead (loaded the same
+way `config.json` is, from the service's working directory).
+
+The invoking user needs access to the e-paper hardware (typically the `gpio`
+and `spi` groups on Raspberry Pi OS) for the display to actually render.
