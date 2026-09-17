@@ -48,16 +48,27 @@ it.
 Each tagged release publishes a wheel and a `countdown.service` unit to
 GitHub Releases (see `.github/workflows/release.yml`). `packaging/install.sh`
 downloads a release, installs it with `uv tool install`, and sets it up as a
-systemd service:
+systemd service.
+
+This repo is private, so every fetch it does (including fetching the
+installer itself) needs a GitHub token with read access to it:
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/nvorkinn/countdown/main/packaging/install.sh | sudo bash
+export GITHUB_TOKEN=github_pat_...
+curl -fsSL -H "Authorization: Bearer $GITHUB_TOKEN" \
+    https://raw.githubusercontent.com/nvorkinn/countdown/main/packaging/install.sh \
+    | GITHUB_TOKEN="$GITHUB_TOKEN" sudo -E bash
 ```
+
+If you're provisioning a Pi with other apps too, see
+[pi-setup](https://github.com/nvorkinn/pi-setup) instead -- it wraps this
+installer, decrypts secrets into `.env` for you, and installs everything
+else you need in one command.
 
 This installs `uv` for the invoking user if it isn't already present, and
 runs the service as that user. Pass a release tag as an argument to install
-a specific version instead of the latest, e.g. `sudo bash install.sh
-v0.3.0`. Re-running the installer updates the app and restarts the service.
+a specific version instead of the latest, e.g. `... bash -s -- v0.3.0`.
+Re-running the installer updates the app and restarts the service.
 
 Every config field has a default, so the app runs right away with no config
 file at all -- visit `http://<pi>:4000` and save settings there to write
