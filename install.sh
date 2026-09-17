@@ -17,9 +17,9 @@ bin_src=$1
 script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 systemd_dir="$script_dir/systemd"
 
-service_user="$(grep -m1 '^User=' "$systemd_dir/pi-telemetry.service" | cut -d= -f2)"
+service_user="${SUDO_USER:-root}"
 id "$service_user" >/dev/null 2>&1 || {
-    echo "User '$service_user' (from pi-telemetry.service) does not exist on this system." >&2
+    echo "User '$service_user' does not exist on this system." >&2
     exit 1
 }
 
@@ -38,7 +38,8 @@ else
 fi
 
 echo "Installing systemd units"
-cp "$systemd_dir/pi-telemetry.service" "$systemd_dir/pi-telemetry.timer" /etc/systemd/system/
+sed "s#@USER@#$service_user#" "$systemd_dir/pi-telemetry.service" > /etc/systemd/system/pi-telemetry.service
+cp "$systemd_dir/pi-telemetry.timer" /etc/systemd/system/
 systemctl daemon-reload
 systemctl enable --now pi-telemetry.timer
 
