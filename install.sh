@@ -3,10 +3,11 @@
 # secrets from this repo and installs both apps via their own installers,
 # each set up as its own systemd unit.
 #
-# countdown and pi-telemetry are private GitHub repos, so every fetch from
-# them (including fetching this script itself) needs a GitHub token with
-# read access to both. See README.md for how to create one and for the
-# age private key this script asks for on first run.
+# countdown, pi-telemetry, and this repo are all private GitHub repos, so
+# every fetch here (including fetching this script itself, from pi-setup)
+# needs a GitHub token with read access to all three. See README.md for how
+# to create one and for the age private key this script asks for on first
+# run.
 #
 # Usage:
 #   export GITHUB_TOKEN=ghp_...
@@ -53,7 +54,7 @@ if [ -n "${GITHUB_TOKEN:-}" ]; then
 elif [ -f "$TOKEN_FILE" ]; then
     GITHUB_TOKEN="$(cat "$TOKEN_FILE")"
 else
-    echo "Paste a GitHub token with read access to countdown + pi-telemetry:"
+    echo "Paste a GitHub token with read access to countdown, pi-telemetry, and pi-setup:"
     read -rs GITHUB_TOKEN < /dev/tty
     echo
 fi

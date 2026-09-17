@@ -9,12 +9,15 @@ its real secrets, decrypted from this repo, so you don't have to copy
 
 ## Install
 
-Both app repos are private, so you need a GitHub token with read access to
-`nvorkinn/countdown` and `nvorkinn/pi-telemetry` -- create one at
+All three repos involved here are private -- `nvorkinn/countdown`,
+`nvorkinn/pi-telemetry`, and this repo itself, since fetching `install.sh`
+in the first place is also a private-repo fetch. So you need one GitHub
+token with read access to **all three**, not just the two apps -- create
+one at
 [github.com/settings/personal-access-tokens](https://github.com/settings/personal-access-tokens),
-fine-grained, read-only, scoped to just those two repos. `pi-setup` is
-private too, so the token has to be in your shell *before* the very first
-`curl` that fetches this script:
+fine-grained, read-only, scoped to `countdown`, `pi-telemetry`, and
+`pi-setup`. It has to be in your shell *before* the very first `curl` that
+fetches this script:
 
 ```sh
 export GITHUB_TOKEN=github_pat_...
