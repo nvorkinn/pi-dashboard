@@ -3,13 +3,14 @@
 #
 # countdown is a private repo, so every fetch from it here (including
 # fetching this script itself) needs a token with read access, passed via
-# GITHUB_TOKEN.
+# GITHUB_TOKEN. Nothing is ever fetched from main -- see README.md for the
+# full bootstrap snippet that resolves a tag (specified, or latest via the
+# releases API) before the first curl fetches this script from that tag.
 #
-# Usage:
-#   export GITHUB_TOKEN=ghp_...
+# Usage (once TAG is resolved -- see README.md):
 #   curl -fsSL -H "Authorization: Bearer $GITHUB_TOKEN" \
-#       https://raw.githubusercontent.com/nvorkinn/countdown/main/packaging/install.sh \
-#       | GITHUB_TOKEN="$GITHUB_TOKEN" sudo -E bash -s -- [version]
+#       "https://raw.githubusercontent.com/nvorkinn/countdown/$TAG/packaging/install.sh" \
+#       | GITHUB_TOKEN="$GITHUB_TOKEN" sudo -E bash -s -- "$TAG"
 #
 # [version] is a release tag such as "v0.3.0". Defaults to the latest release.
 #
