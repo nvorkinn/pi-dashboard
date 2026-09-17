@@ -57,6 +57,9 @@ if ! command -v gh >/dev/null 2>&1; then
     install -m 755 "$TMP_DIR/gh_${GH_VERSION}_linux_arm64/bin/gh" /usr/local/bin/gh
 fi
 
+echo "Installing lgpio build dependencies..."
+apt-get update && apt-get install -y --no-install-recommends swig liblgpio-dev
+
 echo "Installing countdown for user '$TARGET_USER' (app dir: $APP_DIR)..."
 
 if [ "$VERSION" = "latest" ]; then
