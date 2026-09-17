@@ -9,6 +9,12 @@
 # to create one and for the age private key this script asks for on first
 # run.
 #
+# Uses the gh CLI (bootstrapped below if missing) to resolve releases and
+# download assets -- gh handles private-repo auth correctly on its own,
+# where a hand-rolled curl approach needs the asset API plus an Accept
+# header (browser_download_url doesn't work with a bearer token on a
+# private repo), and gh also preserves each asset's real filename.
+#
 # Nothing here is ever fetched from a branch (main included) -- every fetch
 # is pinned to a specific tagged release, resolving "latest" only through
 # the (immutable) releases API, never a moving branch ref. Since there's no
@@ -57,6 +63,7 @@ mkdir -p "$STATE_DIR"
 chmod 700 "$STATE_DIR"
 
 TMP_DIR="$(mktemp -d)"
+chmod 755 "$TMP_DIR"
 trap 'rm -rf "$TMP_DIR"' EXIT
 
 if [ -n "${GITHUB_TOKEN:-}" ]; then
@@ -70,6 +77,7 @@ else
 fi
 [ -n "${GITHUB_TOKEN:-}" ] || { echo "A GitHub token is required." >&2; exit 1; }
 echo -n "$GITHUB_TOKEN" > "$TOKEN_FILE"
+export GITHUB_TOKEN
 
 if [ -f "$KEY_FILE" ]; then
     :
@@ -81,41 +89,14 @@ else
     echo "$AGE_KEY" > "$KEY_FILE"
 fi
 
-gh_curl() {
-    curl -fsSL -H "Authorization: Bearer $GITHUB_TOKEN" "$@"
-}
-
-# Downloads a release asset from a private repo. A plain browser_download_url
-# doesn't work with a bearer token there -- the asset API endpoint plus an
-# Accept header does.
-download_asset() {
-    local asset_api_url="$1" out_file="$2"
-    curl -fsSL -L \
-        -H "Authorization: Bearer $GITHUB_TOKEN" \
-        -H "Accept: application/octet-stream" \
-        "$asset_api_url" -o "$out_file"
-}
-
-release_json() {
-    local repo="$1" version="$2"
-    if [ "$version" = "latest" ]; then
-        gh_curl "https://api.github.com/repos/$repo/releases/latest"
-    else
-        gh_curl "https://api.github.com/repos/$repo/releases/tags/$version"
-    fi
-}
-
-# Decrypts secrets/<name>.age from this repo to $2, or returns 1 if that
-# file doesn't exist yet (e.g. no real secrets have been encrypted for an
-# app yet) -- callers fall back to that app's own defaults in that case.
-fetch_secret() {
-    local name="$1" out_file="$2"
-    if gh_curl -o "$TMP_DIR/$name.age" "https://raw.githubusercontent.com/$PISETUP_REPO/$PISETUP_TAG/secrets/$name.age"; then
-        age -d -i "$KEY_FILE" "$TMP_DIR/$name.age" > "$out_file"
-        return 0
-    fi
-    return 1
-}
+if ! command -v gh >/dev/null 2>&1; then
+    echo "Installing gh..."
+    GH_TAG="$(curl -fsSL https://api.github.com/repos/cli/cli/releases/latest | python3 -c 'import json,sys; print(json.load(sys.stdin)["tag_name"])')"
+    GH_VERSION="${GH_TAG#v}"
+    curl -fsSL "https://github.com/cli/cli/releases/download/$GH_TAG/gh_${GH_VERSION}_linux_arm64.tar.gz" \
+        | tar -xz -C "$TMP_DIR"
+    install -m 755 "$TMP_DIR/gh_${GH_VERSION}_linux_arm64/bin/gh" /usr/local/bin/gh
+fi
 
 if ! command -v age >/dev/null 2>&1; then
     echo "Installing age..."
@@ -125,9 +106,30 @@ if ! command -v age >/dev/null 2>&1; then
     install -m 755 "$TMP_DIR/age/age" /usr/local/bin/age
 fi
 
+echo "Fetching pi-setup release contents ($PISETUP_TAG)..."
+gh release download "$PISETUP_TAG" --repo "$PISETUP_REPO" --dir "$TMP_DIR" --clobber --pattern 'pi-setup.zip'
+unzip -q "$TMP_DIR/pi-setup.zip" -d "$TMP_DIR/pi-setup"
+
+# Decrypts secrets/<name>.age from the pi-setup release just downloaded, or
+# returns 1 if that file doesn't exist yet (e.g. no real secrets have been
+# encrypted for an app yet) -- callers fall back to that app's own defaults.
+fetch_secret() {
+    local name="$1" out_file="$2"
+    local src="$TMP_DIR/pi-setup/secrets/$name.age"
+    if [ -f "$src" ]; then
+        age -d -i "$KEY_FILE" "$src" > "$out_file"
+        return 0
+    fi
+    return 1
+}
+
 echo
 echo "== countdown =="
-COUNTDOWN_TAG="$(release_json "$COUNTDOWN_REPO" "$COUNTDOWN_VERSION" | python3 -c 'import json,sys; print(json.load(sys.stdin)["tag_name"])')"
+if [ "$COUNTDOWN_VERSION" = "latest" ]; then
+    COUNTDOWN_TAG="$(gh release view --repo "$COUNTDOWN_REPO" --json tagName --jq .tagName)"
+else
+    COUNTDOWN_TAG="$COUNTDOWN_VERSION"
+fi
 
 mkdir -p "$COUNTDOWN_APP_DIR"
 if fetch_secret countdown.env "$COUNTDOWN_APP_DIR/.env"; then
@@ -137,23 +139,25 @@ else
     echo "No secrets/countdown.env.age in pi-setup yet -- countdown will start with defaults."
 fi
 
-gh_curl "https://raw.githubusercontent.com/$COUNTDOWN_REPO/$COUNTDOWN_TAG/packaging/install.sh" \
+# countdown's install.sh isn't a release asset -- it's a file in the repo,
+# fetched at the resolved tag's raw content.
+curl -fsSL -H "Authorization: Bearer $GITHUB_TOKEN" \
+    "https://raw.githubusercontent.com/$COUNTDOWN_REPO/$COUNTDOWN_TAG/packaging/install.sh" \
     | GITHUB_TOKEN="$GITHUB_TOKEN" bash -s -- "$COUNTDOWN_TAG"
 
 echo
 echo "== pi-telemetry =="
-TELEMETRY_INFO="$(release_json "$TELEMETRY_REPO" "$TELEMETRY_VERSION" | python3 -c '
-import json, sys
-release = json.load(sys.stdin)
-assets = {a["name"]: a["url"] for a in release["assets"]}
-print(release["tag_name"], assets["'"$TELEMETRY_ASSET"'"])
-')"
-read -r TELEMETRY_TAG TELEMETRY_ASSET_API_URL <<< "$TELEMETRY_INFO"
+if [ "$TELEMETRY_VERSION" = "latest" ]; then
+    TELEMETRY_TAG="$(gh release view --repo "$TELEMETRY_REPO" --json tagName --jq .tagName)"
+else
+    TELEMETRY_TAG="$TELEMETRY_VERSION"
+fi
 
 echo "Fetching pi-telemetry source at $TELEMETRY_TAG..."
-mkdir -p "$TMP_DIR/telemetry-src"
-gh_curl -L "https://github.com/$TELEMETRY_REPO/archive/refs/tags/$TELEMETRY_TAG.tar.gz" \
-    | tar -xz -C "$TMP_DIR/telemetry-src" --strip-components=1
+mkdir -p "$TMP_DIR/telemetry-archive" "$TMP_DIR/telemetry-src"
+gh release download "$TELEMETRY_TAG" --repo "$TELEMETRY_REPO" --archive tar.gz \
+    --dir "$TMP_DIR/telemetry-archive" --clobber
+tar -xzf "$TMP_DIR"/telemetry-archive/*.tar.gz -C "$TMP_DIR/telemetry-src" --strip-components=1
 
 TELEMETRY_USER="$(grep -m1 '^User=' "$TMP_DIR/telemetry-src/systemd/pi-telemetry.service" | cut -d= -f2)"
 mkdir -p "$(dirname "$TELEMETRY_ENV_FILE")"
@@ -167,10 +171,11 @@ else
 fi
 
 echo "Fetching pi-telemetry binary..."
-download_asset "$TELEMETRY_ASSET_API_URL" "$TMP_DIR/pi-telemetry"
-chmod +x "$TMP_DIR/pi-telemetry"
+gh release download "$TELEMETRY_TAG" --repo "$TELEMETRY_REPO" --pattern "$TELEMETRY_ASSET" \
+    --dir "$TMP_DIR" --clobber
+chmod +x "$TMP_DIR/$TELEMETRY_ASSET"
 
-(cd "$TMP_DIR/telemetry-src" && bash install.sh "$TMP_DIR/pi-telemetry")
+(cd "$TMP_DIR/telemetry-src" && bash install.sh "$TMP_DIR/$TELEMETRY_ASSET")
 
 echo
 echo "Done. countdown and pi-telemetry are both installed."

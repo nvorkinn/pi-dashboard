@@ -7,6 +7,12 @@ its own release and set up as its own systemd unit. It also hands each app
 its real secrets, decrypted from this repo, so you don't have to copy
 `.env`/`env` files onto every Pi by hand.
 
+Uses the [`gh` CLI](https://cli.github.com) (bootstrapped automatically if
+missing) to resolve releases and download assets, since it handles
+private-repo auth correctly on its own -- a hand-rolled `curl` approach
+needs the asset API plus an `Accept` header, because a private repo's
+`browser_download_url` doesn't work with a bearer token.
+
 ## Install
 
 All three repos involved here are private -- `nvorkinn/countdown`,
@@ -50,8 +56,10 @@ its cache) exists.
 
 Each app's real secrets file (countdown's `.env`, pi-telemetry's
 `/etc/pi-telemetry/env`) is encrypted with [age](https://age-encryption.org)
-and committed here as `secrets/<app>.env.age`. There's one keypair for all
-of it:
+and committed here as `secrets/<app>.env.age`. `install.sh` gets them from
+the `pi-setup.zip` release asset (built by `.github/workflows/release.yml`)
+via `gh release download`, not a direct file fetch. There's one keypair for
+all of it:
 
 - **Public key** -- safe to share, used to encrypt. Currently:
   `age1mrlql83ne3jewsuqzemmlrxsdscn9sqlksl4uqhy8da5krn75usq5u46ak`
