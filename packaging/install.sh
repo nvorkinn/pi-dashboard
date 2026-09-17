@@ -65,11 +65,10 @@ RELEASE_INFO="$(gh_curl "$RELEASE_URL" | python3 -c '
 import json, sys
 release = json.load(sys.stdin)
 assets = {a["name"]: a["url"] for a in release["assets"]}
-wheel = next(url for name, url in assets.items() if name.endswith(".whl"))
-service = assets["countdown.service"]
-print(release["tag_name"], wheel, service)
+wheel_name = next(name for name in assets if name.endswith(".whl"))
+print(release["tag_name"], wheel_name, assets[wheel_name], assets["countdown.service"])
 ')"
-read -r TAG WHEEL_ASSET_URL SERVICE_ASSET_URL <<< "$RELEASE_INFO"
+read -r TAG WHEEL_NAME WHEEL_ASSET_URL SERVICE_ASSET_URL <<< "$RELEASE_INFO"
 
 if [ -z "$TAG" ] || [ -z "$WHEEL_ASSET_URL" ] || [ -z "$SERVICE_ASSET_URL" ]; then
     echo "Could not find a wheel and countdown.service asset on release '$VERSION'." >&2
@@ -83,9 +82,12 @@ chmod 755 "$TMP_DIR"
 trap 'rm -rf "$TMP_DIR"' EXIT
 
 echo "Downloading release assets..."
-download_asset "$WHEEL_ASSET_URL" "$TMP_DIR/countdown.whl"
+# uv tool install parses name/version from the wheel filename itself, so it
+# has to keep its real name (e.g. countdown-0.3.1-py3-none-any.whl) rather
+# than a fixed local name.
+download_asset "$WHEEL_ASSET_URL" "$TMP_DIR/$WHEEL_NAME"
 download_asset "$SERVICE_ASSET_URL" "$TMP_DIR/countdown.service"
-chmod 644 "$TMP_DIR/countdown.whl" "$TMP_DIR/countdown.service"
+chmod 644 "$TMP_DIR/$WHEEL_NAME" "$TMP_DIR/countdown.service"
 
 if ! run_as_target "command -v uv" >/dev/null 2>&1; then
     echo "uv not found for $TARGET_USER, installing it..."
@@ -93,7 +95,7 @@ if ! run_as_target "command -v uv" >/dev/null 2>&1; then
 fi
 
 echo "Installing the countdown wheel with uv tool..."
-run_as_target "uv tool install --force '$TMP_DIR/countdown.whl'"
+run_as_target "uv tool install --force '$TMP_DIR/$WHEEL_NAME'"
 
 EXEC_START="$(run_as_target "uv tool dir --bin")/countdown"
 if [ ! -e "$EXEC_START" ]; then
