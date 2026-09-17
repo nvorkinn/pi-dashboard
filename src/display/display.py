@@ -1,4 +1,5 @@
 from datetime import datetime
+from pathlib import Path
 import sys
 
 from PIL import Image, ImageDraw
@@ -9,14 +10,16 @@ from display.weather_panel import WeatherPanel
 from display.spotify_panel import build_spotify_panel
 from display.utils import TOTAL_WIDTH, TOTAL_HEIGHT
 
+LIB_DIR = str(Path(__file__).resolve().parent / "lib")
+
 class DisplayController:
     def __init__(self):
         try:
-            sys.path.insert(1, "./src/display/lib")
+            sys.path.insert(1, LIB_DIR)
             import epd7in5_V2
             self.display_enabled = True
             self.epd = epd7in5_V2.EPD()
-        except RuntimeError as e:
+        except (ImportError, RuntimeError) as e:
             print(f"Error importing epd7in5_V2: {e}")
             self.display_enabled = False
             self.epd = None
