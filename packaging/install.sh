@@ -33,6 +33,18 @@ fi
 [ -n "${GITHUB_TOKEN:-}" ] || { echo "GITHUB_TOKEN is required (countdown is a private repo)." >&2; exit 1; }
 export GITHUB_TOKEN
 
+# SPI only becomes usable after a reboot (it's a device-tree overlay applied
+# at boot), so when we have to flip it on here, defer starting the service
+# until then instead of racing a crash-loop against the reboot.
+NEED_REBOOT=0
+if command -v raspi-config >/dev/null 2>&1; then
+    if ! raspi-config nonint get_spi; then
+        echo "Enabling SPI via raspi-config (needs a reboot to take effect)..."
+        raspi-config nonint do_spi 0
+        NEED_REBOOT=1
+    fi
+fi
+
 TARGET_USER="${SUDO_USER:-root}"
 TARGET_HOME="$(getent passwd "$TARGET_USER" | cut -d: -f6)"
 if [ -z "$TARGET_HOME" ]; then
@@ -106,9 +118,24 @@ sed \
     "$TMP_DIR/countdown.service" > /etc/systemd/system/countdown.service
 
 systemctl daemon-reload
-systemctl enable --now countdown.service
 
-echo "Done. countdown.service is running -- check it with:"
-echo "  systemctl status countdown"
-echo "  journalctl -u countdown -f"
+# journalctl's InvocationID filter scopes output to a single service start,
+# so re-running this script never leaves older runs mixed into the logs you
+# check afterwards.
+LOG_CMD='journalctl _SYSTEMD_INVOCATION_ID=$(systemctl show -p InvocationID --value countdown) -f'
+
+if [ "$NEED_REBOOT" -eq 1 ]; then
+    systemctl enable countdown.service
+    echo "Done. countdown.service is installed and enabled, but SPI was just turned on and"
+    echo "needs a reboot before the display hardware works. Reboot now with:"
+    echo "  sudo reboot"
+    echo "It will start automatically on boot. After that, check it with:"
+    echo "  systemctl status countdown"
+    echo "  $LOG_CMD"
+else
+    systemctl enable --now countdown.service
+    echo "Done. countdown.service is running -- check it with:"
+    echo "  systemctl status countdown"
+    echo "  $LOG_CMD"
+fi
 echo "Edit $APP_DIR/config.json then 'systemctl restart countdown' to apply changes."
