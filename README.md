@@ -17,16 +17,37 @@ one at
 [github.com/settings/personal-access-tokens](https://github.com/settings/personal-access-tokens),
 fine-grained, read-only, scoped to `countdown`, `pi-telemetry`, and
 `pi-setup`. It has to be in your shell *before* the very first `curl` that
-fetches this script:
+fetches this script.
+
+Nothing here is ever fetched from `main` -- every fetch is pinned to a
+specific tagged release, including `pi-setup`'s own `install.sh`. That
+means the very first `curl` needs a real tag too, resolved the same way
+`countdown_version`/`pi_telemetry_version` are (a specific tag, or the
+latest release via the API -- there's no script running yet to do that
+resolution for you, so it's inlined here):
 
 ```sh
 export GITHUB_TOKEN=github_pat_...
+
+# Pin an exact pi-setup version, or leave as "latest":
+PISETUP_VERSION=latest
+if [ "$PISETUP_VERSION" = latest ]; then
+    PISETUP_TAG="$(curl -fsSL -H "Authorization: Bearer $GITHUB_TOKEN" \
+        https://api.github.com/repos/nvorkinn/pi-setup/releases/latest \
+        | python3 -c 'import json,sys; print(json.load(sys.stdin)["tag_name"])')"
+else
+    PISETUP_TAG="$PISETUP_VERSION"
+fi
+
 curl -fsSL -H "Authorization: Bearer $GITHUB_TOKEN" \
-    https://raw.githubusercontent.com/nvorkinn/pi-setup/main/install.sh \
-    | sudo -E env GITHUB_TOKEN="$GITHUB_TOKEN" bash -s -- [countdown_version] [pi_telemetry_version]
+    "https://raw.githubusercontent.com/nvorkinn/pi-setup/$PISETUP_TAG/install.sh" \
+    | sudo -E env GITHUB_TOKEN="$GITHUB_TOKEN" bash -s -- \
+        "$PISETUP_TAG" [countdown_version] [pi_telemetry_version]
 ```
 
-Each version arg is a release tag (e.g. `v0.3.0`); both default to `latest`.
+`countdown_version`/`pi_telemetry_version` are release tags too (e.g.
+`v0.3.1`); both default to `latest`, resolved the same way (via the
+releases API) once `install.sh` is actually running.
 
 The first run also asks for the age private key (see below) via a hidden
 prompt. Both the GitHub token and the age key are cached under
@@ -70,10 +91,13 @@ age -e -r age1mrlql83ne3jewsuqzemmlrxsdscn9sqlksl4uqhy8da5krn75usq5u46ak \
 ```
 
 Commit the resulting `.age` file. It's ciphertext -- safe in git even
-though the repo is private anyway. Re-run `install.sh` on each Pi to pick
-up the change (it won't overwrite pi-telemetry's env if one already exists
-on disk -- delete `/etc/pi-telemetry/env` on the Pi first if you want the
-new encrypted value to actually take effect there).
+though the repo is private anyway. Since `install.sh` only ever reads
+secrets from the pinned `PISETUP_TAG` it was fetched at, a new secret
+doesn't take effect anywhere until you **cut a new pi-setup release**
+(tag + `gh release create`) and re-run the installer against that new tag
+(or just use `latest`). It also won't overwrite pi-telemetry's env if one
+already exists on disk -- delete `/etc/pi-telemetry/env` on the Pi first if
+you want the new encrypted value to actually take effect there.
 
 ### Rotating the age key
 

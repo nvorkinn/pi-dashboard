@@ -9,17 +9,25 @@
 # to create one and for the age private key this script asks for on first
 # run.
 #
-# Usage:
-#   export GITHUB_TOKEN=ghp_...
-#   curl -fsSL -H "Authorization: Bearer $GITHUB_TOKEN" \
-#       https://raw.githubusercontent.com/nvorkinn/pi-setup/main/install.sh \
-#       | sudo -E env GITHUB_TOKEN="$GITHUB_TOKEN" bash -s -- [countdown_version] [pi_telemetry_version]
+# Nothing here is ever fetched from a branch (main included) -- every fetch
+# is pinned to a specific tagged release, resolving "latest" only through
+# the (immutable) releases API, never a moving branch ref. See README.md for
+# the full bootstrap one-liner, which resolves PISETUP_TAG the same way
+# before the very first curl (there's no script running yet at that point to
+# do it for you).
 #
-# Each version arg is a release tag (e.g. "v0.3.0"). Both default to "latest".
-# Re-running this script updates both apps in place. The GitHub token and
-# age private key are cached under /etc/pi-setup after the first run, but
-# GITHUB_TOKEN still needs to be in your environment for the outer `curl`
-# every time -- that fetch happens before this script (and its cache) exists.
+# Usage (once PISETUP_TAG is resolved -- see README.md):
+#   curl -fsSL -H "Authorization: Bearer $GITHUB_TOKEN" \
+#       "https://raw.githubusercontent.com/nvorkinn/pi-setup/$PISETUP_TAG/install.sh" \
+#       | sudo -E env GITHUB_TOKEN="$GITHUB_TOKEN" bash -s -- \
+#           "$PISETUP_TAG" [countdown_version] [pi_telemetry_version]
+#
+# countdown_version/pi_telemetry_version are release tags too, e.g. "v0.3.1";
+# both default to "latest". Re-running updates both apps in place. The
+# GitHub token and age private key are cached under /etc/pi-setup after the
+# first run, but GITHUB_TOKEN still needs to be in your environment for the
+# outer `curl` every time -- that fetch happens before this script (and its
+# cache) exists.
 set -euo pipefail
 
 if [ "$(id -u)" -ne 0 ]; then
@@ -27,8 +35,9 @@ if [ "$(id -u)" -ne 0 ]; then
     exit 1
 fi
 
-COUNTDOWN_VERSION="${1:-latest}"
-TELEMETRY_VERSION="${2:-latest}"
+PISETUP_TAG="${1:?PISETUP_TAG is required -- pass the exact tag this script was fetched from}"
+COUNTDOWN_VERSION="${2:-latest}"
+TELEMETRY_VERSION="${3:-latest}"
 
 COUNTDOWN_REPO="nvorkinn/countdown"
 TELEMETRY_REPO="nvorkinn/pi-telemetry"
@@ -100,7 +109,7 @@ release_json() {
 # app yet) -- callers fall back to that app's own defaults in that case.
 fetch_secret() {
     local name="$1" out_file="$2"
-    if gh_curl -o "$TMP_DIR/$name.age" "https://raw.githubusercontent.com/$PISETUP_REPO/main/secrets/$name.age"; then
+    if gh_curl -o "$TMP_DIR/$name.age" "https://raw.githubusercontent.com/$PISETUP_REPO/$PISETUP_TAG/secrets/$name.age"; then
         age -d -i "$KEY_FILE" "$TMP_DIR/$name.age" > "$out_file"
         return 0
     fi
@@ -127,10 +136,7 @@ else
     echo "No secrets/countdown.env.age in pi-setup yet -- countdown will start with defaults."
 fi
 
-# Installer logic always comes from main (so installer bugfixes land
-# without needing a new release), while COUNTDOWN_TAG pins the actual app
-# version being installed.
-gh_curl "https://raw.githubusercontent.com/$COUNTDOWN_REPO/main/packaging/install.sh" \
+gh_curl "https://raw.githubusercontent.com/$COUNTDOWN_REPO/$COUNTDOWN_TAG/packaging/install.sh" \
     | GITHUB_TOKEN="$GITHUB_TOKEN" bash -s -- "$COUNTDOWN_TAG"
 
 echo
@@ -143,12 +149,9 @@ print(release["tag_name"], assets["'"$TELEMETRY_ASSET"'"])
 ')"
 read -r TELEMETRY_TAG TELEMETRY_ASSET_API_URL <<< "$TELEMETRY_INFO"
 
-# Installer logic (install.sh, systemd/*) always comes from main, same
-# reasoning as countdown above -- TELEMETRY_TAG only pins the binary asset
-# downloaded further down.
-echo "Fetching pi-telemetry installer from main..."
+echo "Fetching pi-telemetry source at $TELEMETRY_TAG..."
 mkdir -p "$TMP_DIR/telemetry-src"
-gh_curl -L "https://github.com/$TELEMETRY_REPO/archive/refs/heads/main.tar.gz" \
+gh_curl -L "https://github.com/$TELEMETRY_REPO/archive/refs/tags/$TELEMETRY_TAG.tar.gz" \
     | tar -xz -C "$TMP_DIR/telemetry-src" --strip-components=1
 
 TELEMETRY_USER="$(grep -m1 '^User=' "$TMP_DIR/telemetry-src/systemd/pi-telemetry.service" | cut -d= -f2)"
