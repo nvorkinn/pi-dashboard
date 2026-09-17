@@ -74,6 +74,8 @@ curl -fsSL -H "Authorization: Bearer $GITHUB_TOKEN" \
     | GITHUB_TOKEN="$GITHUB_TOKEN" sudo -E bash -s -- "$TAG"
 ```
 
+`install.sh` itself uses the [`gh` CLI](https://cli.github.com) to resolve releases and download assets from that point on (installing it automatically if it's missing) -- `gh` handles private-repo auth correctly on its own, where a hand-rolled `curl` approach needs a separate asset-API dance.
+
 If you're provisioning a Pi with other apps too, see
 [pi-setup](https://github.com/nvorkinn/pi-setup) instead -- it wraps this
 installer, decrypts secrets into `.env` for you, and installs everything
