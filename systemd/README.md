@@ -15,13 +15,16 @@ sudo ./install.sh /path/to/pi-telemetry
 This installs the binary to `/opt/pi-telemetry`, creates
 `/etc/pi-telemetry/env` from `env.example` (if it doesn't already exist —
 edit it afterwards with the real broker host/port/credentials), installs
-the systemd units, and enables the timer. The binary and env file are
-owned by whatever `User=` is set in `pi-telemetry.service`.
+the systemd units, and enables the timer. The binary, env file, and service
+are owned by/run as whoever invoked `sudo` (or `root`, if run without
+`sudo`) -- `pi-telemetry.service`'s `User=@USER@` placeholder gets
+substituted with that user by the script, it's not a real username in the
+committed file.
 
 ### Manual steps
 
 If you'd rather do it by hand, or need to see exactly what the script
-does:
+does (using `vorkin` as an example target user):
 
 ```sh
 sudo mkdir -p /opt/pi-telemetry
@@ -34,7 +37,8 @@ sudo chmod 600 /etc/pi-telemetry/env
 sudo chown vorkin:vorkin /etc/pi-telemetry/env
 # edit /etc/pi-telemetry/env with the real broker host/port/credentials
 
-sudo cp systemd/pi-telemetry.service systemd/pi-telemetry.timer /etc/systemd/system/
+sed "s/@USER@/vorkin/" systemd/pi-telemetry.service | sudo tee /etc/systemd/system/pi-telemetry.service > /dev/null
+sudo cp systemd/pi-telemetry.timer /etc/systemd/system/
 sudo systemctl daemon-reload
 sudo systemctl enable --now pi-telemetry.timer
 ```

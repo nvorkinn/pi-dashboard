@@ -5,6 +5,6 @@ After=network-online.target
 
 [Service]
 Type=oneshot
-User=pi
+User=@USER@
 EnvironmentFile=/etc/pi-telemetry/env
 ExecStart=/opt/pi-telemetry/pi-telemetry
