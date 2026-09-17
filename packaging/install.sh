@@ -72,6 +72,11 @@ gh release download "$TAG" --repo "$REPO" --dir "$TMP_DIR" --clobber \
 # uv tool install parses name/version from the wheel filename itself; gh
 # preserves the real name (e.g. countdown-0.3.1-py3-none-any.whl).
 WHEEL_PATH="$(ls "$TMP_DIR"/*.whl)"
+# gh creates these respecting the caller's umask -- when invoked from a
+# script that tightened its own umask (e.g. pi-setup, to protect its token/
+# key files), that leaks in here too and leaves the wheel unreadable by
+# TARGET_USER. Force it open regardless of what we inherited.
+chmod 644 "$WHEEL_PATH" "$TMP_DIR/countdown.service"
 
 if ! run_as_target "command -v uv" >/dev/null 2>&1; then
     echo "uv not found for $TARGET_USER, installing it..."
