@@ -51,13 +51,27 @@ downloads a release, installs it with `uv tool install`, and sets it up as a
 systemd service.
 
 This repo is private, so every fetch it does (including fetching the
-installer itself) needs a GitHub token with read access to it:
+installer itself) needs a GitHub token with read access to it. Nothing is
+ever fetched from `main` -- `install.sh` is pinned to a tagged release like
+everything else it downloads, so resolve one (or use `latest`, via the
+releases API) before the first `curl`:
 
 ```bash
 export GITHUB_TOKEN=github_pat_...
+
+# Pin an exact version, or leave as "latest":
+VERSION=latest
+if [ "$VERSION" = latest ]; then
+    TAG="$(curl -fsSL -H "Authorization: Bearer $GITHUB_TOKEN" \
+        https://api.github.com/repos/nvorkinn/countdown/releases/latest \
+        | python3 -c 'import json,sys; print(json.load(sys.stdin)["tag_name"])')"
+else
+    TAG="$VERSION"
+fi
+
 curl -fsSL -H "Authorization: Bearer $GITHUB_TOKEN" \
-    https://raw.githubusercontent.com/nvorkinn/countdown/main/packaging/install.sh \
-    | GITHUB_TOKEN="$GITHUB_TOKEN" sudo -E bash
+    "https://raw.githubusercontent.com/nvorkinn/countdown/$TAG/packaging/install.sh" \
+    | GITHUB_TOKEN="$GITHUB_TOKEN" sudo -E bash -s -- "$TAG"
 ```
 
 If you're provisioning a Pi with other apps too, see
@@ -66,9 +80,8 @@ installer, decrypts secrets into `.env` for you, and installs everything
 else you need in one command.
 
 This installs `uv` for the invoking user if it isn't already present, and
-runs the service as that user. Pass a release tag as an argument to install
-a specific version instead of the latest, e.g. `... bash -s -- v0.3.0`.
-Re-running the installer updates the app and restarts the service.
+runs the service as that user. Re-running the installer updates the app and
+restarts the service.
 
 Every config field has a default, so the app runs right away with no config
 file at all -- visit `http://<pi>:4000` and save settings there to write
