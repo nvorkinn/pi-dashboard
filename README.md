@@ -20,34 +20,24 @@ fine-grained, read-only, scoped to `countdown`, `pi-telemetry`, and
 fetches this script.
 
 Nothing here is ever fetched from `main` -- every fetch is pinned to a
-specific tagged release, including `pi-setup`'s own `install.sh`. That
-means the very first `curl` needs a real tag too, resolved the same way
-`countdown_version`/`pi_telemetry_version` are (a specific tag, or the
-latest release via the API -- there's no script running yet to do that
-resolution for you, so it's inlined here):
+specific tagged release, including `pi-setup`'s own `install.sh`. Check
+[the releases page](https://github.com/nvorkinn/pi-setup/releases) for the
+current tag (there's no script running yet at the very first `curl` to
+resolve "latest" for you, so it's the one place you look it up by hand) and
+pass it explicitly, both in the URL and as the first argument:
 
 ```sh
 export GITHUB_TOKEN=github_pat_...
-
-# Pin an exact pi-setup version, or leave as "latest":
-PISETUP_VERSION=latest
-if [ "$PISETUP_VERSION" = latest ]; then
-    PISETUP_TAG="$(curl -fsSL -H "Authorization: Bearer $GITHUB_TOKEN" \
-        https://api.github.com/repos/nvorkinn/pi-setup/releases/latest \
-        | python3 -c 'import json,sys; print(json.load(sys.stdin)["tag_name"])')"
-else
-    PISETUP_TAG="$PISETUP_VERSION"
-fi
-
 curl -fsSL -H "Authorization: Bearer $GITHUB_TOKEN" \
-    "https://raw.githubusercontent.com/nvorkinn/pi-setup/$PISETUP_TAG/install.sh" \
+    https://raw.githubusercontent.com/nvorkinn/pi-setup/v1.0.0/install.sh \
     | sudo -E env GITHUB_TOKEN="$GITHUB_TOKEN" bash -s -- \
-        "$PISETUP_TAG" [countdown_version] [pi_telemetry_version]
+        v1.0.0 [countdown_version] [pi_telemetry_version]
 ```
 
 `countdown_version`/`pi_telemetry_version` are release tags too (e.g.
-`v0.3.1`); both default to `latest`, resolved the same way (via the
-releases API) once `install.sh` is actually running.
+`v0.3.1`), but *those* don't need a manual lookup -- both default to
+`latest`, resolved automatically via the releases API once `install.sh` is
+actually running.
 
 The first run also asks for the age private key (see below) via a hidden
 prompt. Both the GitHub token and the age key are cached under

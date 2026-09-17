@@ -11,23 +11,24 @@
 #
 # Nothing here is ever fetched from a branch (main included) -- every fetch
 # is pinned to a specific tagged release, resolving "latest" only through
-# the (immutable) releases API, never a moving branch ref. See README.md for
-# the full bootstrap one-liner, which resolves PISETUP_TAG the same way
-# before the very first curl (there's no script running yet at that point to
-# do it for you).
+# the (immutable) releases API, never a moving branch ref. Since there's no
+# script running yet to do that resolution for the very first curl (which
+# fetches this file), PISETUP_TAG is the one version you look up by hand --
+# check https://github.com/nvorkinn/pi-setup/releases -- and pass explicitly.
 #
-# Usage (once PISETUP_TAG is resolved -- see README.md):
+# Usage:
 #   curl -fsSL -H "Authorization: Bearer $GITHUB_TOKEN" \
-#       "https://raw.githubusercontent.com/nvorkinn/pi-setup/$PISETUP_TAG/install.sh" \
+#       "https://raw.githubusercontent.com/nvorkinn/pi-setup/<pi-setup tag>/install.sh" \
 #       | sudo -E env GITHUB_TOKEN="$GITHUB_TOKEN" bash -s -- \
-#           "$PISETUP_TAG" [countdown_version] [pi_telemetry_version]
+#           <pi-setup tag> [countdown_version] [pi_telemetry_version]
 #
-# countdown_version/pi_telemetry_version are release tags too, e.g. "v0.3.1";
-# both default to "latest". Re-running updates both apps in place. The
-# GitHub token and age private key are cached under /etc/pi-setup after the
-# first run, but GITHUB_TOKEN still needs to be in your environment for the
-# outer `curl` every time -- that fetch happens before this script (and its
-# cache) exists.
+# countdown_version/pi_telemetry_version are release tags too, e.g. "v0.3.1",
+# but those don't need a manual lookup -- both default to "latest", resolved
+# automatically via the releases API once this script is actually running.
+# Re-running updates both apps in place. The GitHub token and age private
+# key are cached under /etc/pi-setup after the first run, but GITHUB_TOKEN
+# still needs to be in your environment for the outer `curl` every time --
+# that fetch happens before this script (and its cache) exists.
 set -euo pipefail
 
 if [ "$(id -u)" -ne 0 ]; then
