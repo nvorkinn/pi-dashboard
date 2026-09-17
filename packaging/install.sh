@@ -1,11 +1,15 @@
 #!/usr/bin/env bash
 # Installs countdown from a GitHub release and sets it up as a systemd service.
 #
-# countdown is a private repo, so every fetch from it here (including
-# fetching this script itself) needs a token with read access, passed via
-# GITHUB_TOKEN. Nothing is ever fetched from main -- see README.md for the
-# full bootstrap snippet that resolves a tag (specified, or latest via the
-# releases API) before the first curl fetches this script from that tag.
+# countdown is a private repo, so fetching from it needs a token with read
+# access, passed via GITHUB_TOKEN. Uses the gh CLI (bootstrapped below if
+# missing) to resolve releases and download assets -- gh handles private-repo
+# auth correctly on its own; a hand-rolled curl approach needs the asset API
+# plus an Accept header, since a private repo's browser_download_url doesn't
+# work with a bearer token. Nothing is ever fetched from main -- see
+# README.md for the full bootstrap snippet that resolves a tag (specified,
+# or latest via the releases API) before the first curl fetches this script
+# from that tag.
 #
 # Usage (once TAG is resolved -- see README.md):
 #   curl -fsSL -H "Authorization: Bearer $GITHUB_TOKEN" \
@@ -27,6 +31,7 @@ if [ "$(id -u)" -ne 0 ]; then
     exit 1
 fi
 [ -n "${GITHUB_TOKEN:-}" ] || { echo "GITHUB_TOKEN is required (countdown is a private repo)." >&2; exit 1; }
+export GITHUB_TOKEN
 
 TARGET_USER="${SUDO_USER:-root}"
 TARGET_HOME="$(getent passwd "$TARGET_USER" | cut -d: -f6)"
@@ -39,56 +44,34 @@ run_as_target() {
     sudo -u "$TARGET_USER" -H env HOME="$TARGET_HOME" bash -lc "$1"
 }
 
-gh_curl() {
-    curl -fsSL -H "Authorization: Bearer $GITHUB_TOKEN" "$@"
-}
-
-# Downloads a release asset from a private repo. A plain browser_download_url
-# doesn't work with a bearer token there -- the asset API endpoint plus an
-# Accept header does.
-download_asset() {
-    local asset_api_url="$1" out_file="$2"
-    curl -fsSL -L \
-        -H "Authorization: Bearer $GITHUB_TOKEN" \
-        -H "Accept: application/octet-stream" \
-        "$asset_api_url" -o "$out_file"
-}
-
-echo "Installing countdown for user '$TARGET_USER' (app dir: $APP_DIR)..."
-
-if [ "$VERSION" = "latest" ]; then
-    RELEASE_URL="https://api.github.com/repos/$REPO/releases/latest"
-else
-    RELEASE_URL="https://api.github.com/repos/$REPO/releases/tags/$VERSION"
-fi
-
-RELEASE_INFO="$(gh_curl "$RELEASE_URL" | python3 -c '
-import json, sys
-release = json.load(sys.stdin)
-assets = {a["name"]: a["url"] for a in release["assets"]}
-wheel_name = next(name for name in assets if name.endswith(".whl"))
-print(release["tag_name"], wheel_name, assets[wheel_name], assets["countdown.service"])
-')"
-read -r TAG WHEEL_NAME WHEEL_ASSET_URL SERVICE_ASSET_URL <<< "$RELEASE_INFO"
-
-if [ -z "$TAG" ] || [ -z "$WHEEL_ASSET_URL" ] || [ -z "$SERVICE_ASSET_URL" ]; then
-    echo "Could not find a wheel and countdown.service asset on release '$VERSION'." >&2
-    exit 1
-fi
-
-echo "Resolved release $TAG"
-
 TMP_DIR="$(mktemp -d)"
 chmod 755 "$TMP_DIR"
 trap 'rm -rf "$TMP_DIR"' EXIT
 
+if ! command -v gh >/dev/null 2>&1; then
+    echo "Installing gh..."
+    GH_TAG="$(curl -fsSL https://api.github.com/repos/cli/cli/releases/latest | python3 -c 'import json,sys; print(json.load(sys.stdin)["tag_name"])')"
+    GH_VERSION="${GH_TAG#v}"
+    curl -fsSL "https://github.com/cli/cli/releases/download/$GH_TAG/gh_${GH_VERSION}_linux_arm64.tar.gz" \
+        | tar -xz -C "$TMP_DIR"
+    install -m 755 "$TMP_DIR/gh_${GH_VERSION}_linux_arm64/bin/gh" /usr/local/bin/gh
+fi
+
+echo "Installing countdown for user '$TARGET_USER' (app dir: $APP_DIR)..."
+
+if [ "$VERSION" = "latest" ]; then
+    TAG="$(gh release view --repo "$REPO" --json tagName --jq .tagName)"
+else
+    TAG="$VERSION"
+fi
+echo "Resolved release $TAG"
+
 echo "Downloading release assets..."
-# uv tool install parses name/version from the wheel filename itself, so it
-# has to keep its real name (e.g. countdown-0.3.1-py3-none-any.whl) rather
-# than a fixed local name.
-download_asset "$WHEEL_ASSET_URL" "$TMP_DIR/$WHEEL_NAME"
-download_asset "$SERVICE_ASSET_URL" "$TMP_DIR/countdown.service"
-chmod 644 "$TMP_DIR/$WHEEL_NAME" "$TMP_DIR/countdown.service"
+gh release download "$TAG" --repo "$REPO" --dir "$TMP_DIR" --clobber \
+    --pattern '*.whl' --pattern 'countdown.service'
+# uv tool install parses name/version from the wheel filename itself; gh
+# preserves the real name (e.g. countdown-0.3.1-py3-none-any.whl).
+WHEEL_PATH="$(ls "$TMP_DIR"/*.whl)"
 
 if ! run_as_target "command -v uv" >/dev/null 2>&1; then
     echo "uv not found for $TARGET_USER, installing it..."
@@ -96,7 +79,7 @@ if ! run_as_target "command -v uv" >/dev/null 2>&1; then
 fi
 
 echo "Installing the countdown wheel with uv tool..."
-run_as_target "uv tool install --force '$TMP_DIR/$WHEEL_NAME'"
+run_as_target "uv tool install --force '$WHEEL_PATH'"
 
 EXEC_START="$(run_as_target "uv tool dir --bin")/countdown"
 if [ ! -e "$EXEC_START" ]; then
