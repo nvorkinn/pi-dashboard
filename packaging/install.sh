@@ -1,9 +1,15 @@
 #!/usr/bin/env bash
 # Installs countdown from a GitHub release and sets it up as a systemd service.
 #
+# countdown is a private repo, so every fetch from it here (including
+# fetching this script itself) needs a token with read access, passed via
+# GITHUB_TOKEN.
+#
 # Usage:
-#   sudo ./install.sh [version]
-#   curl -fsSL https://raw.githubusercontent.com/nvorkinn/countdown/main/packaging/install.sh | sudo bash -s -- [version]
+#   export GITHUB_TOKEN=ghp_...
+#   curl -fsSL -H "Authorization: Bearer $GITHUB_TOKEN" \
+#       https://raw.githubusercontent.com/nvorkinn/countdown/main/packaging/install.sh \
+#       | GITHUB_TOKEN="$GITHUB_TOKEN" sudo -E bash -s -- [version]
 #
 # [version] is a release tag such as "v0.3.0". Defaults to the latest release.
 #
@@ -19,6 +25,7 @@ if [ "$(id -u)" -ne 0 ]; then
     echo "This script needs root to install the systemd unit. Re-run with sudo." >&2
     exit 1
 fi
+[ -n "${GITHUB_TOKEN:-}" ] || { echo "GITHUB_TOKEN is required (countdown is a private repo)." >&2; exit 1; }
 
 TARGET_USER="${SUDO_USER:-root}"
 TARGET_HOME="$(getent passwd "$TARGET_USER" | cut -d: -f6)"
@@ -31,6 +38,21 @@ run_as_target() {
     sudo -u "$TARGET_USER" -H env HOME="$TARGET_HOME" bash -lc "$1"
 }
 
+gh_curl() {
+    curl -fsSL -H "Authorization: Bearer $GITHUB_TOKEN" "$@"
+}
+
+# Downloads a release asset from a private repo. A plain browser_download_url
+# doesn't work with a bearer token there -- the asset API endpoint plus an
+# Accept header does.
+download_asset() {
+    local asset_api_url="$1" out_file="$2"
+    curl -fsSL -L \
+        -H "Authorization: Bearer $GITHUB_TOKEN" \
+        -H "Accept: application/octet-stream" \
+        "$asset_api_url" -o "$out_file"
+}
+
 echo "Installing countdown for user '$TARGET_USER' (app dir: $APP_DIR)..."
 
 if [ "$VERSION" = "latest" ]; then
@@ -39,22 +61,31 @@ else
     RELEASE_URL="https://api.github.com/repos/$REPO/releases/tags/$VERSION"
 fi
 
-RELEASE_INFO="$(curl -fsSL "$RELEASE_URL" | python3 -c '
+RELEASE_INFO="$(gh_curl "$RELEASE_URL" | python3 -c '
 import json, sys
 release = json.load(sys.stdin)
-assets = {a["name"]: a["browser_download_url"] for a in release["assets"]}
+assets = {a["name"]: a["url"] for a in release["assets"]}
 wheel = next(url for name, url in assets.items() if name.endswith(".whl"))
 service = assets["countdown.service"]
 print(release["tag_name"], wheel, service)
 ')"
-read -r TAG WHEEL_URL SERVICE_URL <<< "$RELEASE_INFO"
+read -r TAG WHEEL_ASSET_URL SERVICE_ASSET_URL <<< "$RELEASE_INFO"
 
-if [ -z "$TAG" ] || [ -z "$WHEEL_URL" ] || [ -z "$SERVICE_URL" ]; then
+if [ -z "$TAG" ] || [ -z "$WHEEL_ASSET_URL" ] || [ -z "$SERVICE_ASSET_URL" ]; then
     echo "Could not find a wheel and countdown.service asset on release '$VERSION'." >&2
     exit 1
 fi
 
 echo "Resolved release $TAG"
+
+TMP_DIR="$(mktemp -d)"
+chmod 755 "$TMP_DIR"
+trap 'rm -rf "$TMP_DIR"' EXIT
+
+echo "Downloading release assets..."
+download_asset "$WHEEL_ASSET_URL" "$TMP_DIR/countdown.whl"
+download_asset "$SERVICE_ASSET_URL" "$TMP_DIR/countdown.service"
+chmod 644 "$TMP_DIR/countdown.whl" "$TMP_DIR/countdown.service"
 
 if ! run_as_target "command -v uv" >/dev/null 2>&1; then
     echo "uv not found for $TARGET_USER, installing it..."
@@ -62,7 +93,7 @@ if ! run_as_target "command -v uv" >/dev/null 2>&1; then
 fi
 
 echo "Installing the countdown wheel with uv tool..."
-run_as_target "uv tool install --force '$WHEEL_URL'"
+run_as_target "uv tool install --force '$TMP_DIR/countdown.whl'"
 
 EXEC_START="$(run_as_target "uv tool dir --bin")/countdown"
 if [ ! -e "$EXEC_START" ]; then
@@ -74,14 +105,11 @@ mkdir -p "$APP_DIR"
 chown "$TARGET_USER" "$APP_DIR"
 
 echo "Installing systemd unit..."
-SERVICE_FILE="$(mktemp)"
-trap 'rm -f "$SERVICE_FILE"' EXIT
-curl -fsSL "$SERVICE_URL" -o "$SERVICE_FILE"
 sed \
     -e "s#@USER@#$TARGET_USER#" \
     -e "s#@WORKING_DIRECTORY@#$APP_DIR#" \
     -e "s#@EXEC_START@#$EXEC_START#" \
-    "$SERVICE_FILE" > /etc/systemd/system/countdown.service
+    "$TMP_DIR/countdown.service" > /etc/systemd/system/countdown.service
 
 systemctl daemon-reload
 systemctl enable --now countdown.service
