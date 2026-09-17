@@ -127,7 +127,10 @@ else
     echo "No secrets/countdown.env.age in pi-setup yet -- countdown will start with defaults."
 fi
 
-gh_curl "https://raw.githubusercontent.com/$COUNTDOWN_REPO/$COUNTDOWN_TAG/packaging/install.sh" \
+# Installer logic always comes from main (so installer bugfixes land
+# without needing a new release), while COUNTDOWN_TAG pins the actual app
+# version being installed.
+gh_curl "https://raw.githubusercontent.com/$COUNTDOWN_REPO/main/packaging/install.sh" \
     | GITHUB_TOKEN="$GITHUB_TOKEN" bash -s -- "$COUNTDOWN_TAG"
 
 echo
@@ -140,9 +143,12 @@ print(release["tag_name"], assets["'"$TELEMETRY_ASSET"'"])
 ')"
 read -r TELEMETRY_TAG TELEMETRY_ASSET_API_URL <<< "$TELEMETRY_INFO"
 
-echo "Fetching pi-telemetry source at $TELEMETRY_TAG..."
+# Installer logic (install.sh, systemd/*) always comes from main, same
+# reasoning as countdown above -- TELEMETRY_TAG only pins the binary asset
+# downloaded further down.
+echo "Fetching pi-telemetry installer from main..."
 mkdir -p "$TMP_DIR/telemetry-src"
-gh_curl -L "https://github.com/$TELEMETRY_REPO/archive/refs/tags/$TELEMETRY_TAG.tar.gz" \
+gh_curl -L "https://github.com/$TELEMETRY_REPO/archive/refs/heads/main.tar.gz" \
     | tar -xz -C "$TMP_DIR/telemetry-src" --strip-components=1
 
 TELEMETRY_USER="$(grep -m1 '^User=' "$TMP_DIR/telemetry-src/systemd/pi-telemetry.service" | cut -d= -f2)"
