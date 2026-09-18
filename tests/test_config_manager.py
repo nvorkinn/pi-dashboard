@@ -12,8 +12,8 @@ def test_live_config_starts_empty(isolated_cwd):
     assert live.tfl.stop_ids == []
     assert live.weather.location == ""
     assert live.spotify.enabled is False
-    assert live.glowmarkt.username == ""
-    assert live.glowmarkt.password == ""
+    assert live.glowmarkt.username is None
+    assert live.glowmarkt.password is None
     assert live.interval == 15
 
 
@@ -23,5 +23,5 @@ def test_live_config_ignores_env_vars(isolated_cwd, monkeypatch):
     monkeypatch.setenv("INTERVAL", "99")
     live = AppConfig()
     assert live.tfl.app_key == ""
-    assert live.glowmarkt.username == ""
+    assert live.glowmarkt.username is None
     assert live.interval == 15

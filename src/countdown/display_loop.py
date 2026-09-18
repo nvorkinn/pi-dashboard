@@ -61,10 +61,10 @@ class DisplayLoop:
                 arrival_panel = CombinedArrivalPanel(self.tfl.get_next_arrivals())
                 if self.page % self.page_count == 0:
                     # Most gifted devices never get Glowmarkt set up on the broker at
-                    # all -- username/password just come back empty, not omitted, so
-                    # this is the normal case for most devices, not a failure to
-                    # recover from. Skip attempting auth entirely rather than hitting
-                    # Glowmarkt with known-bad credentials every single cycle forever.
+                    # all -- username/password come back None, not omitted, so this
+                    # is the normal case for most devices, not a failure to recover
+                    # from. Skip attempting auth entirely rather than hitting
+                    # Glowmarkt with known-missing credentials every cycle forever.
                     have_glowmarkt_creds = self.live.glowmarkt.username and self.live.glowmarkt.password
                     if self.resource_id is None and have_glowmarkt_creds:
                         self.resource_id = safe_fetch(lambda: self.glow.get_electricity_resource_id(), None)

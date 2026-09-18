@@ -20,8 +20,13 @@ class WeatherConfig(BaseModel):
 
 
 class GlowmarktConfig(BaseModel):
-    username: str = Field(default="")
-    password: str = Field(default="")
+    # None, not "" -- these come from the broker as null when a device's owner
+    # hasn't set up Glowmarkt (the common case), and an explicit "not configured"
+    # is worth keeping honest rather than folding into the same empty-string
+    # convention used elsewhere, since a credential has no legitimate empty value
+    # the way e.g. a search query might.
+    username: str | None = Field(default=None)
+    password: str | None = Field(default=None)
 
 
 class AppConfig(BaseModel):

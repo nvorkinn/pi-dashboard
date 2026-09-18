@@ -80,6 +80,25 @@ def test_get_config_parses_response(isolated_cwd):
     assert config.glowmarkt.username == "me@example.com"
 
 
+def test_get_config_accepts_null_glowmarkt_credentials(isolated_cwd):
+    """The common case: a device whose owner hasn't set up Glowmarkt on the
+    broker. Sent as null, not omitted -- must parse, not raise."""
+    CREDENTIALS_FILE.write_text(json.dumps({"device_id": "device-123", "device_secret": "shh"}))
+    client = BrokerClient("https://broker.example.com")
+    client.session.request = MagicMock(return_value=_response({
+        "interval": 15,
+        "tfl": {"app_key": "", "stop_ids": []},
+        "weather": {"api_key": "", "location": ""},
+        "spotify": {"enabled": False},
+        "glowmarkt": {"username": None, "password": None},
+    }))
+
+    config = client.get_config()
+
+    assert config.glowmarkt.username is None
+    assert config.glowmarkt.password is None
+
+
 def test_get_current_track_returns_none_when_broker_returns_null(isolated_cwd):
     CREDENTIALS_FILE.write_text(json.dumps({"device_id": "device-123", "device_secret": "shh"}))
     client = BrokerClient("https://broker.example.com")

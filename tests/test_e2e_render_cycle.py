@@ -133,7 +133,7 @@ def test_full_render_cycle_skips_glowmarkt_when_credentials_empty(isolated_cwd, 
     live = AppConfig()
     live.interval = 0
     live.tfl.stop_ids = ["490000123W"]
-    assert live.glowmarkt.username == "" and live.glowmarkt.password == ""
+    assert live.glowmarkt.username is None and live.glowmarkt.password is None
 
     for stop_id, stop_json in {"490000123W": BUS_STOP_JSON}.items():
         responses.add(responses.GET, f"https://api.tfl.gov.uk/StopPoint/{stop_id}", json=stop_json)

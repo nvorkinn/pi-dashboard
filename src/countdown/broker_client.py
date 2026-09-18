@@ -24,8 +24,10 @@ class BrokerSpotifyConfig(BaseModel):
 
 
 class BrokerGlowmarktConfig(BaseModel):
-    username: str
-    password: str
+    # None, not "" -- the broker sends null when a device's owner hasn't set up
+    # Glowmarkt (the common case for most gifted devices).
+    username: str | None
+    password: str | None
 
 
 class BrokerConfig(BaseModel):
