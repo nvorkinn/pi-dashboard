@@ -24,8 +24,9 @@ import responses
 from PIL import Image
 
 from countdown.app import DisplayLoop
-from countdown.broker_client import DEFAULT_BROKER_URL
-from countdown.config_manager import LiveConfig
+from countdown.config_manager import AppConfig
+
+TEST_BROKER_URL = "https://broker.example.com"
 
 BUS_STOP_JSON = {
     "naptanId": "490000123W",
@@ -83,18 +84,18 @@ def _mock_tfl_and_glowmarkt(stop_json_by_id: dict, arrivals_json_by_id: dict) ->
     })
 
 
-def _make_live_config() -> LiveConfig:
-    live = LiveConfig()
+def _make_live_config() -> AppConfig:
+    live = AppConfig()
     live.interval = 0 # Means we just run the loop
     return live
 
 
-def _build_loop(live: LiveConfig, monkeypatch, spotify_track: dict | None, show_callback = lambda self, *a, **kw: None) -> DisplayLoop:
+def _build_loop(live: AppConfig, monkeypatch, spotify_track: dict | None, show_callback = lambda self, *a, **kw: None) -> DisplayLoop:
     # BrokerClient registers itself on construction if no credentials file exists --
     # seed one so tests load it instead of making a real (unmocked) network call.
     Path(".auth_broker_device").write_text(json.dumps({"device_id": "test-device", "device_secret": "test-secret"}))
 
-    loop = DisplayLoop(DEFAULT_BROKER_URL, live=live)
+    loop = DisplayLoop(TEST_BROKER_URL, live=live)
     monkeypatch.setattr(loop.broker, "get_current_track", lambda: spotify_track)
     monkeypatch.setattr(loop.weather, "get_weather", lambda: _StubWeatherPanel())
     monkeypatch.setattr(Image.Image, "show", show_callback)

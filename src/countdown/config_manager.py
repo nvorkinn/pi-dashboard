@@ -24,7 +24,7 @@ class GlowmarktConfig(BaseModel):
     password: str = Field(default="")
 
 
-class LiveConfig(BaseModel):
+class AppConfig(BaseModel):
     """Everything auth-broker owns: TfL stops, weather location, interval, whether
     Spotify is enabled, and Glowmarkt credentials. A plain BaseModel, not
     BaseSettings -- structurally cannot read .env or any env var, and is never

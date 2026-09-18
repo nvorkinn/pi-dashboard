@@ -10,7 +10,7 @@ def isolated_cwd(tmp_path, monkeypatch):
     """Run every test in an empty temp directory, so nothing can accidentally read
     (or write into) a device-local file a test writes into this same tmp_path (e.g.
     .auth_broker_device). BROKER_URL is the only env var the app itself reads
-    (os.environ.get() in app.py, not pydantic-settings -- LiveConfig is a plain
+    (os.environ.get() in app.py, not pydantic-settings -- AppConfig is a plain
     BaseModel and structurally can't read env vars at all, see
     test_live_config_ignores_env_vars), so it's the only one worth clearing here."""
     monkeypatch.chdir(tmp_path)

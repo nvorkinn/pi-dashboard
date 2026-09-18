@@ -6,7 +6,7 @@ import requests
 from countdown.glow_client import GlowClient
 from countdown.tfl_client import TflClient
 from countdown.broker_client import BrokerClient
-from countdown.config_manager import LiveConfig
+from countdown.config_manager import AppConfig
 from countdown.weather_client import WeatherClient
 from display.combined_arrival_panel import CombinedArrivalPanel
 from display.display import DisplayController
@@ -31,8 +31,8 @@ class DisplayLoop:
     display.py calls .render()), so it's rebuilt on demand from self.energy rather
     than kept as separate, redundant state -- current_track already works this way."""
 
-    def __init__(self, broker_url: str, display = DisplayController(), live: LiveConfig | None = None):
-        self.live = live if live is not None else LiveConfig()
+    def __init__(self, broker_url: str, display = DisplayController(), live: AppConfig | None = None):
+        self.live = live if live is not None else AppConfig()
         self.interval = self.live.interval
         self.display = display
         self.tfl = TflClient(self.live.tfl)
