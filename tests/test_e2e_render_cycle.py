@@ -26,11 +26,22 @@ from pathlib import Path
 import responses
 from PIL import Image
 
-from countdown.broker_client import BrokerClient
+from countdown.broker_client import BrokerClient, BrokerConfig
 from countdown.config_manager import AppConfig
 from countdown.display_loop import DisplayLoop, fetch_app_config
 
 TEST_BROKER_URL = "https://broker.example.com"
+
+
+def _broker_config_json(pairing_code: str | None = None, interval: int = 0) -> dict:
+    return {
+        "interval": interval,
+        "tfl": {"app_key": "", "stop_ids": []},
+        "weather": {"api_key": "", "location": ""},
+        "spotify": {"enabled": False},
+        "glowmarkt": {"username": None, "password": None},
+        "pairing_code": pairing_code,
+    }
 
 BUS_STOP_JSON = {
     "naptanId": "490000123W",
@@ -114,7 +125,12 @@ def _build_loop(
 ) -> DisplayLoop:
     _seed_credentials()
     broker = BrokerClient(TEST_BROKER_URL)
-    loop = DisplayLoop(broker, config, pairing_code)
+    # Seeds broker's own cache too (get_pairing_code_panel, not a bare
+    # PairingCodePanel(...)), same as fetch_app_config() does for real -- so a
+    # test that later re-polls with the same code sees has_changed=False, not a
+    # spurious "first time" every call.
+    pairing_code_panel = broker.get_pairing_code_panel(BrokerConfig.model_validate(_broker_config_json(pairing_code)))
+    loop = DisplayLoop(broker, config, pairing_code_panel)
     monkeypatch.setattr(loop.broker, "get_current_track", lambda: spotify_track)
     monkeypatch.setattr(loop.weather, "get_weather", lambda: _StubWeatherPanel())
     monkeypatch.setattr(Image.Image, "show", show_callback)
@@ -233,7 +249,7 @@ def test_run_shows_pairing_screen_and_skips_normal_display_while_unpaired(isolat
     loop = _build_loop(config, monkeypatch, spotify_track=None, pairing_code="ABC123")
     screens_shown = []
     monkeypatch.setattr(
-        loop.display, "display_pairing_screen", lambda code, device_id: screens_shown.append((code, device_id))
+        loop.display, "display_pairing_screen", lambda panel: screens_shown.append((panel.pairing_code, panel.device_id))
     )
 
     loop.run()
@@ -246,17 +262,25 @@ def test_run_shows_pairing_screen_and_skips_normal_display_while_unpaired(isolat
 def test_run_only_repaints_pairing_screen_when_code_changes(isolated_cwd, monkeypatch):
     """A full e-paper refresh is slow and visibly flashy -- repainting an unchanged
     pairing code every cycle for however long a device sits unpaired would be
-    needless wear, not just noise."""
+    needless wear, not just noise. Unlike the test above, /config IS mocked here
+    (always returning the same code) so refresh_broker_config() actually re-derives
+    pairing_code_panel each cycle via BrokerClient's cache, instead of leaving the
+    cycle-1 panel (and its has_changed=True) untouched forever."""
     config = _make_config()
+    responses.add(
+        responses.GET, f"{TEST_BROKER_URL}/api/devices/test-device/config",
+        json=_broker_config_json(pairing_code="ABC123", interval=0),
+    )
+
     loop = _build_loop(config, monkeypatch, spotify_track=None, pairing_code="ABC123")
     screens_shown = []
     monkeypatch.setattr(
-        loop.display, "display_pairing_screen", lambda code, device_id: screens_shown.append(code)
+        loop.display, "display_pairing_screen", lambda panel: screens_shown.append(panel.pairing_code)
     )
 
-    loop.run()  # broker.get_config() unmocked -> refresh_broker_config() no-ops -> pairing_code unchanged
+    loop.run()  # cycle 1: pairing_code_panel seeded by _build_loop, has_changed=True -> repaint
     loop.page = 0  # run() only executes once per call when interval == 0; call again to simulate cycle 2
-    loop.run()
+    loop.run()  # cycle 2: refresh_broker_config() re-fetches the same code -> has_changed=False -> no repaint
 
     assert screens_shown == ["ABC123"]
 
@@ -274,12 +298,14 @@ def test_fetch_app_config_uses_real_broker_response(isolated_cwd):
         "pairing_code": "XYZ789",
     })
 
-    config, pairing_code = fetch_app_config(broker)
+    config, pairing_code_panel = fetch_app_config(broker)
 
     assert config.interval == 20
     assert config.tfl.stop_ids == ["940GZZLUEUS"]
     assert config.spotify.enabled is True
-    assert pairing_code == "XYZ789"
+    assert pairing_code_panel.pairing_code == "XYZ789"
+    assert pairing_code_panel.device_id == "test-device"
+    assert pairing_code_panel.has_changed is True  # first time this device's ever checked
 
 
 @responses.activate
@@ -288,8 +314,8 @@ def test_fetch_app_config_falls_back_to_empty_when_broker_unreachable(isolated_c
     broker = BrokerClient(TEST_BROKER_URL)
     # /config deliberately left unmocked -- responses raises ConnectionError for it.
 
-    config, pairing_code = fetch_app_config(broker)
+    config, pairing_code_panel = fetch_app_config(broker)
 
     assert config.tfl.stop_ids == []
     assert config.interval == 15
-    assert pairing_code is None
+    assert pairing_code_panel.pairing_code is None

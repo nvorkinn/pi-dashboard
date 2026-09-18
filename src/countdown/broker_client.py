@@ -4,7 +4,9 @@ from pathlib import Path
 
 from pydantic import BaseModel
 
-from countdown.http import DEFAULT_TIMEOUT, build_retrying_session
+from countdown.abstract_client import AbstractClient
+from countdown.http import DEFAULT_TIMEOUT
+from display.pairing_code_panel import PairingCodePanel
 
 CREDENTIALS_FILE = Path(".auth_broker_device")
 
@@ -46,7 +48,7 @@ class BrokerConfig(BaseModel):
     pairing_code: str | None
 
 
-class BrokerClient:
+class BrokerClient(AbstractClient):
     """Talks to auth-broker (https://github.com/nvorkinn/auth-broker), the cloud
     service that handles Spotify OAuth and hosts this device's config centrally --
     gifted frames have no stable public address of their own, so the broker is the
@@ -64,8 +66,8 @@ class BrokerClient:
     """
 
     def __init__(self, base_url: str):
+        super().__init__()
         self.base_url = base_url.rstrip("/")
-        self.session = build_retrying_session()
 
         if CREDENTIALS_FILE.exists():
             data = json.loads(CREDENTIALS_FILE.read_text())
@@ -94,6 +96,15 @@ class BrokerClient:
     def get_config(self) -> BrokerConfig:
         json_data = self._request("GET", f"/api/devices/{self.device_id}/config")
         return BrokerConfig.model_validate(json_data)
+
+    def get_pairing_code_panel(self, config: BrokerConfig) -> PairingCodePanel:
+        """Wraps an already-fetched BrokerConfig's pairing_code as a renderable
+        panel -- doesn't fetch anything itself (get_config() already did, once,
+        this cycle; no reason for a second round-trip just for this field) -- and
+        uses the inherited cache to flag whether the code actually changed since
+        the last time this was checked."""
+        is_same = self._cache_and_compare("pairing_code", config.pairing_code)
+        return PairingCodePanel(config.pairing_code, self.device_id, has_changed=not is_same)
 
     def get_current_track(self) -> dict[str, str] | None:
         """Same shape as the old SpotifyClient.get_current_track(): the broker

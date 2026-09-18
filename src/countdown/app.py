@@ -15,8 +15,8 @@ def main() -> None:
     # app should crash loudly rather than silently talk to some baked-in URL.
     broker_url = os.environ["BROKER_URL"]
     broker = BrokerClient(broker_url)
-    config, pairing_code = fetch_app_config(broker)
-    loop = DisplayLoop(broker, config, pairing_code)
+    config, pairing_code_panel = fetch_app_config(broker)
+    loop = DisplayLoop(broker, config, pairing_code_panel)
 
     # Setup graceful signal handling
     def handle_shutdown(_signum, _frame):
