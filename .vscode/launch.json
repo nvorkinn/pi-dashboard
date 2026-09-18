@@ -15,6 +15,18 @@
             "cwd": "${workspaceFolder}",
             "python": "${command:python.interpreterPath}",
             "console": "integratedTerminal"
+        },
+        {
+            "name": "Clear Waveshare ePaper Screen",
+            "type": "debugpy",
+            "request": "launch",
+            "program": "${workspaceFolder}/src/display/clear_screen.py",
+            "args": [
+                "--verbose"
+            ],
+            "cwd": "${workspaceFolder}",
+            "python": "${command:python.interpreterPath}",
+            "console": "integratedTerminal"
         }
     ]
 }
