@@ -87,6 +87,11 @@ def _mock_tfl_and_glowmarkt(stop_json_by_id: dict, arrivals_json_by_id: dict) ->
 def _make_live_config() -> AppConfig:
     live = AppConfig()
     live.interval = 0 # Means we just run the loop
+    # Real (dummy) credentials, since these tests mock Glowmarkt's endpoints and
+    # exercise that path -- DisplayLoop now skips Glowmarkt entirely when
+    # username/password are empty (the common case for most real devices).
+    live.glowmarkt.username = "dummy@example.com"
+    live.glowmarkt.password = "dummy-password"
     return live
 
 
@@ -117,7 +122,30 @@ def test_full_render_cycle_without_spotify_track(isolated_cwd, monkeypatch):
     assert loop.page_count == 1
     assert loop.energy["day"] == [1.5, 2.25]
     assert loop.current_track is None
-    assert len(loop.tfl.stops) == 2
+
+
+@responses.activate
+def test_full_render_cycle_skips_glowmarkt_when_credentials_empty(isolated_cwd, monkeypatch):
+    """The common case: a gifted device whose owner never set up Glowmarkt on the
+    broker. Deliberately doesn't mock any glowmarkt.com endpoint -- if DisplayLoop
+    ever attempted a call, `responses` would raise ConnectionError for it, which
+    would surface as a different, unrelated-looking failure below."""
+    live = AppConfig()
+    live.interval = 0
+    live.tfl.stop_ids = ["490000123W"]
+    assert live.glowmarkt.username == "" and live.glowmarkt.password == ""
+
+    for stop_id, stop_json in {"490000123W": BUS_STOP_JSON}.items():
+        responses.add(responses.GET, f"https://api.tfl.gov.uk/StopPoint/{stop_id}", json=stop_json)
+    for stop_id, arrivals_json in {"490000123W": BUS_ARRIVALS_JSON}.items():
+        responses.add(responses.GET, f"https://api.tfl.gov.uk/StopPoint/{stop_id}/Arrivals", json=arrivals_json)
+
+    loop = _build_loop(live, monkeypatch, spotify_track=None)
+    loop.run()
+
+    assert loop.resource_id is None
+    assert loop.energy == {"day": None, "month": None, "year": None}
+    assert len(loop.tfl.stops) == 1
 
 
 @responses.activate
