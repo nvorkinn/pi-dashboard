@@ -11,10 +11,13 @@ BrokerClient.get_current_track() is a thin passthrough to auth-broker (which has
 own test suite) -- neither is "our" integration logic in the way TfL/Glowmarkt parsing
 is, so there's nothing gained by faking their transport layer here.
 
-BrokerClient.get_config() is deliberately left unmocked: with no matching `responses`
-registration, `responses` raises ConnectionError on that call, which DisplayLoop's
-safe_fetch swallows and falls back to "nothing changed" -- exercising that resilience
-path for free, and keeping these tests focused on TfL/Glowmarkt/Spotify.
+Most of these tests build a DisplayLoop directly from a `config`/`pairing_code`
+override, which leaves BrokerClient.get_config() unmocked -- with no matching
+`responses` registration, `responses` raises ConnectionError on that call, which
+safe_fetch swallows, exercising the "broker unreachable" resilience path for free
+and keeping those tests focused on TfL/Glowmarkt/Spotify. fetch_app_config() itself
+-- both the real-broker-response path and that same unreachable fallback -- gets
+its own dedicated coverage further down instead.
 """
 import io
 import json
@@ -23,8 +26,9 @@ from pathlib import Path
 import responses
 from PIL import Image
 
-from countdown.app import DisplayLoop
+from countdown.broker_client import BrokerClient
 from countdown.config_manager import AppConfig
+from countdown.display_loop import DisplayLoop, fetch_app_config
 
 TEST_BROKER_URL = "https://broker.example.com"
 
@@ -95,12 +99,22 @@ def _make_config() -> AppConfig:
     return config
 
 
-def _build_loop(config: AppConfig, monkeypatch, spotify_track: dict | None, show_callback = lambda self, *a, **kw: None) -> DisplayLoop:
+def _seed_credentials() -> None:
     # BrokerClient registers itself on construction if no credentials file exists --
     # seed one so tests load it instead of making a real (unmocked) network call.
     Path(".auth_broker_device").write_text(json.dumps({"device_id": "test-device", "device_secret": "test-secret"}))
 
-    loop = DisplayLoop(TEST_BROKER_URL, config=config)
+
+def _build_loop(
+    config: AppConfig,
+    monkeypatch,
+    spotify_track: dict | None,
+    pairing_code: str | None = None,
+    show_callback = lambda self, *a, **kw: None,
+) -> DisplayLoop:
+    _seed_credentials()
+    broker = BrokerClient(TEST_BROKER_URL)
+    loop = DisplayLoop(broker, config, pairing_code)
     monkeypatch.setattr(loop.broker, "get_current_track", lambda: spotify_track)
     monkeypatch.setattr(loop.weather, "get_weather", lambda: _StubWeatherPanel())
     monkeypatch.setattr(Image.Image, "show", show_callback)
@@ -206,3 +220,76 @@ def test_partial_render_cycle_reuses_prior_state_without_refetching(isolated_cwd
     # (which do get refreshed every cycle) should have caused new requests.
     assert glowmarkt_call_count() == glow_calls_before
     assert loop.energy == energy_after_first_cycle
+
+
+@responses.activate
+def test_run_shows_pairing_screen_and_skips_normal_display_while_unpaired(isolated_cwd, monkeypatch):
+    """While a pairing code is active, run() shouldn't touch TfL/Glowmarkt/weather/
+    Spotify at all -- none of those endpoints are mocked here, so a call to any of
+    them would surface as an unrelated-looking ConnectionError failure below."""
+    config = _make_config()
+    config.tfl.stop_ids = ["490000123W"]
+
+    loop = _build_loop(config, monkeypatch, spotify_track=None, pairing_code="ABC123")
+    screens_shown = []
+    monkeypatch.setattr(
+        loop.display, "display_pairing_screen", lambda code, device_id: screens_shown.append((code, device_id))
+    )
+
+    loop.run()
+
+    assert screens_shown == [("ABC123", "test-device")]
+    assert loop.energy == {"day": None, "month": None, "year": None}
+
+
+@responses.activate
+def test_run_only_repaints_pairing_screen_when_code_changes(isolated_cwd, monkeypatch):
+    """A full e-paper refresh is slow and visibly flashy -- repainting an unchanged
+    pairing code every cycle for however long a device sits unpaired would be
+    needless wear, not just noise."""
+    config = _make_config()
+    loop = _build_loop(config, monkeypatch, spotify_track=None, pairing_code="ABC123")
+    screens_shown = []
+    monkeypatch.setattr(
+        loop.display, "display_pairing_screen", lambda code, device_id: screens_shown.append(code)
+    )
+
+    loop.run()  # broker.get_config() unmocked -> refresh_broker_config() no-ops -> pairing_code unchanged
+    loop.page = 0  # run() only executes once per call when interval == 0; call again to simulate cycle 2
+    loop.run()
+
+    assert screens_shown == ["ABC123"]
+
+
+@responses.activate
+def test_fetch_app_config_uses_real_broker_response(isolated_cwd):
+    _seed_credentials()
+    broker = BrokerClient(TEST_BROKER_URL)
+    responses.add(responses.GET, f"{TEST_BROKER_URL}/api/devices/test-device/config", json={
+        "interval": 20,
+        "tfl": {"app_key": "tfl-key", "stop_ids": ["940GZZLUEUS"]},
+        "weather": {"api_key": "weather-key", "location": "London"},
+        "spotify": {"enabled": True},
+        "glowmarkt": {"username": None, "password": None},
+        "pairing_code": "XYZ789",
+    })
+
+    config, pairing_code = fetch_app_config(broker)
+
+    assert config.interval == 20
+    assert config.tfl.stop_ids == ["940GZZLUEUS"]
+    assert config.spotify.enabled is True
+    assert pairing_code == "XYZ789"
+
+
+@responses.activate
+def test_fetch_app_config_falls_back_to_empty_when_broker_unreachable(isolated_cwd):
+    _seed_credentials()
+    broker = BrokerClient(TEST_BROKER_URL)
+    # /config deliberately left unmocked -- responses raises ConnectionError for it.
+
+    config, pairing_code = fetch_app_config(broker)
+
+    assert config.tfl.stop_ids == []
+    assert config.interval == 15
+    assert pairing_code is None

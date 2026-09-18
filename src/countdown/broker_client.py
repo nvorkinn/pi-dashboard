@@ -36,6 +36,14 @@ class BrokerConfig(BaseModel):
     weather: BrokerWeatherConfig
     spotify: BrokerSpotifyConfig
     glowmarkt: BrokerGlowmarktConfig
+    # Non-null exactly while this device hasn't been paired with a recipient yet
+    # (the server tracks that durably, not just "has an active pairing code" --
+    # a code can expire and get regenerated without the device ever un-pairing).
+    # Checked/displayed every cycle via DisplayLoop.refresh_broker_config(), not
+    # requested once at registration -- a code generated once at boot could sit
+    # unseen and expire long before a gifted device's recipient gets around to
+    # unboxing it.
+    pairing_code: str | None
 
 
 class BrokerClient:
@@ -46,15 +54,18 @@ class BrokerClient:
 
     Registers itself on first run, persisting credentials to CREDENTIALS_FILE
     (gitignored, same treatment as .spotify_token_cache/config.json) so later runs
-    just load them -- no network call needed unless/until re-pairing is wanted.
-    Registration has to succeed for construction to succeed: without a device_id,
-    nothing else here works anyway, same as SpotifyOAuth's eager validation today.
+    just load them -- no network call needed at all once registered. Registration
+    has to succeed for construction to succeed: without a device_id, nothing else
+    here works anyway, same as SpotifyOAuth's eager validation today.
+
+    Deliberately doesn't request a pairing code itself -- that's part of
+    get_config()'s response (see BrokerConfig.pairing_code), checked fresh every
+    cycle by the caller, not a one-time thing this class owns.
     """
 
     def __init__(self, base_url: str):
         self.base_url = base_url.rstrip("/")
         self.session = build_retrying_session()
-        self.pairing_code: str | None = None
 
         if CREDENTIALS_FILE.exists():
             data = json.loads(CREDENTIALS_FILE.read_text())
@@ -71,9 +82,6 @@ class BrokerClient:
         response.raise_for_status()
         self.device_id = response.json()["device_id"]
         CREDENTIALS_FILE.write_text(json.dumps({"device_id": self.device_id, "device_secret": self.device_secret}))
-
-        pairing = self._request("POST", f"/api/devices/{self.device_id}/pairing-code")
-        self.pairing_code = pairing["code"]
 
     def _request(self, method: str, path: str, **kwargs):
         headers = {"Authorization": f"Bearer {self.device_secret}"}

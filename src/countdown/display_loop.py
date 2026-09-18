@@ -6,7 +6,7 @@ import requests
 from countdown.glow_client import GlowClient
 from countdown.tfl_client import TflClient
 from countdown.broker_client import BrokerClient
-from countdown.config_manager import AppConfig, GlowmarktConfig, TflConfig, WeatherConfig
+from countdown.config_manager import AppConfig, GlowmarktConfig, SpotifyConfig, TflConfig, WeatherConfig
 from countdown.weather_client import WeatherClient
 from display.combined_arrival_panel import CombinedArrivalPanel
 from display.display import DisplayController
@@ -23,27 +23,58 @@ def safe_fetch(func, fallback):
         return fallback
 
 
+def fetch_app_config(broker: BrokerClient) -> tuple[AppConfig, str | None]:
+    """Tries once to get real config (and current pairing status) before
+    DisplayLoop is constructed, so it never has to build a TflClient/
+    WeatherClient/GlowClient from a config it already knows is empty. Falls back
+    to AppConfig()'s empty defaults and no pairing code if the broker's
+    unreachable at boot (e.g. network not up yet) -- the same graceful-degrade
+    safe_fetch provides everywhere else, not a retry loop that would block
+    startup indefinitely. A None pairing code in that fallback means "proceed as
+    normal", not "definitely paired" -- if we can't reach the broker we don't
+    actually know either way, and showing a stale/unverifiable code would be
+    worse than just falling through to the ordinary (empty) display."""
+    fetched = safe_fetch(lambda: broker.get_config(), None)
+    if fetched is None:
+        return AppConfig(), None
+    config = AppConfig(
+        interval=fetched.interval,
+        tfl=TflConfig(**fetched.tfl.model_dump()),
+        weather=WeatherConfig(**fetched.weather.model_dump()),
+        spotify=SpotifyConfig(**fetched.spotify.model_dump()),
+        glowmarkt=GlowmarktConfig(**fetched.glowmarkt.model_dump()),
+    )
+    return config, fetched.pairing_code
+
+
 class DisplayLoop:
     """Owns everything needed to run one refresh cycle, plus everything that needs to
     survive between cycles -- last-known energy readings/track/weather panel, so a
     failed fetch can keep showing stale-but-valid data instead of nothing. EnergyPanel
     itself isn't cached: it's cheap to build (no I/O, no rendering happens until
     display.py calls .render()), so it's rebuilt on demand from self.energy rather
-    than kept as separate, redundant state -- current_track already works this way."""
+    than kept as separate, redundant state -- current_track already works this way.
 
-    def __init__(self, broker_url: str, display = DisplayController(), config: AppConfig | None = None):
-        self.config = config if config is not None else AppConfig()
-        self.interval = self.config.interval
+    broker/config/pairing_code are required, not optional-with-a-computed-fallback:
+    the caller (see fetch_app_config()) resolves them before construction, so this
+    class never has an implicit "figure it out myself" branch to get wrong."""
+
+    def __init__(self, broker: BrokerClient, config: AppConfig, pairing_code: str | None, display = DisplayController()):
+        self.broker = broker
+        self.config = config
+        self.pairing_code = pairing_code
+        self._displayed_pairing_code: str | None = None
+        self.interval = config.interval
         self.display = display
-        self.tfl = TflClient(self.config.tfl)
-        self.glow = GlowClient(self.config.glowmarkt)
-        self.broker = BrokerClient(broker_url)
-        self.weather = WeatherClient(self.config.weather)
-        # Unlike tfl/weather, Glowmarkt credentials aren't known until the first
-        # broker sync completes (no local .env fallback any more) -- resolving this
-        # eagerly here would fail on every single restart, not just first boot. So
-        # it's looked up lazily in run(), retried each full-refresh cycle via
-        # safe_fetch, same as the day/month/year readings that depend on it.
+        self.tfl = TflClient(config.tfl)
+        self.glow = GlowClient(config.glowmarkt)
+        self.weather = WeatherClient(config.weather)
+        # Unlike tfl/weather, resolving a Glowmarkt resource id means actually
+        # authenticating against Glowmarkt's own API, not just reading a value out
+        # of config -- deferred to run(), retried lazily each full-refresh cycle via
+        # safe_fetch, so a missing/not-yet-set-up credential doesn't tie this
+        # constructor's success to a third-party API being up, and doesn't
+        # crash-loop on every restart the way an eager, unguarded call here once did.
         self.resource_id: str | None = None
         self.energy = {"day": None, "month": None, "year": None}
         self.current_track: dict | None = None
@@ -51,37 +82,43 @@ class DisplayLoop:
         self.page_count = 1
         self.page = 0
 
-        if self.broker.pairing_code:
-            self.display.display_pairing_screen(self.broker.pairing_code, self.broker.device_id)
-
     def run(self) -> None:
         while True:
             try:
-                self.page_count = self.tfl.init()
-                arrival_panel = CombinedArrivalPanel(self.tfl.get_next_arrivals())
-                if self.page % self.page_count == 0:
-                    # Most gifted devices never get Glowmarkt set up on the broker at
-                    # all -- username/password come back None, not omitted, so this
-                    # is the normal case for most devices, not a failure to recover
-                    # from. Skip attempting auth entirely rather than hitting
-                    # Glowmarkt with known-missing credentials every cycle forever.
-                    have_glowmarkt_creds = self.config.glowmarkt.username and self.config.glowmarkt.password
-                    if self.resource_id is None and have_glowmarkt_creds:
-                        self.resource_id = safe_fetch(lambda: self.glow.get_electricity_resource_id(), None)
-                    if self.resource_id is not None:
-                        self.energy["day"] = safe_fetch(lambda: self.glow.get_day_readings(self.resource_id), self.energy["day"])
-                        self.energy["month"] = safe_fetch(lambda: self.glow.get_month_readings(self.resource_id), self.energy["month"])
-                        self.energy["year"] = safe_fetch(lambda: self.glow.get_year_readings(self.resource_id), self.energy["year"])
-                    energy_panel = EnergyPanel(self.energy["day"], self.energy["month"], self.energy["year"])
-                    # The broker already gates this on spotify.enabled server-side, so
-                    # there's no local check to duplicate here (and no race on cycle 1
-                    # before refresh_broker_config has synced that flag from the server).
-                    self.current_track = safe_fetch(lambda: self.broker.get_current_track(), self.current_track)
-                    self.weather_panel = safe_fetch(lambda: self.weather.get_weather(), self.weather_panel)
-                    self.display.display_screen(arrival_panel, energy_panel, self.current_track, self.weather_panel)
+                if self.pairing_code:
+                    # Only repaint when the code actually changes -- this is a full
+                    # e-paper refresh, and a gifted device can sit unpaired for
+                    # hours or days; repainting an identical screen every cycle for
+                    # that whole window is avoidable hardware wear, not just noise.
+                    if self.pairing_code != self._displayed_pairing_code:
+                        self.display.display_pairing_screen(self.pairing_code, self.broker.device_id)
+                        self._displayed_pairing_code = self.pairing_code
                 else:
-                    energy_panel = EnergyPanel(self.energy["day"], self.energy["month"], self.energy["year"])
-                    self.display.display_partial(arrival_panel, energy_panel, self.current_track, self.weather_panel)
+                    self.page_count = self.tfl.init()
+                    arrival_panel = CombinedArrivalPanel(self.tfl.get_next_arrivals())
+                    if self.page % self.page_count == 0:
+                        # Most gifted devices never get Glowmarkt set up on the broker at
+                        # all -- username/password come back None, not omitted, so this
+                        # is the normal case for most devices, not a failure to recover
+                        # from. Skip attempting auth entirely rather than hitting
+                        # Glowmarkt with known-missing credentials every cycle forever.
+                        have_glowmarkt_creds = self.config.glowmarkt.username and self.config.glowmarkt.password
+                        if self.resource_id is None and have_glowmarkt_creds:
+                            self.resource_id = safe_fetch(lambda: self.glow.get_electricity_resource_id(), None)
+                        if self.resource_id is not None:
+                            self.energy["day"] = safe_fetch(lambda: self.glow.get_day_readings(self.resource_id), self.energy["day"])
+                            self.energy["month"] = safe_fetch(lambda: self.glow.get_month_readings(self.resource_id), self.energy["month"])
+                            self.energy["year"] = safe_fetch(lambda: self.glow.get_year_readings(self.resource_id), self.energy["year"])
+                        energy_panel = EnergyPanel(self.energy["day"], self.energy["month"], self.energy["year"])
+                        # The broker already gates this on spotify.enabled server-side, so
+                        # there's no local check to duplicate here (and no race on cycle 1
+                        # before refresh_broker_config has synced that flag from the server).
+                        self.current_track = safe_fetch(lambda: self.broker.get_current_track(), self.current_track)
+                        self.weather_panel = safe_fetch(lambda: self.weather.get_weather(), self.weather_panel)
+                        self.display.display_screen(arrival_panel, energy_panel, self.current_track, self.weather_panel)
+                    else:
+                        energy_panel = EnergyPanel(self.energy["day"], self.energy["month"], self.energy["year"])
+                        self.display.display_partial(arrival_panel, energy_panel, self.current_track, self.weather_panel)
             except requests.exceptions.RequestException as e:
                 print(f"Network error encountered: {e}")
             except Exception as e:
@@ -100,6 +137,7 @@ class DisplayLoop:
     def refresh_broker_config(self) -> None:
         """Polls the broker's per-device config every cycle -- it's the only way to
         find out something changed, since the broker exposes no change-timestamp.
+        Also where pairing_code gets kept current, same call, no separate poll.
         Only mutates/rebuilds what actually differs (building a fresh TflClient can
         never fail: construction does no network I/O, stop resolution is retried
         lazily and safely on next use -- but it would force needless stop-resolution
@@ -107,6 +145,8 @@ class DisplayLoop:
         fetched = safe_fetch(lambda: self.broker.get_config(), None)
         if fetched is None:
             return
+
+        self.pairing_code = fetched.pairing_code
 
         # Compared via model_dump() rather than `fetched.tfl == self.config.tfl`:
         # fetched.tfl is a BrokerTflConfig (parsed from the wire response) and

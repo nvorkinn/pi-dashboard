@@ -15,19 +15,15 @@ def _response(json_data: dict | None = None) -> MagicMock:
 
 def test_registers_and_persists_credentials_on_first_run(isolated_cwd, monkeypatch):
     register_response = _response({"device_id": "device-123"})
-    pairing_response = _response({"code": "ABC123", "expires_in_seconds": 600})
-
     post_mock = MagicMock(return_value=register_response)
-    request_mock = MagicMock(return_value=pairing_response)
 
     # Patch the session methods before construction, since registration happens
     # inside __init__ (build_retrying_session() creates a fresh session each time).
-    monkeypatch.setattr("countdown.broker_client.build_retrying_session", lambda: MagicMock(post=post_mock, request=request_mock))
+    monkeypatch.setattr("countdown.broker_client.build_retrying_session", lambda: MagicMock(post=post_mock))
 
     client = BrokerClient("https://broker.example.com")
 
     assert client.device_id == "device-123"
-    assert client.pairing_code == "ABC123"
     post_mock.assert_called_once()
     assert post_mock.call_args.kwargs["json"]["device_secret"] == client.device_secret
     assert post_mock.call_args.kwargs["timeout"] == DEFAULT_TIMEOUT
@@ -43,7 +39,6 @@ def test_reuses_credentials_file_without_registering_again(isolated_cwd):
 
     assert client.device_id == "existing-device"
     assert client.device_secret == "existing-secret"
-    assert client.pairing_code is None
 
 
 def test_request_sends_bearer_auth_header(isolated_cwd):
@@ -70,6 +65,7 @@ def test_get_config_parses_response(isolated_cwd):
         "weather": {"api_key": "weather-key", "location": "London"},
         "spotify": {"enabled": True},
         "glowmarkt": {"username": "me@example.com", "password": "hunter2"},
+        "pairing_code": None,
     }))
 
     config = client.get_config()
@@ -78,6 +74,7 @@ def test_get_config_parses_response(isolated_cwd):
     assert config.tfl.stop_ids == ["940GZZLUEUS"]
     assert config.spotify.enabled is True
     assert config.glowmarkt.username == "me@example.com"
+    assert config.pairing_code is None
 
 
 def test_get_config_accepts_null_glowmarkt_credentials(isolated_cwd):
@@ -91,12 +88,14 @@ def test_get_config_accepts_null_glowmarkt_credentials(isolated_cwd):
         "weather": {"api_key": "", "location": ""},
         "spotify": {"enabled": False},
         "glowmarkt": {"username": None, "password": None},
+        "pairing_code": "ABC123",
     }))
 
     config = client.get_config()
 
     assert config.glowmarkt.username is None
     assert config.glowmarkt.password is None
+    assert config.pairing_code == "ABC123"
 
 
 def test_get_current_track_returns_none_when_broker_returns_null(isolated_cwd):
