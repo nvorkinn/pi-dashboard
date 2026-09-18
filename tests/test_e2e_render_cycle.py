@@ -84,23 +84,23 @@ def _mock_tfl_and_glowmarkt(stop_json_by_id: dict, arrivals_json_by_id: dict) ->
     })
 
 
-def _make_live_config() -> AppConfig:
-    live = AppConfig()
-    live.interval = 0 # Means we just run the loop
+def _make_config() -> AppConfig:
+    config = AppConfig()
+    config.interval = 0 # Means we just run the loop
     # Real (dummy) credentials, since these tests mock Glowmarkt's endpoints and
     # exercise that path -- DisplayLoop now skips Glowmarkt entirely when
     # username/password are empty (the common case for most real devices).
-    live.glowmarkt.username = "dummy@example.com"
-    live.glowmarkt.password = "dummy-password"
-    return live
+    config.glowmarkt.username = "dummy@example.com"
+    config.glowmarkt.password = "dummy-password"
+    return config
 
 
-def _build_loop(live: AppConfig, monkeypatch, spotify_track: dict | None, show_callback = lambda self, *a, **kw: None) -> DisplayLoop:
+def _build_loop(config: AppConfig, monkeypatch, spotify_track: dict | None, show_callback = lambda self, *a, **kw: None) -> DisplayLoop:
     # BrokerClient registers itself on construction if no credentials file exists --
     # seed one so tests load it instead of making a real (unmocked) network call.
     Path(".auth_broker_device").write_text(json.dumps({"device_id": "test-device", "device_secret": "test-secret"}))
 
-    loop = DisplayLoop(TEST_BROKER_URL, live=live)
+    loop = DisplayLoop(TEST_BROKER_URL, config=config)
     monkeypatch.setattr(loop.broker, "get_current_track", lambda: spotify_track)
     monkeypatch.setattr(loop.weather, "get_weather", lambda: _StubWeatherPanel())
     monkeypatch.setattr(Image.Image, "show", show_callback)
@@ -109,14 +109,14 @@ def _build_loop(live: AppConfig, monkeypatch, spotify_track: dict | None, show_c
 
 @responses.activate
 def test_full_render_cycle_without_spotify_track(isolated_cwd, monkeypatch):
-    live = _make_live_config()
-    live.tfl.stop_ids = ["490000123W", "940GZZLUKNG"]
+    config = _make_config()
+    config.tfl.stop_ids = ["490000123W", "940GZZLUKNG"]
     _mock_tfl_and_glowmarkt(
         {"490000123W": BUS_STOP_JSON, "940GZZLUKNG": METRO_STOP_JSON},
         {"490000123W": BUS_ARRIVALS_JSON, "940GZZLUKNG": METRO_ARRIVALS_JSON},
     )
 
-    loop = _build_loop(live, monkeypatch, spotify_track=None)
+    loop = _build_loop(config, monkeypatch, spotify_track=None)
     loop.run()
 
     assert loop.page_count == 1
@@ -130,17 +130,17 @@ def test_full_render_cycle_skips_glowmarkt_when_credentials_empty(isolated_cwd, 
     broker. Deliberately doesn't mock any glowmarkt.com endpoint -- if DisplayLoop
     ever attempted a call, `responses` would raise ConnectionError for it, which
     would surface as a different, unrelated-looking failure below."""
-    live = AppConfig()
-    live.interval = 0
-    live.tfl.stop_ids = ["490000123W"]
-    assert live.glowmarkt.username is None and live.glowmarkt.password is None
+    config = AppConfig()
+    config.interval = 0
+    config.tfl.stop_ids = ["490000123W"]
+    assert config.glowmarkt.username is None and config.glowmarkt.password is None
 
     for stop_id, stop_json in {"490000123W": BUS_STOP_JSON}.items():
         responses.add(responses.GET, f"https://api.tfl.gov.uk/StopPoint/{stop_id}", json=stop_json)
     for stop_id, arrivals_json in {"490000123W": BUS_ARRIVALS_JSON}.items():
         responses.add(responses.GET, f"https://api.tfl.gov.uk/StopPoint/{stop_id}/Arrivals", json=arrivals_json)
 
-    loop = _build_loop(live, monkeypatch, spotify_track=None)
+    loop = _build_loop(config, monkeypatch, spotify_track=None)
     loop.run()
 
     assert loop.resource_id is None
@@ -150,15 +150,15 @@ def test_full_render_cycle_skips_glowmarkt_when_credentials_empty(isolated_cwd, 
 
 @responses.activate
 def test_full_render_cycle_with_spotify_track(isolated_cwd, monkeypatch):
-    live = _make_live_config()
-    live.tfl.stop_ids = ["490000123W"]
+    config = _make_config()
+    config.tfl.stop_ids = ["490000123W"]
     _mock_tfl_and_glowmarkt(
         {"490000123W": BUS_STOP_JSON},
         {"490000123W": BUS_ARRIVALS_JSON},
     )
     responses.add(responses.GET, "https://example.com/album.jpg", body=_png_bytes(), content_type="image/png")
 
-    loop = _build_loop(live, monkeypatch, spotify_track={
+    loop = _build_loop(config, monkeypatch, spotify_track={
         "song": "Test Song", "artist": "Test Artist", "album": "Test Album",
         "album_image": "https://example.com/album.jpg", "is_playing": True,
     })
@@ -173,8 +173,8 @@ def test_partial_render_cycle_reuses_prior_state_without_refetching(isolated_cwd
     (What a partial-refresh cycle actually looks like is covered separately as a
     golden-image scenario in test_display_snapshots.py -- this test is purely about
     the caching/refetch behaviour, not the rendered pixels.)"""
-    live = _make_live_config()
-    live.tfl.stop_ids = ["490000123W", "940GZZLUKNG", "490000456X", "940GZZLUABC"]
+    config = _make_config()
+    config.tfl.stop_ids = ["490000123W", "940GZZLUKNG", "490000456X", "940GZZLUABC"]
     _mock_tfl_and_glowmarkt(
         {
             "490000123W": BUS_STOP_JSON,
@@ -190,7 +190,7 @@ def test_partial_render_cycle_reuses_prior_state_without_refetching(isolated_cwd
         },
     )
 
-    loop = _build_loop(live, monkeypatch, spotify_track=None)
+    loop = _build_loop(config, monkeypatch, spotify_track=None)
     loop.run()
     assert loop.page_count == 2
     energy_after_first_cycle = dict(loop.energy)

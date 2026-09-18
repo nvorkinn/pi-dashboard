@@ -6,7 +6,7 @@ import requests
 from countdown.glow_client import GlowClient
 from countdown.tfl_client import TflClient
 from countdown.broker_client import BrokerClient
-from countdown.config_manager import AppConfig
+from countdown.config_manager import AppConfig, GlowmarktConfig, TflConfig, WeatherConfig
 from countdown.weather_client import WeatherClient
 from display.combined_arrival_panel import CombinedArrivalPanel
 from display.display import DisplayController
@@ -31,14 +31,14 @@ class DisplayLoop:
     display.py calls .render()), so it's rebuilt on demand from self.energy rather
     than kept as separate, redundant state -- current_track already works this way."""
 
-    def __init__(self, broker_url: str, display = DisplayController(), live: AppConfig | None = None):
-        self.live = live if live is not None else AppConfig()
-        self.interval = self.live.interval
+    def __init__(self, broker_url: str, display = DisplayController(), config: AppConfig | None = None):
+        self.config = config if config is not None else AppConfig()
+        self.interval = self.config.interval
         self.display = display
-        self.tfl = TflClient(self.live.tfl)
-        self.glow = GlowClient(self.live.glowmarkt)
+        self.tfl = TflClient(self.config.tfl)
+        self.glow = GlowClient(self.config.glowmarkt)
         self.broker = BrokerClient(broker_url)
-        self.weather = WeatherClient(self.live.weather)
+        self.weather = WeatherClient(self.config.weather)
         # Unlike tfl/weather, Glowmarkt credentials aren't known until the first
         # broker sync completes (no local .env fallback any more) -- resolving this
         # eagerly here would fail on every single restart, not just first boot. So
@@ -65,7 +65,7 @@ class DisplayLoop:
                     # is the normal case for most devices, not a failure to recover
                     # from. Skip attempting auth entirely rather than hitting
                     # Glowmarkt with known-missing credentials every cycle forever.
-                    have_glowmarkt_creds = self.live.glowmarkt.username and self.live.glowmarkt.password
+                    have_glowmarkt_creds = self.config.glowmarkt.username and self.config.glowmarkt.password
                     if self.resource_id is None and have_glowmarkt_creds:
                         self.resource_id = safe_fetch(lambda: self.glow.get_electricity_resource_id(), None)
                     if self.resource_id is not None:
@@ -108,22 +108,26 @@ class DisplayLoop:
         if fetched is None:
             return
 
-        if (fetched.tfl.app_key, fetched.tfl.stop_ids) != (self.live.tfl.app_key, self.live.tfl.stop_ids):
-            self.live.tfl.app_key = fetched.tfl.app_key
-            self.live.tfl.stop_ids = fetched.tfl.stop_ids
-            self.tfl = TflClient(self.live.tfl)
+        # Compared via model_dump() rather than `fetched.tfl == self.config.tfl`:
+        # fetched.tfl is a BrokerTflConfig (parsed from the wire response) and
+        # self.config.tfl is a TflConfig -- different pydantic classes with the same
+        # shape, and pydantic's BaseModel.__eq__ checks the class too, so a direct
+        # == would always be False regardless of the actual data, forcing a
+        # rebuild every single cycle. Comparing dicts sidesteps that, and also
+        # means adding a field to a *Config later doesn't need this method updated.
+        if fetched.tfl.model_dump() != self.config.tfl.model_dump():
+            self.config.tfl = TflConfig(**fetched.tfl.model_dump())
+            self.tfl = TflClient(self.config.tfl)
 
-        if (fetched.weather.api_key, fetched.weather.location) != (self.live.weather.api_key, self.live.weather.location):
-            self.live.weather.api_key = fetched.weather.api_key
-            self.live.weather.location = fetched.weather.location
-            self.weather = WeatherClient(self.live.weather)
+        if fetched.weather.model_dump() != self.config.weather.model_dump():
+            self.config.weather = WeatherConfig(**fetched.weather.model_dump())
+            self.weather = WeatherClient(self.config.weather)
 
-        if (fetched.glowmarkt.username, fetched.glowmarkt.password) != (self.live.glowmarkt.username, self.live.glowmarkt.password):
-            self.live.glowmarkt.username = fetched.glowmarkt.username
-            self.live.glowmarkt.password = fetched.glowmarkt.password
-            self.glow = GlowClient(self.live.glowmarkt)
+        if fetched.glowmarkt.model_dump() != self.config.glowmarkt.model_dump():
+            self.config.glowmarkt = GlowmarktConfig(**fetched.glowmarkt.model_dump())
+            self.glow = GlowClient(self.config.glowmarkt)
             self.resource_id = None  # force re-lookup against the new credentials
 
-        self.live.interval = fetched.interval
+        self.config.interval = fetched.interval
         self.interval = fetched.interval
-        self.live.spotify.enabled = fetched.spotify.enabled
+        self.config.spotify.enabled = fetched.spotify.enabled
