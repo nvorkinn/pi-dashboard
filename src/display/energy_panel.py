@@ -1,8 +1,8 @@
 import calendar
 from datetime import datetime
+from math import ceil
 
 from PIL import Image, ImageDraw
-from math import ceil
 
 from display.panel import Panel
 from display.utils import TOTAL_WIDTH

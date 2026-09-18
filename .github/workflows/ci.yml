@@ -5,6 +5,19 @@ on:
   pull_request:
 
 jobs:
+  lint:
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@v4
+
+    - name: Set up uv
+      uses: astral-sh/setup-uv@v5
+
+    - name: Run Ruff
+      run: uv run --frozen --only-group dev ruff check --output-format=github .
+
   test:
     runs-on: ubuntu-latest
 

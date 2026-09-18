@@ -1,8 +1,14 @@
 from pydantic import TypeAdapter
 
 from countdown.models import (
-    ArrivalUnion, BusArrival, Entity, Readings, StopPointUnion,
-    SingleStopPoint, MetroStopPoint, TubeArrival,
+    ArrivalUnion,
+    BusArrival,
+    Entity,
+    MetroStopPoint,
+    Readings,
+    SingleStopPoint,
+    StopPointUnion,
+    TubeArrival,
 )
 
 BUS_ARRIVAL_JSON = {

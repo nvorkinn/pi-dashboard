@@ -4,7 +4,7 @@ from PIL import Image, ImageDraw
 from pyowm.weatherapi30.weather import Weather
 
 from display.panel import Panel
-from display.utils import METEOCONS, JOSEFIN_REGULAR
+from display.utils import JOSEFIN_REGULAR, METEOCONS
 
 
 class WeatherPanel(Panel):

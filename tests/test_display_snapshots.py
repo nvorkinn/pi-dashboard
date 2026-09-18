@@ -28,14 +28,15 @@ import pytest
 import responses
 from PIL import Image
 
+import display.display
+import display.energy_panel
+
 # countdown.models must be imported before any display.* module: display.abstract_arrival_panel
 # imports countdown.models, and countdown/__init__.py transitively imports back into
 # display.abstract_arrival_panel (via tfl_client.py) -- importing a display.* module first
 # re-enters it mid-initialization and raises ImportError. Every other test file avoids this
 # by happening to import something from countdown first.
 from countdown.models import BusArrival, MetroStopPoint, SingleStopPoint, TubeArrival
-import display.display
-import display.energy_panel
 from display.bus_arrival_panel import BusArrivalPanel
 from display.combined_arrival_panel import CombinedArrivalPanel
 from display.display import DisplayController

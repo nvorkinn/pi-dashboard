@@ -1,8 +1,9 @@
 from abc import ABC
 from enum import StrEnum
-from typing import Literal, Annotated, Union
+from typing import Annotated, Literal
 
 from pydantic import BaseModel, Field
+
 
 class Mode(StrEnum):
     BUS = "bus"
@@ -27,7 +28,7 @@ class BusArrival(Arrival):
     destination: str = Field(alias="destinationName")
 
 ArrivalUnion = Annotated[
-    Union[BusArrival, TubeArrival],
+    BusArrival | TubeArrival,
     Field(discriminator="mode_name")
 ]
 
@@ -76,7 +77,7 @@ class MetroStopPoint(StopPoint):
     stop_type: Literal[StopType.NAPTAN_METRO_STATION] = Field(alias="stopType")
 
 StopPointUnion = Annotated[
-    Union[OtherStopPoint, SingleStopPoint, MetroStopPoint],
+    OtherStopPoint | SingleStopPoint | MetroStopPoint,
     Field(discriminator="stop_type")
 ]
 

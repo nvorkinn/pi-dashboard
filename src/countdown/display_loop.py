@@ -3,15 +3,22 @@ import time
 import pydantic
 import requests
 
+from countdown.broker_client import BrokerClient
+from countdown.config_manager import (
+    AppConfig,
+    GlowmarktConfig,
+    SpotifyConfig,
+    TflConfig,
+    WeatherConfig,
+)
 from countdown.glow_client import GlowClient
 from countdown.tfl_client import TflClient
-from countdown.broker_client import BrokerClient
-from countdown.config_manager import AppConfig, GlowmarktConfig, SpotifyConfig, TflConfig, WeatherConfig
 from countdown.weather_client import WeatherClient
 from display.combined_arrival_panel import CombinedArrivalPanel
 from display.display import DisplayController
 from display.energy_panel import EnergyPanel
 from display.pairing_code_panel import PairingCodePanel
+
 
 def safe_fetch(func, fallback):
     try:
@@ -64,12 +71,12 @@ class DisplayLoop:
     construction, so this class never has an implicit "figure it out myself"
     branch to get wrong."""
 
-    def __init__(self, broker: BrokerClient, config: AppConfig, pairing_code_panel: PairingCodePanel, display = DisplayController()):
+    def __init__(self, broker: BrokerClient, config: AppConfig, pairing_code_panel: PairingCodePanel, display: DisplayController | None = None):
         self.broker = broker
         self.config = config
         self.pairing_code_panel = pairing_code_panel
         self.interval = config.interval
-        self.display = display
+        self.display = display if display is not None else DisplayController()
         self.tfl = TflClient(config.tfl)
         self.glow = GlowClient(config.glowmarkt)
         self.weather = WeatherClient(config.weather)

@@ -2,8 +2,8 @@ from pathlib import Path
 
 import pytest
 from PIL import Image
-
 from test_utils import highlight_diff, images_equal
+
 
 @pytest.fixture(autouse=True)
 def isolated_cwd(tmp_path, monkeypatch):

@@ -10,13 +10,13 @@ handle bus, tram, metro, rail, and ferry departures.
 
 from __future__ import annotations
 
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from enum import StrEnum
 from math import ceil
 from typing import Any
 
-from pydantic import BaseModel, Field
 import requests
+from pydantic import BaseModel, Field
 
 
 class TransportMode(StrEnum):
@@ -278,7 +278,7 @@ class RuterClient:
         Returns:
             List of RuterDeparture objects sorted by departure time.
         """
-        ref_time = now or datetime.now(timezone.utc)
+        ref_time = now or datetime.now(UTC)
         normalized_id = _normalize_stop_id(stop_id)
         is_quay = normalized_id.startswith("NSR:Quay:")
         query = _QUAY_QUERY if is_quay else _STOP_PLACE_QUERY

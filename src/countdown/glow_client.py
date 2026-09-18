@@ -1,5 +1,4 @@
 from datetime import datetime, timedelta
-
 from math import floor
 
 from pydantic import TypeAdapter

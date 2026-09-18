@@ -2,11 +2,9 @@ import os
 import signal
 import sys
 
-import pydantic
-import requests
-
 from countdown.broker_client import BrokerClient
 from countdown.display_loop import DisplayLoop, fetch_app_config
+
 
 def main() -> None:
     # The only thing that can't come from the broker -- it's how this device finds

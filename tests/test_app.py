@@ -1,5 +1,5 @@
-from pydantic import BaseModel
 import requests
+from pydantic import BaseModel
 
 from countdown.display_loop import safe_fetch
 

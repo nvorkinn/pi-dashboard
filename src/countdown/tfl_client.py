@@ -5,13 +5,20 @@ from pydantic import TypeAdapter
 from countdown.abstract_client import AbstractClient
 from countdown.config_manager import TflConfig
 from countdown.http import DEFAULT_TIMEOUT
-from countdown.models import ArrivalUnion, StopPoint, StopPointUnion, SingleStopPoint, MetroStopPoint
+from countdown.models import (
+    ArrivalUnion,
+    MetroStopPoint,
+    SingleStopPoint,
+    StopPoint,
+    StopPointUnion,
+)
 from display.abstract_arrival_panel import AbstractArrivalPanel
 from display.bus_arrival_panel import BusArrivalPanel
 from display.tube_arrival_panel import TubeArrivalPanel
 
+
 def _find_stop_child(stop: StopPoint, naptan_id: str) -> SingleStopPoint | MetroStopPoint | None:
-    if stop.naptan_id == naptan_id and (isinstance(stop, SingleStopPoint) or isinstance(stop, MetroStopPoint)):
+    if stop.naptan_id == naptan_id and isinstance(stop, (SingleStopPoint, MetroStopPoint)):
         return stop
     for child in stop.children:
         grandchild = _find_stop_child(child, naptan_id)
