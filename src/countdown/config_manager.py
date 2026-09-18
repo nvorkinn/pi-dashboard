@@ -1,5 +1,5 @@
 from pathlib import Path
-from pydantic import BaseModel, Field, HttpUrl
+from pydantic import BaseModel, Field
 from pydantic_settings import (
     BaseSettings,
     JsonConfigSettingsSource,
@@ -13,10 +13,10 @@ class TflConfig(BaseModel):
     stop_ids: list[str] = Field(default_factory=list)
 
 class SpotifyConfig(BaseModel):
+    # Client credentials/OAuth live entirely in auth-broker now; this device only
+    # ever sees whether the panel should be shown, fetched from the broker each
+    # cycle (see DisplayLoop.refresh_broker_config).
     enabled: bool = Field(default=False)
-    client_id: str = Field(default="")
-    client_secret: str = Field(default="")
-    redirect_uri: HttpUrl = Field(default=HttpUrl("http://127.0.0.1:8888/callback"))
 
 class WeatherConfig(BaseModel):
     api_key: str = Field(default="")
@@ -37,6 +37,7 @@ class AppConfig(BaseSettings):
     tfl: TflConfig = Field(default_factory=TflConfig)
     interval: int = Field(default=15, gt=0, description="The interval in seconds between updates.")
     config_port: int = Field(default=4000, description="The port on which the config server will run.")
+    broker_url: str = Field(default="https://auth.nikolaivorkinn.com", description="Base URL of the auth-broker service.")
     spotify: SpotifyConfig = Field(default_factory=SpotifyConfig)
     weather: WeatherConfig = Field(default_factory=WeatherConfig)
     glowmarkt: GlowmarktConfig = Field(default_factory=GlowmarktConfig)
@@ -78,7 +79,6 @@ class ConfigManager:
     SECRET_FIELDS = {
         "tfl": {"app_key"},
         "glowmarkt": True,
-        "spotify": {"client_id", "client_secret"},
         "weather": {"api_key"},
     }
 

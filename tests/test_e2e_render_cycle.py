@@ -6,12 +6,19 @@ PIL image -- catching integration bugs (mismatched fields between layers, panel 
 that per-component unit tests miss by construction.
 
 Spotify and weather are mocked at the client-method level rather than their underlying
-HTTP APIs: SpotifyClient wraps spotipy's own OAuth flow, and WeatherClient is being
-replaced with an Open-Meteo-based client (see #24) -- neither is "our" integration logic
-in the way TfL/Glowmarkt parsing is, so there's nothing gained by faking their transport
-layer here, and it would only go stale the moment #24/#21 land.
+HTTP APIs: weather is being replaced with an Open-Meteo-based client (see #24), and
+BrokerClient.get_current_track() is a thin passthrough to auth-broker (which has its
+own test suite) -- neither is "our" integration logic in the way TfL/Glowmarkt parsing
+is, so there's nothing gained by faking their transport layer here.
+
+BrokerClient.get_config() is deliberately left unmocked: with no matching `responses`
+registration, `responses` raises ConnectionError on that call, which DisplayLoop's
+safe_fetch swallows and falls back to "nothing changed" -- exercising that resilience
+path for free, and keeping these tests focused on TfL/Glowmarkt/Spotify.
 """
 import io
+import json
+from pathlib import Path
 from typing import Any
 
 import responses
@@ -77,19 +84,18 @@ def _mock_tfl_and_glowmarkt(stop_json_by_id: dict, arrivals_json_by_id: dict) ->
 
 
 def _make_config() -> AppConfig:
-    """SpotifyOAuth validates client_id/secret eagerly at construction time, so a
-    real SpotifyClient can't even be built without them -- dummy values are fine
-    since Spotify is mocked at the method level anyway (see module docstring)."""
     config = AppConfig()
     config.interval = 0 # Means we just run the loop
-    config.spotify.client_id = "dummy-client-id"
-    config.spotify.client_secret = "dummy-client-secret"
     return config
 
 
 def _build_loop(config: AppConfig, monkeypatch, spotify_track: dict | None, show_callback = lambda self, *a, **kw: None, config_callback = None) -> DisplayLoop:
+    # BrokerClient registers itself on construction if no credentials file exists --
+    # seed one so tests load it instead of making a real (unmocked) network call.
+    Path(".auth_broker_device").write_text(json.dumps({"device_id": "test-device", "device_secret": "test-secret"}))
+
     loop = DisplayLoop(config)
-    monkeypatch.setattr(loop.spotify, "get_current_track", lambda: spotify_track)
+    monkeypatch.setattr(loop.broker, "get_current_track", lambda: spotify_track)
     monkeypatch.setattr(loop.weather, "get_weather", lambda: _StubWeatherPanel())
     monkeypatch.setattr(Image.Image, "show", show_callback)
     if config_callback:

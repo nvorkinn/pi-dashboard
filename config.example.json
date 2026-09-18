@@ -5,8 +5,7 @@
     "interval": 15,
     "config_port": 4000,
     "spotify": {
-        "enabled": false,
-        "redirect_uri": "http://127.0.0.1:8888/callback"
+        "enabled": false
     },
     "weather": {
         "location": "London,GB"

@@ -18,7 +18,6 @@ dependencies = [
     "pyowm>=3.5.0",
     "requests>=2.32.5",
     "spidev>=3.8; sys_platform == 'linux'",
-    "spotipy>=2.26.0",
 ]
 
 [project.scripts]

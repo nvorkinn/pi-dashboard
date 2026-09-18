@@ -15,10 +15,8 @@ def test_defaults_with_no_env_or_json(isolated_cwd):
 
 def test_env_vars_populate_secrets(isolated_cwd, monkeypatch):
     monkeypatch.setenv("TFL__APP_KEY", "secret-key")
-    monkeypatch.setenv("SPOTIFY__CLIENT_ID", "client-123")
     config = AppConfig()
     assert config.tfl.app_key == "secret-key"
-    assert config.spotify.client_id == "client-123"
 
 
 def test_json_file_provides_non_secret_settings(isolated_cwd):
@@ -43,8 +41,6 @@ def test_save_config_never_persists_secrets(isolated_cwd):
     config = AppConfig()
     config.tfl.app_key = "secret-tfl-key"
     config.tfl.stop_ids = ["940GZZLUKNG"]
-    config.spotify.client_id = "spotify-id"
-    config.spotify.client_secret = "spotify-secret"
     config.weather.api_key = "weather-key"
     config.glowmarkt.username = "me@example.com"
     config.glowmarkt.password = "hunter2"
@@ -54,8 +50,6 @@ def test_save_config_never_persists_secrets(isolated_cwd):
     written = json.loads((isolated_cwd / "config.json").read_text())
     assert "app_key" not in written["tfl"]
     assert "glowmarkt" not in written
-    assert "client_id" not in written["spotify"]
-    assert "client_secret" not in written["spotify"]
     assert "api_key" not in written["weather"]
     # Non-secret fields still get written
     assert written["tfl"]["stop_ids"] == ["940GZZLUKNG"]
