@@ -62,7 +62,9 @@ class TflClient(AbstractClient):
         return stops
 
     def _get_stop_info(self, stop_id: str) -> SingleStopPoint | MetroStopPoint | None:
-        response = self.session.get(f"https://api.tfl.gov.uk/StopPoint/{stop_id}", params=self.params, timeout=DEFAULT_TIMEOUT)
+        response = self.session.get(
+            f"https://api.tfl.gov.uk/StopPoint/{stop_id}", params=self.params, timeout=DEFAULT_TIMEOUT
+        )
         response.raise_for_status()
         json = response.json()
         info = TypeAdapter(StopPointUnion).validate_python(json)
@@ -85,7 +87,11 @@ class TflClient(AbstractClient):
         for _ in range(count_to_fetch):
             stop = self._get_next_stop()
             try:
-                response = self.session.get(f"https://api.tfl.gov.uk/StopPoint/{stop.naptan_id}/Arrivals", params=self.params, timeout=DEFAULT_TIMEOUT)
+                response = self.session.get(
+                    f"https://api.tfl.gov.uk/StopPoint/{stop.naptan_id}/Arrivals",
+                    params=self.params,
+                    timeout=DEFAULT_TIMEOUT,
+                )
                 response.raise_for_status()
                 json = response.json()
                 arrivals = TypeAdapter(list[ArrivalUnion]).validate_python(json)

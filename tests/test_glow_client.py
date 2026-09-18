@@ -102,21 +102,31 @@ def test_session_has_retry_adapter_mounted():
 
 def test_get_electricity_resource_id_finds_electricity_entry(monkeypatch):
     client = make_client()
-    monkeypatch.setattr(client, "_request", MagicMock(return_value=[
-        {"resources": [
-            {"name": "gas consumption", "resourceId": "gas-id"},
-            {"name": "electricity consumption", "resourceId": "elec-id"},
-        ]}
-    ]))
+    monkeypatch.setattr(
+        client,
+        "_request",
+        MagicMock(
+            return_value=[
+                {
+                    "resources": [
+                        {"name": "gas consumption", "resourceId": "gas-id"},
+                        {"name": "electricity consumption", "resourceId": "elec-id"},
+                    ]
+                }
+            ]
+        ),
+    )
 
     assert client.get_electricity_resource_id() == "elec-id"
 
 
 def test_get_electricity_resource_id_raises_when_missing(monkeypatch):
     client = make_client()
-    monkeypatch.setattr(client, "_request", MagicMock(return_value=[
-        {"resources": [{"name": "gas consumption", "resourceId": "gas-id"}]}
-    ]))
+    monkeypatch.setattr(
+        client,
+        "_request",
+        MagicMock(return_value=[{"resources": [{"name": "gas consumption", "resourceId": "gas-id"}]}]),
+    )
 
     with pytest.raises(ValueError):
         client.get_electricity_resource_id()
@@ -124,8 +134,6 @@ def test_get_electricity_resource_id_raises_when_missing(monkeypatch):
 
 def test_get_day_readings_extracts_values(monkeypatch):
     client = make_client()
-    monkeypatch.setattr(client, "_request", MagicMock(return_value={
-        "data": [[1700000000, 1.5], [1700003600, 2.25]]
-    }))
+    monkeypatch.setattr(client, "_request", MagicMock(return_value={"data": [[1700000000, 1.5], [1700003600, 2.25]]}))
 
     assert client.get_day_readings("resource-id") == [1.5, 2.25]

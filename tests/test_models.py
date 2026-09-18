@@ -81,9 +81,7 @@ def test_metro_stop_point_with_nested_children():
 
 
 def test_entity_parses_resources():
-    entity = Entity.model_validate({
-        "resources": [{"name": "electricity consumption", "resourceId": "abc-123"}]
-    })
+    entity = Entity.model_validate({"resources": [{"name": "electricity consumption", "resourceId": "abc-123"}]})
     assert entity.resources[0].resourceId == "abc-123"
 
 

@@ -71,14 +71,18 @@ def test_request_sends_bearer_auth_header(isolated_cwd):
 def test_get_config_parses_response(isolated_cwd):
     CREDENTIALS_FILE.write_text(json.dumps({"device_id": "device-123", "device_secret": "shh"}))
     client = BrokerClient("https://broker.example.com")
-    client.session.request = MagicMock(return_value=_response({
-        "interval": 20,
-        "tfl": {"app_key": "tfl-key", "stop_ids": ["940GZZLUEUS"]},
-        "weather": {"api_key": "weather-key", "location": "London"},
-        "spotify": {"enabled": True},
-        "glowmarkt": {"username": "me@example.com", "password": "hunter2"},
-        "pairing_code": None,
-    }))
+    client.session.request = MagicMock(
+        return_value=_response(
+            {
+                "interval": 20,
+                "tfl": {"app_key": "tfl-key", "stop_ids": ["940GZZLUEUS"]},
+                "weather": {"api_key": "weather-key", "location": "London"},
+                "spotify": {"enabled": True},
+                "glowmarkt": {"username": "me@example.com", "password": "hunter2"},
+                "pairing_code": None,
+            }
+        )
+    )
 
     config = client.get_config()
 
@@ -94,14 +98,18 @@ def test_get_config_accepts_null_glowmarkt_credentials(isolated_cwd):
     broker. Sent as null, not omitted -- must parse, not raise."""
     CREDENTIALS_FILE.write_text(json.dumps({"device_id": "device-123", "device_secret": "shh"}))
     client = BrokerClient("https://broker.example.com")
-    client.session.request = MagicMock(return_value=_response({
-        "interval": 15,
-        "tfl": {"app_key": "", "stop_ids": []},
-        "weather": {"api_key": "", "location": ""},
-        "spotify": {"enabled": False},
-        "glowmarkt": {"username": None, "password": None},
-        "pairing_code": "ABC123",
-    }))
+    client.session.request = MagicMock(
+        return_value=_response(
+            {
+                "interval": 15,
+                "tfl": {"app_key": "", "stop_ids": []},
+                "weather": {"api_key": "", "location": ""},
+                "spotify": {"enabled": False},
+                "glowmarkt": {"username": None, "password": None},
+                "pairing_code": "ABC123",
+            }
+        )
+    )
 
     config = client.get_config()
 
@@ -121,7 +129,13 @@ def test_get_current_track_returns_none_when_broker_returns_null(isolated_cwd):
 def test_get_current_track_passes_through_track_dict(isolated_cwd):
     CREDENTIALS_FILE.write_text(json.dumps({"device_id": "device-123", "device_secret": "shh"}))
     client = BrokerClient("https://broker.example.com")
-    track = {"song": "A Song", "artist": "An Artist", "album": "An Album", "album_image": "http://x", "is_playing": True}
+    track = {
+        "song": "A Song",
+        "artist": "An Artist",
+        "album": "An Album",
+        "album_image": "http://x",
+        "is_playing": True,
+    }
     client.session.request = MagicMock(return_value=_response(track))
 
     assert client.get_current_track() == track

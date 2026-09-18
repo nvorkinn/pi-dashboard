@@ -17,11 +17,13 @@ def _truncate_to_fit(text: str, font: ImageFont.BaseImageFont, max_width: int) -
 
     return text + "…"
 
+
 def _create_album_image_panel(url: str) -> Image.Image:
     """Downloads an image from a URL and returns a Pillow Image object."""
     response = requests.get(url, timeout=10)
     response.raise_for_status()
     return Image.open(io.BytesIO(response.content))
+
 
 def build_spotify_panel(track: dict[str, str], width: int) -> Image.Image:
     album_image_panel = _create_album_image_panel(track["album_image"])

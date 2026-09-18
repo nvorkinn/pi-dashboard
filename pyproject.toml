@@ -46,6 +46,7 @@ skip_empty = true
 
 [tool.ruff]
 target-version = "py314"
+line-length = 120
 extend-exclude = ["src/display/lib"]  # vendored Waveshare driver
 
 [tool.ruff.lint]

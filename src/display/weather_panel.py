@@ -18,9 +18,16 @@ class WeatherPanel(Panel):
         draw.font = METEOCONS
 
         draw.text((image_width * 0.45, 0), ICON_MAP.get(self.weather.weather_code, ")"), "black", anchor="mt")
-        draw.text((image_width, 140), f"{self.weather.temperature('celsius')['temp']:.1f}°C", "black", font=JOSEFIN_REGULAR, anchor="ra")
+        draw.text(
+            (image_width, 140),
+            f"{self.weather.temperature('celsius')['temp']:.1f}°C",
+            "black",
+            font=JOSEFIN_REGULAR,
+            anchor="ra",
+        )
 
         return img
+
 
 ICON_MAP = {
     # Thunderstorm
@@ -34,7 +41,6 @@ ICON_MAP = {
     230: "P",
     231: "P",
     232: "P",
-
     # Drizzle
     300: "Q",
     301: "Q",
@@ -45,11 +51,9 @@ ICON_MAP = {
     313: "T",
     314: "T",
     321: "T",
-
     # Rain
     501: "R",
     502: "R",
-
     # Overcast
-    804: "Y"
+    804: "Y",
 }

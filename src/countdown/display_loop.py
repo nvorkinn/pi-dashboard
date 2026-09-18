@@ -71,7 +71,13 @@ class DisplayLoop:
     construction, so this class never has an implicit "figure it out myself"
     branch to get wrong."""
 
-    def __init__(self, broker: BrokerClient, config: AppConfig, pairing_code_panel: PairingCodePanel, display: DisplayController | None = None):
+    def __init__(
+        self,
+        broker: BrokerClient,
+        config: AppConfig,
+        pairing_code_panel: PairingCodePanel,
+        display: DisplayController | None = None,
+    ):
         self.broker = broker
         self.config = config
         self.pairing_code_panel = pairing_code_panel
@@ -117,9 +123,15 @@ class DisplayLoop:
                         if self.resource_id is None and have_glowmarkt_creds:
                             self.resource_id = safe_fetch(lambda: self.glow.get_electricity_resource_id(), None)
                         if self.resource_id is not None:
-                            self.energy["day"] = safe_fetch(lambda: self.glow.get_day_readings(self.resource_id), self.energy["day"])
-                            self.energy["month"] = safe_fetch(lambda: self.glow.get_month_readings(self.resource_id), self.energy["month"])
-                            self.energy["year"] = safe_fetch(lambda: self.glow.get_year_readings(self.resource_id), self.energy["year"])
+                            self.energy["day"] = safe_fetch(
+                                lambda: self.glow.get_day_readings(self.resource_id), self.energy["day"]
+                            )
+                            self.energy["month"] = safe_fetch(
+                                lambda: self.glow.get_month_readings(self.resource_id), self.energy["month"]
+                            )
+                            self.energy["year"] = safe_fetch(
+                                lambda: self.glow.get_year_readings(self.resource_id), self.energy["year"]
+                            )
                         energy_panel = EnergyPanel(self.energy["day"], self.energy["month"], self.energy["year"])
                         # The broker already gates this on spotify.enabled server-side, so
                         # there's no local check to duplicate here (and no race on cycle 1
@@ -129,7 +141,9 @@ class DisplayLoop:
                         self.display.display_screen(arrival_panel, energy_panel, self.current_track, self.weather_panel)
                     else:
                         energy_panel = EnergyPanel(self.energy["day"], self.energy["month"], self.energy["year"])
-                        self.display.display_partial(arrival_panel, energy_panel, self.current_track, self.weather_panel)
+                        self.display.display_partial(
+                            arrival_panel, energy_panel, self.current_track, self.weather_panel
+                        )
             except requests.exceptions.RequestException as e:
                 print(f"Network error encountered: {e}")
             except Exception as e:
