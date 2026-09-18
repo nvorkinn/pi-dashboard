@@ -94,8 +94,11 @@ proxies now-playing calls, so this device never holds a Spotify token
 itself). The code is only shown once per device; credentials persist in
 `/opt/countdown/.auth_broker_device` across restarts.
 
-App-level secrets (TfL/weather API keys, Glowmarkt credentials) still go in
-`/opt/countdown/.env`, loaded from the service's working directory.
+The TfL/weather API keys live only on auth-broker now, shared across every
+device -- there's no reason for a local copy of a shared key to sit on any
+one gifted device. The only thing that still goes in `/opt/countdown/.env`
+is Glowmarkt credentials, since that's the frame owner's own energy account
+and never something the broker knows about.
 
 Once installed:
 

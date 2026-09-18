@@ -26,11 +26,9 @@ class GlowmarktConfig(BaseModel):
 
 
 class AppConfig(BaseSettings):
-    """Local bootstrap defaults, read from .env/real env vars only -- there's no
-    config.json/local editing UI any more, since auth-broker is now authoritative
-    for tfl.stop_ids, weather.location, spotify.enabled and interval (see
-    DisplayLoop.refresh_broker_config). These fields only matter for the very
-    first display cycle, before the first broker sync completes."""
+    """The only settings actually read from .env/real env vars -- genuinely local
+    values the broker never knows about and could never provide: where to find it,
+    and this device's own Glowmarkt energy account."""
 
     model_config = SettingsConfigDict(
         env_file=".env",
@@ -39,9 +37,21 @@ class AppConfig(BaseSettings):
         extra="ignore",
     )
 
-    tfl: TflConfig = Field(default_factory=TflConfig)
-    interval: int = Field(default=15, gt=0, description="The interval in seconds between updates.")
     broker_url: str = Field(default="https://auth.nikolaivorkinn.com", description="Base URL of the auth-broker service.")
+    glowmarkt: GlowmarktConfig = Field(default_factory=GlowmarktConfig)
+
+
+class LiveConfig(BaseModel):
+    """Everything auth-broker owns: TfL stops, weather location, interval, whether
+    Spotify is enabled. Deliberately NOT a BaseSettings/not read from .env or any
+    env var, and never persisted anywhere -- a local copy of these would just be a
+    stale, un-synced guess sitting next to the real thing. Starts empty/off and is
+    only ever populated by a successful DisplayLoop.refresh_broker_config() fetch;
+    if the broker is unreachable, these fields simply stay whatever they last were
+    (empty on a fresh boot) rather than falling back to something written down
+    once and never touched again."""
+
+    interval: int = Field(default=15, gt=0, description="The interval in seconds between updates.")
+    tfl: TflConfig = Field(default_factory=TflConfig)
     spotify: SpotifyConfig = Field(default_factory=SpotifyConfig)
     weather: WeatherConfig = Field(default_factory=WeatherConfig)
-    glowmarkt: GlowmarktConfig = Field(default_factory=GlowmarktConfig)

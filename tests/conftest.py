@@ -6,11 +6,11 @@ from PIL import Image
 from test_utils import highlight_diff, images_equal
 
 # Env vars AppConfig reads via pydantic-settings (see config_manager.py). Cleared so a
-# developer's real .env values can never leak into a test run.
+# developer's real .env values can never leak into a test run. Note LiveConfig is
+# deliberately NOT on this list -- it's a plain BaseModel, not BaseSettings, so it
+# never reads the environment at all (see test_live_config_ignores_env_vars).
 _APP_CONFIG_ENV_VARS = [
-    "TFL__APP_KEY", "TFL__STOP_IDS", "INTERVAL", "BROKER_URL",
-    "WEATHER__API_KEY", "WEATHER__LOCATION",
-    "SPOTIFY__ENABLED",
+    "BROKER_URL",
     "GLOWMARKT__USERNAME", "GLOWMARKT__PASSWORD",
 ]
 

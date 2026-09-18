@@ -24,7 +24,7 @@ import responses
 from PIL import Image
 
 from countdown.app import DisplayLoop
-from countdown.config_manager import AppConfig
+from countdown.config_manager import AppConfig, LiveConfig
 
 BUS_STOP_JSON = {
     "naptanId": "490000123W",
@@ -82,18 +82,18 @@ def _mock_tfl_and_glowmarkt(stop_json_by_id: dict, arrivals_json_by_id: dict) ->
     })
 
 
-def _make_config() -> AppConfig:
-    config = AppConfig()
-    config.interval = 0 # Means we just run the loop
-    return config
+def _make_live_config() -> LiveConfig:
+    live = LiveConfig()
+    live.interval = 0 # Means we just run the loop
+    return live
 
 
-def _build_loop(config: AppConfig, monkeypatch, spotify_track: dict | None, show_callback = lambda self, *a, **kw: None) -> DisplayLoop:
+def _build_loop(live: LiveConfig, monkeypatch, spotify_track: dict | None, show_callback = lambda self, *a, **kw: None) -> DisplayLoop:
     # BrokerClient registers itself on construction if no credentials file exists --
     # seed one so tests load it instead of making a real (unmocked) network call.
     Path(".auth_broker_device").write_text(json.dumps({"device_id": "test-device", "device_secret": "test-secret"}))
 
-    loop = DisplayLoop(config)
+    loop = DisplayLoop(AppConfig(), live=live)
     monkeypatch.setattr(loop.broker, "get_current_track", lambda: spotify_track)
     monkeypatch.setattr(loop.weather, "get_weather", lambda: _StubWeatherPanel())
     monkeypatch.setattr(Image.Image, "show", show_callback)
@@ -102,14 +102,14 @@ def _build_loop(config: AppConfig, monkeypatch, spotify_track: dict | None, show
 
 @responses.activate
 def test_full_render_cycle_without_spotify_track(isolated_cwd, monkeypatch):
-    config = _make_config()
-    config.tfl.stop_ids = ["490000123W", "940GZZLUKNG"]
+    live = _make_live_config()
+    live.tfl.stop_ids = ["490000123W", "940GZZLUKNG"]
     _mock_tfl_and_glowmarkt(
         {"490000123W": BUS_STOP_JSON, "940GZZLUKNG": METRO_STOP_JSON},
         {"490000123W": BUS_ARRIVALS_JSON, "940GZZLUKNG": METRO_ARRIVALS_JSON},
     )
 
-    loop = _build_loop(config, monkeypatch, spotify_track=None)
+    loop = _build_loop(live, monkeypatch, spotify_track=None)
     loop.run()
 
     assert loop.page_count == 1
@@ -120,15 +120,15 @@ def test_full_render_cycle_without_spotify_track(isolated_cwd, monkeypatch):
 
 @responses.activate
 def test_full_render_cycle_with_spotify_track(isolated_cwd, monkeypatch):
-    config = _make_config()
-    config.tfl.stop_ids = ["490000123W"]
+    live = _make_live_config()
+    live.tfl.stop_ids = ["490000123W"]
     _mock_tfl_and_glowmarkt(
         {"490000123W": BUS_STOP_JSON},
         {"490000123W": BUS_ARRIVALS_JSON},
     )
     responses.add(responses.GET, "https://example.com/album.jpg", body=_png_bytes(), content_type="image/png")
 
-    loop = _build_loop(config, monkeypatch, spotify_track={
+    loop = _build_loop(live, monkeypatch, spotify_track={
         "song": "Test Song", "artist": "Test Artist", "album": "Test Album",
         "album_image": "https://example.com/album.jpg", "is_playing": True,
     })
@@ -143,8 +143,8 @@ def test_partial_render_cycle_reuses_prior_state_without_refetching(isolated_cwd
     (What a partial-refresh cycle actually looks like is covered separately as a
     golden-image scenario in test_display_snapshots.py -- this test is purely about
     the caching/refetch behaviour, not the rendered pixels.)"""
-    config = _make_config()
-    config.tfl.stop_ids = ["490000123W", "940GZZLUKNG", "490000456X", "940GZZLUABC"]
+    live = _make_live_config()
+    live.tfl.stop_ids = ["490000123W", "940GZZLUKNG", "490000456X", "940GZZLUABC"]
     _mock_tfl_and_glowmarkt(
         {
             "490000123W": BUS_STOP_JSON,
@@ -160,7 +160,7 @@ def test_partial_render_cycle_reuses_prior_state_without_refetching(isolated_cwd
         },
     )
 
-    loop = _build_loop(config, monkeypatch, spotify_track=None)
+    loop = _build_loop(live, monkeypatch, spotify_track=None)
     loop.run()
     assert loop.page_count == 2
     energy_after_first_cycle = dict(loop.energy)
