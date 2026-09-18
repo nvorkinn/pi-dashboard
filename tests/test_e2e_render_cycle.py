@@ -19,7 +19,6 @@ path for free, and keeping these tests focused on TfL/Glowmarkt/Spotify.
 import io
 import json
 from pathlib import Path
-from typing import Any
 
 import responses
 from PIL import Image
@@ -89,7 +88,7 @@ def _make_config() -> AppConfig:
     return config
 
 
-def _build_loop(config: AppConfig, monkeypatch, spotify_track: dict | None, show_callback = lambda self, *a, **kw: None, config_callback = None) -> DisplayLoop:
+def _build_loop(config: AppConfig, monkeypatch, spotify_track: dict | None, show_callback = lambda self, *a, **kw: None) -> DisplayLoop:
     # BrokerClient registers itself on construction if no credentials file exists --
     # seed one so tests load it instead of making a real (unmocked) network call.
     Path(".auth_broker_device").write_text(json.dumps({"device_id": "test-device", "device_secret": "test-secret"}))
@@ -98,8 +97,6 @@ def _build_loop(config: AppConfig, monkeypatch, spotify_track: dict | None, show
     monkeypatch.setattr(loop.broker, "get_current_track", lambda: spotify_track)
     monkeypatch.setattr(loop.weather, "get_weather", lambda: _StubWeatherPanel())
     monkeypatch.setattr(Image.Image, "show", show_callback)
-    if config_callback:
-        monkeypatch.setattr(loop, "reload_config_if_changed", config_callback)
     return loop
 
 
@@ -163,10 +160,7 @@ def test_partial_render_cycle_reuses_prior_state_without_refetching(isolated_cwd
         },
     )
 
-    def reload_config_if_changed(*a: Any, **kw: Any) -> None:
-        loop.interval = 0
-
-    loop = _build_loop(config, monkeypatch, spotify_track=None, config_callback=reload_config_if_changed)
+    loop = _build_loop(config, monkeypatch, spotify_track=None)
     loop.run()
     assert loop.page_count == 2
     energy_after_first_cycle = dict(loop.energy)

@@ -226,7 +226,9 @@ __marimo__/
 # Streamlit
 .streamlit/secrets.toml
 
-# Local runtime config (device-specific stops/settings; see config.example.json)
+# Legacy local config file from the retired config.json/Flask config page (see
+# auth-broker) -- no longer read by the app, but still ignored so a leftover
+# copy from before this change doesn't show up as untracked noise.
 config.json
 
 # Visual regression snapshot failures (actual render + diff, written on a mismatch;

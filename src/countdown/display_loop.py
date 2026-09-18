@@ -6,7 +6,7 @@ import requests
 from countdown.glow_client import GlowClient
 from countdown.tfl_client import TflClient
 from countdown.broker_client import BrokerClient
-from countdown.config_manager import AppConfig, config_manager
+from countdown.config_manager import AppConfig
 from countdown.weather_client import WeatherClient
 from display.combined_arrival_panel import CombinedArrivalPanel
 from display.display import DisplayController
@@ -74,7 +74,6 @@ class DisplayLoop:
                 print(f"Unexpected error: {e}")
 
             time.sleep(self.interval)
-            self.reload_config_if_changed()
             self.refresh_broker_config()
 
             self.page += 1
@@ -84,20 +83,13 @@ class DisplayLoop:
             if not self.interval:
                 break
 
-    def reload_config_if_changed(self) -> None:
-        """Building a fresh TflClient can never fail: construction does no network
-        I/O, and stop resolution is retried lazily (and safely) on next use."""
-        if config_manager.has_changed():
-            self.config = config_manager.load_config()
-            self.tfl = TflClient(self.config.tfl)
-
     def refresh_broker_config(self) -> None:
         """Polls the broker's per-device config every cycle -- it's the only way to
         find out something changed, since the broker exposes no change-timestamp.
-        Only mutates/rebuilds what actually differs, same principle as
-        reload_config_if_changed only rebuilding tfl when has_changed() is true --
-        rebuilding TflClient unconditionally would force needless stop-resolution
-        calls against the TfL API every cycle for no reason."""
+        Only mutates/rebuilds what actually differs (building a fresh TflClient can
+        never fail: construction does no network I/O, stop resolution is retried
+        lazily and safely on next use -- but it would force needless stop-resolution
+        calls against the TfL API every cycle if rebuilt unconditionally)."""
         fetched = safe_fetch(lambda: self.broker.get_config(), None)
         if fetched is None:
             return

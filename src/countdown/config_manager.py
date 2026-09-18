@@ -1,16 +1,12 @@
-from pathlib import Path
 from pydantic import BaseModel, Field
-from pydantic_settings import (
-    BaseSettings,
-    JsonConfigSettingsSource,
-    PydanticBaseSettingsSource,
-    SettingsConfigDict,
-)
+from pydantic_settings import BaseSettings, SettingsConfigDict
+
 
 class TflConfig(BaseModel):
     app_key: str = Field(default="")
     # Flat ordered list of NaPTAN stop IDs to cycle through on the display
     stop_ids: list[str] = Field(default_factory=list)
+
 
 class SpotifyConfig(BaseModel):
     # Client credentials/OAuth live entirely in auth-broker now; this device only
@@ -18,15 +14,24 @@ class SpotifyConfig(BaseModel):
     # cycle (see DisplayLoop.refresh_broker_config).
     enabled: bool = Field(default=False)
 
+
 class WeatherConfig(BaseModel):
     api_key: str = Field(default="")
     location: str = Field(default="")
+
 
 class GlowmarktConfig(BaseModel):
     username: str = Field(default="")
     password: str = Field(default="")
 
+
 class AppConfig(BaseSettings):
+    """Local bootstrap defaults, read from .env/real env vars only -- there's no
+    config.json/local editing UI any more, since auth-broker is now authoritative
+    for tfl.stop_ids, weather.location, spotify.enabled and interval (see
+    DisplayLoop.refresh_broker_config). These fields only matter for the very
+    first display cycle, before the first broker sync completes."""
+
     model_config = SettingsConfigDict(
         env_file=".env",
         env_file_encoding="utf-8",
@@ -36,55 +41,7 @@ class AppConfig(BaseSettings):
 
     tfl: TflConfig = Field(default_factory=TflConfig)
     interval: int = Field(default=15, gt=0, description="The interval in seconds between updates.")
-    config_port: int = Field(default=4000, description="The port on which the config server will run.")
     broker_url: str = Field(default="https://auth.nikolaivorkinn.com", description="Base URL of the auth-broker service.")
     spotify: SpotifyConfig = Field(default_factory=SpotifyConfig)
     weather: WeatherConfig = Field(default_factory=WeatherConfig)
     glowmarkt: GlowmarktConfig = Field(default_factory=GlowmarktConfig)
-
-    @classmethod
-    def settings_customise_sources(
-        cls,
-        settings_cls,
-        init_settings: PydanticBaseSettingsSource,
-        env_settings: PydanticBaseSettingsSource,
-        dotenv_settings: PydanticBaseSettingsSource,
-        file_secret_settings: PydanticBaseSettingsSource,
-    ) -> tuple[PydanticBaseSettingsSource, ...]:
-        sources = [init_settings, dotenv_settings, env_settings]
-        config_file = Path("config.json")
-        if config_file.exists():
-            sources.append(JsonConfigSettingsSource(settings_cls, json_file=config_file))
-        return tuple(sources)
-
-class ConfigManager:
-    def __init__(self):
-        self.config_path = Path("config.json")
-        self._last_mtime: float = 0.0
-
-    def has_changed(self) -> bool:
-        """Check if the config file has been modified on disk."""
-        try:
-            current_mtime = self.config_path.stat().st_mtime
-            return current_mtime > self._last_mtime
-        except OSError:
-            return False
-
-    def load_config(self) -> AppConfig:
-        if self.config_path.exists():
-            self._last_mtime = self.config_path.stat().st_mtime
-        return AppConfig()
-
-    # Secrets live in .env only; never persist them to config.json.
-    SECRET_FIELDS = {
-        "tfl": {"app_key"},
-        "glowmarkt": True,
-        "weather": {"api_key"},
-    }
-
-    def save_config(self, new_config: AppConfig):
-        self.config_path.write_text(
-            new_config.model_dump_json(indent=4, exclude=self.SECRET_FIELDS)
-        )
-
-config_manager = ConfigManager()
