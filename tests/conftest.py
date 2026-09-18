@@ -39,7 +39,7 @@ def pytest_addoption(parser):
         action="store_true",
         default=False,
         help="Write tests/images/ golden files from the current render instead of "
-             "comparing against them. Review the resulting diff before committing.",
+        "comparing against them. Review the resulting diff before committing.",
     )
 
 

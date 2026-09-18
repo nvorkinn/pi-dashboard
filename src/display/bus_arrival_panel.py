@@ -19,7 +19,8 @@ class BusArrivalPanel(AbstractArrivalPanel):
         for arrival in arrivals:
             arrival_string = self._get_time_text(arrival.time_to_station // 60)
             arrival_panel = self._create_panel_for_stop_arrival(
-                arrival.line, arrival.destination, arrival_string, max_x)
+                arrival.line, arrival.destination, arrival_string, max_x
+            )
             arrival_panel_bottom = y + arrival_panel.size[1]
             if arrival_panel_bottom > img.size[1]:
                 return img

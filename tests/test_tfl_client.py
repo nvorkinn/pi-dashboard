@@ -151,15 +151,26 @@ def test_get_next_arrivals_builds_correct_panels(monkeypatch):
         response = MagicMock()
         response.raise_for_status = MagicMock()
         if "490000123W" in url:
-            response.json.return_value = [{
-                "naptanId": "490000123W", "lineName": "N155", "timeToStation": 300,
-                "modeName": "bus", "destinationName": "Somewhere",
-            }]
+            response.json.return_value = [
+                {
+                    "naptanId": "490000123W",
+                    "lineName": "N155",
+                    "timeToStation": 300,
+                    "modeName": "bus",
+                    "destinationName": "Somewhere",
+                }
+            ]
         else:
-            response.json.return_value = [{
-                "naptanId": "940GZZLUKNG", "lineName": "Northern", "timeToStation": 120,
-                "modeName": "tube", "towards": "Bank", "destinationNaptanId": None,
-            }]
+            response.json.return_value = [
+                {
+                    "naptanId": "940GZZLUKNG",
+                    "lineName": "Northern",
+                    "timeToStation": 120,
+                    "modeName": "tube",
+                    "towards": "Bank",
+                    "destinationNaptanId": None,
+                }
+            ]
         return response
 
     monkeypatch.setattr(client.session, "get", fake_get)
@@ -189,10 +200,15 @@ def test_get_next_arrivals_passes_a_timeout(monkeypatch):
 
     get_mock = MagicMock()
     get_mock.return_value.raise_for_status = MagicMock()
-    get_mock.return_value.json.return_value = [{
-        "naptanId": "490000123W", "lineName": "N155", "timeToStation": 300,
-        "modeName": "bus", "destinationName": "Somewhere",
-    }]
+    get_mock.return_value.json.return_value = [
+        {
+            "naptanId": "490000123W",
+            "lineName": "N155",
+            "timeToStation": 300,
+            "modeName": "bus",
+            "destinationName": "Somewhere",
+        }
+    ]
     monkeypatch.setattr(client.session, "get", get_mock)
 
     client.get_next_arrivals()

@@ -22,6 +22,7 @@ def main() -> None:
         # Put your epaper display to sleep to prevent burn-in
         loop.display.shutdown()
         sys.exit(0)
+
     signal.signal(signal.SIGINT, handle_shutdown)
     signal.signal(signal.SIGTERM, handle_shutdown)
 

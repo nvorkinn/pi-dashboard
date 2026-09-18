@@ -14,8 +14,11 @@ margin_right = 30
 margin_top = 40
 margin_bottom = 20
 
+
 class EnergyPanel(Panel):
-    def __init__(self, readings_day: list[float] | None, readings_month: list[float] | None, readings_year: list[float] | None):
+    def __init__(
+        self, readings_day: list[float] | None, readings_month: list[float] | None, readings_year: list[float] | None
+    ):
         super().__init__()
         self.readings_day = readings_day
         self.readings_month = readings_month

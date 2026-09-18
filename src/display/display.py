@@ -13,11 +13,13 @@ from display.weather_panel import WeatherPanel
 
 LIB_DIR = str(Path(__file__).resolve().parent / "lib")
 
+
 class DisplayController:
     def __init__(self):
         try:
             sys.path.insert(1, LIB_DIR)
             import epd7in5_V2
+
             self.display_enabled = True
             self.epd = epd7in5_V2.EPD()
         except (ImportError, RuntimeError) as e:
@@ -25,8 +27,13 @@ class DisplayController:
             self.display_enabled = False
             self.epd = None
 
-    def display_screen(self, arrival_panel: CombinedArrivalPanel, energy_panel: EnergyPanel,
-                       current_track: dict[str, str] | None, weather_panel: WeatherPanel | None) -> Image.Image:
+    def display_screen(
+        self,
+        arrival_panel: CombinedArrivalPanel,
+        energy_panel: EnergyPanel,
+        current_track: dict[str, str] | None,
+        weather_panel: WeatherPanel | None,
+    ) -> Image.Image:
         img = Image.new("RGBA", (TOTAL_WIDTH, TOTAL_HEIGHT), (255, 255, 255, 255))
 
         # Arrivals
@@ -63,8 +70,13 @@ class DisplayController:
 
         return img
 
-    def display_partial(self, arrival_panel: CombinedArrivalPanel, energy_panel: EnergyPanel | None,
-                       current_track: dict[str, str] | None, weather_panel: WeatherPanel | None) -> Image.Image:
+    def display_partial(
+        self,
+        arrival_panel: CombinedArrivalPanel,
+        energy_panel: EnergyPanel | None,
+        current_track: dict[str, str] | None,
+        weather_panel: WeatherPanel | None,
+    ) -> Image.Image:
         img = Image.new("RGBA", (TOTAL_WIDTH, TOTAL_HEIGHT), (255, 255, 255, 255))
 
         # Arrivals

@@ -30,7 +30,8 @@ class TubeArrivalPanel(AbstractArrivalPanel):
             for arrival in self._limit_arrivals_per_line(line_arrivals, len(arrivals_by_line)):
                 arrival_string = self._get_time_text(arrival.time_to_station // 60)
                 arrival_panel = self._create_panel_for_stop_arrival(
-                    arrival.line[0], arrival.towards, arrival_string, max_x)
+                    arrival.line[0], arrival.towards, arrival_string, max_x
+                )
                 arrival_panel_bottom = y + arrival_panel.size[1]
                 if arrival_panel_bottom > img.size[1]:
                     return img

@@ -18,6 +18,9 @@ jobs:
     - name: Run Ruff
       run: uv run --frozen --only-group dev ruff check --output-format=github .
 
+    - name: Check Ruff formatting
+      run: uv run --frozen --only-group dev ruff format --check --diff .
+
   test:
     runs-on: ubuntu-latest
 

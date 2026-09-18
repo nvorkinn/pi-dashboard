@@ -42,6 +42,7 @@ class TransportMode(StrEnum):
 
 class RuterDeparture(BaseModel):
     """Normalized departure model, mode-agnostic across bus, tram, metro, etc."""
+
     line: str = Field(description="Line number / public code, e.g. '31', '5', '12'")
     line_name: str | None = Field(default=None, description="Descriptive line name")
     destination: str = Field(description="Destination front text, e.g. 'Sognsvann'")
@@ -64,6 +65,7 @@ class RuterDeparture(BaseModel):
 
 class RuterStop(BaseModel):
     """Metadata for a stop place or quay."""
+
     id: str
     name: str
     transport_modes: list[TransportMode] = Field(default_factory=list)
@@ -185,10 +187,12 @@ class RuterClient:
         """
         self.client_name = client_name
         self.session = session or requests.Session()
-        self.session.headers.update({
-            "ET-Client-Name": self.client_name,
-            "Content-Type": "application/json",
-        })
+        self.session.headers.update(
+            {
+                "ET-Client-Name": self.client_name,
+                "Content-Type": "application/json",
+            }
+        )
 
         self.stops: list[RuterStop] = []
         self.current_stop_index: int = 0
@@ -301,10 +305,7 @@ class RuterClient:
 
         allowed_modes = None
         if modes:
-            allowed_modes = {
-                m if isinstance(m, TransportMode) else TransportMode.from_str(str(m))
-                for m in modes
-            }
+            allowed_modes = {m if isinstance(m, TransportMode) else TransportMode.from_str(str(m)) for m in modes}
 
         departures: list[RuterDeparture] = []
 
@@ -334,7 +335,9 @@ class RuterClient:
             aim_dep_str = call.get("aimedDepartureTime") or exp_dep_str
             aim_dep_time = datetime.fromisoformat(aim_dep_str)
 
-            exp_arr_time = datetime.fromisoformat(call["expectedArrivalTime"]) if call.get("expectedArrivalTime") else None
+            exp_arr_time = (
+                datetime.fromisoformat(call["expectedArrivalTime"]) if call.get("expectedArrivalTime") else None
+            )
             aim_arr_time = datetime.fromisoformat(call["aimedArrivalTime"]) if call.get("aimedArrivalTime") else None
 
             # Calculate seconds to departure
@@ -378,7 +381,9 @@ class RuterClient:
         departures.sort(key=lambda d: d.time_to_station)
         return departures
 
-    def get_next_departures(self, count_stops: int = 2, limit_per_stop: int = 5) -> list[tuple[RuterStop, list[RuterDeparture]]]:
+    def get_next_departures(
+        self, count_stops: int = 2, limit_per_stop: int = 5
+    ) -> list[tuple[RuterStop, list[RuterDeparture]]]:
         """
         Cycle through configured stops and return departures for the next batch of stops.
         Mirrors the paging behavior in TfLClient.
@@ -426,14 +431,16 @@ class RuterClient:
         for feat in features:
             props = feat.get("properties", {})
             coords = feat.get("geometry", {}).get("coordinates", [0, 0])
-            results.append({
-                "id": props.get("id"),
-                "name": props.get("name"),
-                "locality": props.get("locality"),
-                "county": props.get("county"),
-                "category": props.get("category", []),
-                "coordinates": {"lon": coords[0], "lat": coords[1]},
-            })
+            results.append(
+                {
+                    "id": props.get("id"),
+                    "name": props.get("name"),
+                    "locality": props.get("locality"),
+                    "county": props.get("county"),
+                    "category": props.get("category", []),
+                    "coordinates": {"lon": coords[0], "lat": coords[1]},
+                }
+            )
         return results
 
     def get_nearest_stops(self, lat: float, lon: float, size: int = 5) -> list[dict[str, Any]]:
@@ -457,12 +464,14 @@ class RuterClient:
         for feat in features:
             props = feat.get("properties", {})
             coords = feat.get("geometry", {}).get("coordinates", [0, 0])
-            results.append({
-                "id": props.get("id"),
-                "name": props.get("name"),
-                "locality": props.get("locality"),
-                "distance": props.get("distance"),
-                "category": props.get("category", []),
-                "coordinates": {"lon": coords[0], "lat": coords[1]},
-            })
+            results.append(
+                {
+                    "id": props.get("id"),
+                    "name": props.get("name"),
+                    "locality": props.get("locality"),
+                    "distance": props.get("distance"),
+                    "category": props.get("category", []),
+                    "coordinates": {"lon": coords[0], "lat": coords[1]},
+                }
+            )
         return results

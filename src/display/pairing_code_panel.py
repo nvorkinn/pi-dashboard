@@ -24,7 +24,13 @@ class PairingCodePanel(Panel):
         center_x, center_y = image_width / 2, image_height / 2
 
         draw.text((center_x, center_y - 90), "Set up this display", anchor="mm", font=HELVETICA, fill="black")
-        draw.text((center_x, center_y - 60), "Go to nikolaivorkinn.com and enter this code:", anchor="mm", font=HELVETICA, fill="black")
+        draw.text(
+            (center_x, center_y - 60),
+            "Go to nikolaivorkinn.com and enter this code:",
+            anchor="mm",
+            font=HELVETICA,
+            fill="black",
+        )
         draw.text((center_x, center_y), self.pairing_code or "", anchor="mm", font=UBUNTU_MEDIUM, fill="black")
         draw.text((center_x, center_y + 60), f"Device: {self.device_id}", anchor="mm", font=HELVETICA, fill="black")
 

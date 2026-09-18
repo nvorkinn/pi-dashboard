@@ -21,6 +21,7 @@ Two module-level things make this deterministic across runs/days:
       calls it (the "Updated: ..." footer and EnergyPanel's date headers), since
       otherwise every golden image would go stale the instant the clock ticked.
 """
+
 import datetime as dt
 import io
 
@@ -69,12 +70,19 @@ def _suppress_image_show(monkeypatch):
 
 
 BUS_STOP = SingleStopPoint(
-    naptanId="490000123W", commonName="Elephant & Castle", modes=["bus"],
-    additionalProperties=[], stopType="NaptanPublicBusCoachTram", stopLetter="W",
+    naptanId="490000123W",
+    commonName="Elephant & Castle",
+    modes=["bus"],
+    additionalProperties=[],
+    stopType="NaptanPublicBusCoachTram",
+    stopLetter="W",
 )
 TUBE_STOP = MetroStopPoint(
-    naptanId="940GZZLUKNG", commonName="Kennington Underground Station",
-    modes=["tube"], additionalProperties=[], stopType="NaptanMetroStation",
+    naptanId="940GZZLUKNG",
+    commonName="Kennington Underground Station",
+    modes=["tube"],
+    additionalProperties=[],
+    stopType="NaptanMetroStation",
 )
 
 BUS_ARRIVALS = [
@@ -82,10 +90,22 @@ BUS_ARRIVALS = [
     BusArrival(naptanId="490000123W", lineName="P5", timeToStation=780, modeName="bus", destinationName="Peckham"),
 ]
 TUBE_ARRIVALS = [
-    TubeArrival(naptanId="940GZZLUKNG", lineName="Northern", timeToStation=120, modeName="tube",
-                towards="Bank", destinationNaptanId=None),
-    TubeArrival(naptanId="940GZZLUKNG", lineName="Northern", timeToStation=480, modeName="tube",
-                towards="Morden", destinationNaptanId=None),
+    TubeArrival(
+        naptanId="940GZZLUKNG",
+        lineName="Northern",
+        timeToStation=120,
+        modeName="tube",
+        towards="Bank",
+        destinationNaptanId=None,
+    ),
+    TubeArrival(
+        naptanId="940GZZLUKNG",
+        lineName="Northern",
+        timeToStation=480,
+        modeName="tube",
+        towards="Morden",
+        destinationNaptanId=None,
+    ),
 ]
 
 ENERGY = EnergyPanel(
@@ -110,8 +130,11 @@ class _FakeWeather:
 WEATHER = WeatherPanel(_FakeWeather(weather_code=804, temp_c=14.2))
 
 SPOTIFY_TRACK_PLAYING = {
-    "song": "Around The World", "artist": "Daft Punk", "album": "Homework",
-    "album_image": "https://example.com/album.jpg", "is_playing": True,
+    "song": "Around The World",
+    "artist": "Daft Punk",
+    "album": "Homework",
+    "album_image": "https://example.com/album.jpg",
+    "is_playing": True,
 }
 SPOTIFY_TRACK_PAUSED = {**SPOTIFY_TRACK_PLAYING, "is_playing": False}
 
@@ -127,10 +150,12 @@ def _album_art_bytes() -> bytes:
 
 
 def _bus_and_tube_arrivals() -> CombinedArrivalPanel:
-    return CombinedArrivalPanel([
-        BusArrivalPanel(BUS_STOP, BUS_ARRIVALS),
-        TubeArrivalPanel(TUBE_STOP, TUBE_ARRIVALS),
-    ])
+    return CombinedArrivalPanel(
+        [
+            BusArrivalPanel(BUS_STOP, BUS_ARRIVALS),
+            TubeArrivalPanel(TUBE_STOP, TUBE_ARRIVALS),
+        ]
+    )
 
 
 def _bus_only_arrivals() -> CombinedArrivalPanel:
@@ -165,7 +190,9 @@ def test_screen_without_weather_data_yet(snapshot):
 
 @responses.activate
 def test_screen_with_spotify_playing(snapshot):
-    responses.add(responses.GET, SPOTIFY_TRACK_PLAYING["album_image"], body=_album_art_bytes(), content_type="image/png")
+    responses.add(
+        responses.GET, SPOTIFY_TRACK_PLAYING["album_image"], body=_album_art_bytes(), content_type="image/png"
+    )
     img = _CONTROLLER.display_screen(_bus_only_arrivals(), ENERGY, SPOTIFY_TRACK_PLAYING, WEATHER)
     snapshot.assert_matches("screen_spotify_playing", img)
 

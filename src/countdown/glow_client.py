@@ -17,8 +17,8 @@ def _get_utc_offset(now: datetime) -> str:
 
 
 class GlowClient:
-    base_url = 'https://api.glowmarkt.com/api/v0-1'
-    app_id = 'b0f1b774-a586-4f72-9edd-27ead8aa7a8d'
+    base_url = "https://api.glowmarkt.com/api/v0-1"
+    app_id = "b0f1b774-a586-4f72-9edd-27ead8aa7a8d"
 
     def __init__(self, config: GlowmarktConfig):
         self.session = build_retrying_session()
@@ -29,11 +29,7 @@ class GlowClient:
     def _authenticate(self):
         """Internal method to fetch and store the session token."""
         url = f"{self.base_url}/auth"
-        payload = {
-            "username": self.username,
-            "password": self.password,
-            "applicationId": self.app_id
-        }
+        payload = {"username": self.username, "password": self.password, "applicationId": self.app_id}
         response = self.session.post(url, json=payload, timeout=DEFAULT_TIMEOUT)
         response.raise_for_status()
 
@@ -47,11 +43,7 @@ class GlowClient:
         if not self.token:
             return None
 
-        headers = {
-            "token": self.token,
-            "applicationId": self.app_id,
-            "Content-Type": "application/json"
-        }
+        headers = {"token": self.token, "applicationId": self.app_id, "Content-Type": "application/json"}
 
         url = f"{self.base_url}{endpoint}"
         response = self.session.request(method, url, params=params, headers=headers, timeout=DEFAULT_TIMEOUT)
@@ -86,7 +78,7 @@ class GlowClient:
             "from": start_of_yesterday.isoformat(timespec="seconds"),
             "to": end_of_yesterday.isoformat(timespec="seconds"),
             "offset": _get_utc_offset(now),
-            "function": "sum"
+            "function": "sum",
         }
         json = self._request("GET", f"/resource/{resource_id}/readings", params=params)
         readings = Readings.model_validate(json)
@@ -100,7 +92,7 @@ class GlowClient:
             "from": start_of_month.isoformat(timespec="seconds"),
             "to": now.isoformat(timespec="seconds"),
             "offset": _get_utc_offset(now),
-            "function": "sum"
+            "function": "sum",
         }
         json = self._request("GET", f"/resource/{resource_id}/readings", params=params)
         readings = Readings.model_validate(json)
@@ -114,7 +106,7 @@ class GlowClient:
             "from": start_of_year.isoformat(timespec="seconds"),
             "to": now.isoformat(timespec="seconds"),
             "offset": _get_utc_offset(now),
-            "function": "sum"
+            "function": "sum",
         }
         json = self._request("GET", f"/resource/{resource_id}/readings", params=params)
         readings = Readings.model_validate(json)

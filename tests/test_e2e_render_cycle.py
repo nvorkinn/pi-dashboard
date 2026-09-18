@@ -19,6 +19,7 @@ and keeping those tests focused on TfL/Glowmarkt/Spotify. fetch_app_config() its
 -- both the real-broker-response path and that same unreachable fallback -- gets
 its own dedicated coverage further down instead.
 """
+
 import io
 import json
 from pathlib import Path
@@ -43,6 +44,7 @@ def _broker_config_json(pairing_code: str | None = None, interval: int = 0) -> d
         "pairing_code": pairing_code,
     }
 
+
 BUS_STOP_JSON = {
     "naptanId": "490000123W",
     "commonName": "Elephant & Castle",
@@ -60,14 +62,25 @@ METRO_STOP_JSON = {
     "children": [],
     "stopType": "NaptanMetroStation",
 }
-BUS_ARRIVALS_JSON = [{
-    "naptanId": "490000123W", "lineName": "N155", "timeToStation": 300,
-    "modeName": "bus", "destinationName": "Somewhere",
-}]
-METRO_ARRIVALS_JSON = [{
-    "naptanId": "940GZZLUKNG", "lineName": "Northern", "timeToStation": 120,
-    "modeName": "tube", "towards": "Bank", "destinationNaptanId": None,
-}]
+BUS_ARRIVALS_JSON = [
+    {
+        "naptanId": "490000123W",
+        "lineName": "N155",
+        "timeToStation": 300,
+        "modeName": "bus",
+        "destinationName": "Somewhere",
+    }
+]
+METRO_ARRIVALS_JSON = [
+    {
+        "naptanId": "940GZZLUKNG",
+        "lineName": "Northern",
+        "timeToStation": 120,
+        "modeName": "tube",
+        "towards": "Bank",
+        "destinationNaptanId": None,
+    }
+]
 
 
 class _StubWeatherPanel:
@@ -91,17 +104,21 @@ def _mock_tfl_and_glowmarkt(stop_json_by_id: dict, arrivals_json_by_id: dict) ->
         responses.add(responses.GET, f"https://api.tfl.gov.uk/StopPoint/{stop_id}/Arrivals", json=arrivals_json)
 
     responses.add(responses.POST, "https://api.glowmarkt.com/api/v0-1/auth", json={"token": "fake-token"})
-    responses.add(responses.GET, "https://api.glowmarkt.com/api/v0-1/virtualentity", json=[
-        {"resources": [{"name": "electricity consumption", "resourceId": "elec-id"}]}
-    ])
-    responses.add(responses.GET, "https://api.glowmarkt.com/api/v0-1/resource/elec-id/readings", json={
-        "data": [[1700000000, 1.5], [1700003600, 2.25]]
-    })
+    responses.add(
+        responses.GET,
+        "https://api.glowmarkt.com/api/v0-1/virtualentity",
+        json=[{"resources": [{"name": "electricity consumption", "resourceId": "elec-id"}]}],
+    )
+    responses.add(
+        responses.GET,
+        "https://api.glowmarkt.com/api/v0-1/resource/elec-id/readings",
+        json={"data": [[1700000000, 1.5], [1700003600, 2.25]]},
+    )
 
 
 def _make_config() -> AppConfig:
     config = AppConfig()
-    config.interval = 0 # Means we just run the loop
+    config.interval = 0  # Means we just run the loop
     # Real (dummy) credentials, since these tests mock Glowmarkt's endpoints and
     # exercise that path -- DisplayLoop now skips Glowmarkt entirely when
     # username/password are empty (the common case for most real devices).
@@ -121,7 +138,7 @@ def _build_loop(
     monkeypatch,
     spotify_track: dict | None,
     pairing_code: str | None = None,
-    show_callback = lambda self, *a, **kw: None,
+    show_callback=lambda self, *a, **kw: None,
 ) -> DisplayLoop:
     _seed_credentials()
     broker = BrokerClient(TEST_BROKER_URL)
@@ -188,13 +205,21 @@ def test_full_render_cycle_with_spotify_track(isolated_cwd, monkeypatch):
     )
     responses.add(responses.GET, "https://example.com/album.jpg", body=_png_bytes(), content_type="image/png")
 
-    loop = _build_loop(config, monkeypatch, spotify_track={
-        "song": "Test Song", "artist": "Test Artist", "album": "Test Album",
-        "album_image": "https://example.com/album.jpg", "is_playing": True,
-    })
+    loop = _build_loop(
+        config,
+        monkeypatch,
+        spotify_track={
+            "song": "Test Song",
+            "artist": "Test Artist",
+            "album": "Test Album",
+            "album_image": "https://example.com/album.jpg",
+            "is_playing": True,
+        },
+    )
     loop.run()
 
     assert loop.current_track["song"] == "Test Song"
+
 
 @responses.activate
 def test_partial_render_cycle_reuses_prior_state_without_refetching(isolated_cwd, monkeypatch):
@@ -249,7 +274,9 @@ def test_run_shows_pairing_screen_and_skips_normal_display_while_unpaired(isolat
     loop = _build_loop(config, monkeypatch, spotify_track=None, pairing_code="ABC123")
     screens_shown = []
     monkeypatch.setattr(
-        loop.display, "display_pairing_screen", lambda panel: screens_shown.append((panel.pairing_code, panel.device_id))
+        loop.display,
+        "display_pairing_screen",
+        lambda panel: screens_shown.append((panel.pairing_code, panel.device_id)),
     )
 
     loop.run()
@@ -268,15 +295,14 @@ def test_run_only_repaints_pairing_screen_when_code_changes(isolated_cwd, monkey
     cycle-1 panel (and its has_changed=True) untouched forever."""
     config = _make_config()
     responses.add(
-        responses.GET, f"{TEST_BROKER_URL}/api/devices/test-device/config",
+        responses.GET,
+        f"{TEST_BROKER_URL}/api/devices/test-device/config",
         json=_broker_config_json(pairing_code="ABC123", interval=0),
     )
 
     loop = _build_loop(config, monkeypatch, spotify_track=None, pairing_code="ABC123")
     screens_shown = []
-    monkeypatch.setattr(
-        loop.display, "display_pairing_screen", lambda panel: screens_shown.append(panel.pairing_code)
-    )
+    monkeypatch.setattr(loop.display, "display_pairing_screen", lambda panel: screens_shown.append(panel.pairing_code))
 
     loop.run()  # cycle 1: pairing_code_panel seeded by _build_loop, has_changed=True -> repaint
     loop.page = 0  # run() only executes once per call when interval == 0; call again to simulate cycle 2
@@ -289,14 +315,18 @@ def test_run_only_repaints_pairing_screen_when_code_changes(isolated_cwd, monkey
 def test_fetch_app_config_uses_real_broker_response(isolated_cwd):
     _seed_credentials()
     broker = BrokerClient(TEST_BROKER_URL)
-    responses.add(responses.GET, f"{TEST_BROKER_URL}/api/devices/test-device/config", json={
-        "interval": 20,
-        "tfl": {"app_key": "tfl-key", "stop_ids": ["940GZZLUEUS"]},
-        "weather": {"api_key": "weather-key", "location": "London"},
-        "spotify": {"enabled": True},
-        "glowmarkt": {"username": None, "password": None},
-        "pairing_code": "XYZ789",
-    })
+    responses.add(
+        responses.GET,
+        f"{TEST_BROKER_URL}/api/devices/test-device/config",
+        json={
+            "interval": 20,
+            "tfl": {"app_key": "tfl-key", "stop_ids": ["940GZZLUEUS"]},
+            "weather": {"api_key": "weather-key", "location": "London"},
+            "spotify": {"enabled": True},
+            "glowmarkt": {"username": None, "password": None},
+            "pairing_code": "XYZ789",
+        },
+    )
 
     config, pairing_code_panel = fetch_app_config(broker)
 
