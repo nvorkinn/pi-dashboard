@@ -5,24 +5,16 @@ from PIL import Image
 
 from test_utils import highlight_diff, images_equal
 
-# Env vars AppConfig reads via pydantic-settings (see config_manager.py). Cleared so a
-# developer's real .env values can never leak into a test run.
-_APP_CONFIG_ENV_VARS = [
-    "TFL__APP_KEY", "TFL__STOP_IDS", "INTERVAL", "CONFIG_PORT", "BROKER_URL",
-    "WEATHER__API_KEY", "WEATHER__LOCATION",
-    "SPOTIFY__ENABLED",
-    "GLOWMARKT__USERNAME", "GLOWMARKT__PASSWORD",
-]
-
-
 @pytest.fixture(autouse=True)
 def isolated_cwd(tmp_path, monkeypatch):
-    """Run every test in an empty temp directory with no app env vars set, so nothing
-    can accidentally read (or write into) the real project's .env/config.json. Any test
-    that wants config.json content should write it into this same tmp_path."""
+    """Run every test in an empty temp directory, so nothing can accidentally read
+    (or write into) a device-local file a test writes into this same tmp_path (e.g.
+    .auth_broker_device). BROKER_URL is the only env var the app itself reads
+    (os.environ.get() in app.py, not pydantic-settings -- AppConfig is a plain
+    BaseModel and structurally can't read env vars at all, see
+    test_live_config_ignores_env_vars), so it's the only one worth clearing here."""
     monkeypatch.chdir(tmp_path)
-    for key in _APP_CONFIG_ENV_VARS:
-        monkeypatch.delenv(key, raising=False)
+    monkeypatch.delenv("BROKER_URL", raising=False)
     return tmp_path
 
 

@@ -19,7 +19,8 @@
 # [version] is a release tag such as "v0.3.0". Defaults to the latest release.
 #
 # Re-running this script (e.g. to update) reinstalls the wheel and restarts
-# the service, but never overwrites an existing config.json.
+# the service, but never touches APP_DIR -- .auth_broker_device (the device's
+# auth-broker pairing credentials) survives untouched.
 set -euo pipefail
 
 REPO="nvorkinn/countdown"
@@ -138,4 +139,5 @@ else
     echo "  systemctl status countdown"
     echo "  $LOG_CMD"
 fi
-echo "Edit $APP_DIR/config.json then 'systemctl restart countdown' to apply changes."
+echo "On first run it'll register with auth-broker and show a pairing code on the"
+echo "display -- go to https://nikolaivorkinn.com and enter it to finish setup."

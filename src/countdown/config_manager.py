@@ -1,16 +1,11 @@
-from pathlib import Path
 from pydantic import BaseModel, Field
-from pydantic_settings import (
-    BaseSettings,
-    JsonConfigSettingsSource,
-    PydanticBaseSettingsSource,
-    SettingsConfigDict,
-)
+
 
 class TflConfig(BaseModel):
     app_key: str = Field(default="")
     # Flat ordered list of NaPTAN stop IDs to cycle through on the display
     stop_ids: list[str] = Field(default_factory=list)
+
 
 class SpotifyConfig(BaseModel):
     # Client credentials/OAuth live entirely in auth-broker now; this device only
@@ -18,73 +13,34 @@ class SpotifyConfig(BaseModel):
     # cycle (see DisplayLoop.refresh_broker_config).
     enabled: bool = Field(default=False)
 
+
 class WeatherConfig(BaseModel):
     api_key: str = Field(default="")
     location: str = Field(default="")
 
+
 class GlowmarktConfig(BaseModel):
-    username: str = Field(default="")
-    password: str = Field(default="")
+    # None, not "" -- these come from the broker as null when a device's owner
+    # hasn't set up Glowmarkt (the common case), and an explicit "not configured"
+    # is worth keeping honest rather than folding into the same empty-string
+    # convention used elsewhere, since a credential has no legitimate empty value
+    # the way e.g. a search query might.
+    username: str | None = Field(default=None)
+    password: str | None = Field(default=None)
 
-class AppConfig(BaseSettings):
-    model_config = SettingsConfigDict(
-        env_file=".env",
-        env_file_encoding="utf-8",
-        env_nested_delimiter="__",
-        extra="ignore",
-    )
 
-    tfl: TflConfig = Field(default_factory=TflConfig)
+class AppConfig(BaseModel):
+    """Everything auth-broker owns: TfL stops, weather location, interval, whether
+    Spotify is enabled, and Glowmarkt credentials. A plain BaseModel, not
+    BaseSettings -- structurally cannot read .env or any env var, and is never
+    persisted anywhere, so there's no local copy of any of this to go stale. Starts
+    empty/off and is only ever populated by a successful
+    DisplayLoop.refresh_broker_config() fetch; if the broker is unreachable, these
+    fields simply stay whatever they last were (empty on a fresh boot) rather than
+    falling back to something written down once and never touched again."""
+
     interval: int = Field(default=15, gt=0, description="The interval in seconds between updates.")
-    config_port: int = Field(default=4000, description="The port on which the config server will run.")
-    broker_url: str = Field(default="https://auth.nikolaivorkinn.com", description="Base URL of the auth-broker service.")
+    tfl: TflConfig = Field(default_factory=TflConfig)
     spotify: SpotifyConfig = Field(default_factory=SpotifyConfig)
     weather: WeatherConfig = Field(default_factory=WeatherConfig)
     glowmarkt: GlowmarktConfig = Field(default_factory=GlowmarktConfig)
-
-    @classmethod
-    def settings_customise_sources(
-        cls,
-        settings_cls,
-        init_settings: PydanticBaseSettingsSource,
-        env_settings: PydanticBaseSettingsSource,
-        dotenv_settings: PydanticBaseSettingsSource,
-        file_secret_settings: PydanticBaseSettingsSource,
-    ) -> tuple[PydanticBaseSettingsSource, ...]:
-        sources = [init_settings, dotenv_settings, env_settings]
-        config_file = Path("config.json")
-        if config_file.exists():
-            sources.append(JsonConfigSettingsSource(settings_cls, json_file=config_file))
-        return tuple(sources)
-
-class ConfigManager:
-    def __init__(self):
-        self.config_path = Path("config.json")
-        self._last_mtime: float = 0.0
-
-    def has_changed(self) -> bool:
-        """Check if the config file has been modified on disk."""
-        try:
-            current_mtime = self.config_path.stat().st_mtime
-            return current_mtime > self._last_mtime
-        except OSError:
-            return False
-
-    def load_config(self) -> AppConfig:
-        if self.config_path.exists():
-            self._last_mtime = self.config_path.stat().st_mtime
-        return AppConfig()
-
-    # Secrets live in .env only; never persist them to config.json.
-    SECRET_FIELDS = {
-        "tfl": {"app_key"},
-        "glowmarkt": True,
-        "weather": {"api_key"},
-    }
-
-    def save_config(self, new_config: AppConfig):
-        self.config_path.write_text(
-            new_config.model_dump_json(indent=4, exclude=self.SECRET_FIELDS)
-        )
-
-config_manager = ConfigManager()

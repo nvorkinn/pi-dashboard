@@ -1,22 +1,22 @@
+import os
 import signal
 import sys
-import threading
 
 import pydantic
 import requests
 
-from countdown.display_loop import DisplayLoop
-from countdown.flask import app
-from countdown.config_manager import config_manager
+from countdown.broker_client import BrokerClient
+from countdown.display_loop import DisplayLoop, fetch_app_config
 
 def main() -> None:
-    config = config_manager.load_config()
-    flask_thread = threading.Thread(
-        target=lambda: app.run(host="0.0.0.0", port=config.config_port),
-        daemon=True
-    )
-    flask_thread.start()
-    loop = DisplayLoop(config)
+    # The only thing that can't come from the broker -- it's how this device finds
+    # the broker in the first place. Set via the systemd unit's Environment= line
+    # (see packaging/systemd/countdown.service). No default: if it's missing, the
+    # app should crash loudly rather than silently talk to some baked-in URL.
+    broker_url = os.environ["BROKER_URL"]
+    broker = BrokerClient(broker_url)
+    config, pairing_code = fetch_app_config(broker)
+    loop = DisplayLoop(broker, config, pairing_code)
 
     # Setup graceful signal handling
     def handle_shutdown(_signum, _frame):
@@ -28,4 +28,3 @@ def main() -> None:
     signal.signal(signal.SIGTERM, handle_shutdown)
 
     loop.run()
-

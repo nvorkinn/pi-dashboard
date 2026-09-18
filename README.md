@@ -78,26 +78,29 @@ curl -fsSL -H "Authorization: Bearer $GITHUB_TOKEN" \
 
 If you're provisioning a Pi with other apps too, see
 [pi-setup](https://github.com/nvorkinn/pi-setup) instead -- it wraps this
-installer, decrypts secrets into `.env` for you, and installs everything
-else you need in one command.
+installer and installs everything else you need in one command.
 
 This installs `uv` for the invoking user if it isn't already present, and
 runs the service as that user. Re-running the installer updates the app and
 restarts the service.
 
-Every config field has a default, so the app runs right away with no config
-file at all -- visit `http://<pi>:4000` for TfL stops/general settings, which
-writes `/opt/countdown/config.json` the first time you save. Secrets (TfL/
-weather API keys, Glowmarkt credentials) can go in `/opt/countdown/.env`
-instead, loaded the same way from the service's working directory.
+There's no local config file or website any more -- on first boot the app
+registers itself with [auth-broker](https://github.com/nvorkinn/auth-broker)
+and shows a pairing code on the display. Go to https://nikolaivorkinn.com,
+enter the code, and manage everything from there: TfL stops, refresh
+interval, weather location, Glowmarkt energy account, and connecting Spotify
+(the broker handles the OAuth handshake and proxies now-playing calls, so
+this device never holds a Spotify token itself). The code is only shown
+once per device; credentials persist in `/opt/countdown/.auth_broker_device`
+across restarts.
 
-Spotify now-playing works differently: on first boot the app registers itself
-with [auth-broker](https://github.com/nvorkinn/auth-broker) and shows a
-pairing code on the display. Go to https://nikolaivorkinn.com, enter the
-code, and connect Spotify there -- the broker handles the OAuth handshake and
-proxies now-playing calls, so this device never holds a Spotify token itself.
-The code is only shown once per device; credentials persist in
-`/opt/countdown/.auth_broker_device` across restarts.
+The only local setting left is which broker to talk to
+(`BROKER_URL`, set via the systemd unit's `Environment=` line -- see
+`packaging/systemd/countdown.service`), since that's what the device needs
+in order to find the broker in the first place. Everything else -- including
+Glowmarkt credentials, which are the frame owner's own energy account and
+never shared with other devices -- comes from there, so there's no local
+secret file on the device at all.
 
 Once installed:
 
