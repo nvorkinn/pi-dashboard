@@ -24,7 +24,8 @@ import responses
 from PIL import Image
 
 from countdown.app import DisplayLoop
-from countdown.config_manager import AppConfig, LiveConfig
+from countdown.broker_client import DEFAULT_BROKER_URL
+from countdown.config_manager import LiveConfig
 
 BUS_STOP_JSON = {
     "naptanId": "490000123W",
@@ -93,7 +94,7 @@ def _build_loop(live: LiveConfig, monkeypatch, spotify_track: dict | None, show_
     # seed one so tests load it instead of making a real (unmocked) network call.
     Path(".auth_broker_device").write_text(json.dumps({"device_id": "test-device", "device_secret": "test-secret"}))
 
-    loop = DisplayLoop(AppConfig(), live=live)
+    loop = DisplayLoop(DEFAULT_BROKER_URL, live=live)
     monkeypatch.setattr(loop.broker, "get_current_track", lambda: spotify_track)
     monkeypatch.setattr(loop.weather, "get_weather", lambda: _StubWeatherPanel())
     monkeypatch.setattr(Image.Image, "show", show_callback)

@@ -4,7 +4,7 @@ from math import floor
 
 from pydantic import TypeAdapter
 
-from countdown.config_manager import AppConfig
+from countdown.config_manager import GlowmarktConfig
 from countdown.http import DEFAULT_TIMEOUT, build_retrying_session
 from countdown.models import Entity, Readings
 
@@ -21,11 +21,11 @@ class GlowClient:
     base_url = 'https://api.glowmarkt.com/api/v0-1'
     app_id = 'b0f1b774-a586-4f72-9edd-27ead8aa7a8d'
 
-    def __init__(self, config: AppConfig):
+    def __init__(self, config: GlowmarktConfig):
         self.session = build_retrying_session()
         self.token: str | None = None
-        self.username = config.glowmarkt.username
-        self.password = config.glowmarkt.password
+        self.username = config.username
+        self.password = config.password
 
     def _authenticate(self):
         """Internal method to fetch and store the session token."""

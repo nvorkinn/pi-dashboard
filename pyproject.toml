@@ -12,7 +12,6 @@ dependencies = [
     "pathlib>=1.0.1",
     "pillow>=12.3.0",
     "pydantic>=2.13.5",
-    "pydantic-settings>=2.15.0",
     "pydantic-tfl-api>=3.1.0",
     "pyowm>=3.5.0",
     "requests>=2.32.5",

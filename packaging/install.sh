@@ -19,8 +19,8 @@
 # [version] is a release tag such as "v0.3.0". Defaults to the latest release.
 #
 # Re-running this script (e.g. to update) reinstalls the wheel and restarts
-# the service, but never touches APP_DIR -- .env and .auth_broker_device
-# (the device's auth-broker pairing credentials) survive untouched.
+# the service, but never touches APP_DIR -- .auth_broker_device (the device's
+# auth-broker pairing credentials) survives untouched.
 set -euo pipefail
 
 REPO="nvorkinn/countdown"

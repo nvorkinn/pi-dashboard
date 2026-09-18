@@ -7,6 +7,7 @@ Wants=network-online.target
 Type=simple
 User=@USER@
 WorkingDirectory=@WORKING_DIRECTORY@
+Environment=BROKER_URL=https://auth.nikolaivorkinn.com
 ExecStart=@EXEC_START@
 Restart=always
 RestartSec=5

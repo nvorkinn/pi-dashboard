@@ -69,6 +69,7 @@ def test_get_config_parses_response(isolated_cwd):
         "tfl": {"app_key": "tfl-key", "stop_ids": ["940GZZLUEUS"]},
         "weather": {"api_key": "weather-key", "location": "London"},
         "spotify": {"enabled": True},
+        "glowmarkt": {"username": "me@example.com", "password": "hunter2"},
     }))
 
     config = client.get_config()
@@ -76,6 +77,7 @@ def test_get_config_parses_response(isolated_cwd):
     assert config.interval == 20
     assert config.tfl.stop_ids == ["940GZZLUEUS"]
     assert config.spotify.enabled is True
+    assert config.glowmarkt.username == "me@example.com"
 
 
 def test_get_current_track_returns_none_when_broker_returns_null(isolated_cwd):

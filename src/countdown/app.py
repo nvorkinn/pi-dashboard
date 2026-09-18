@@ -1,15 +1,21 @@
+import os
 import signal
 import sys
 
 import pydantic
 import requests
 
+from countdown.broker_client import DEFAULT_BROKER_URL
 from countdown.display_loop import DisplayLoop
-from countdown.config_manager import AppConfig
 
 def main() -> None:
-    config = AppConfig()
-    loop = DisplayLoop(config)
+    # The only thing that can't come from the broker -- it's how this device finds
+    # the broker in the first place. Set via the systemd unit's Environment= line
+    # (see packaging/systemd/countdown.service), not a config file: it's a single
+    # value with a production default that just works, not worth a whole settings
+    # layer for.
+    broker_url = os.environ.get("BROKER_URL", DEFAULT_BROKER_URL)
+    loop = DisplayLoop(broker_url)
 
     # Setup graceful signal handling
     def handle_shutdown(_signum, _frame):

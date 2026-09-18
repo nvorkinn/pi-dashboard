@@ -4,16 +4,13 @@ from unittest.mock import MagicMock
 import pytest
 from requests.adapters import HTTPAdapter
 
-from countdown.config_manager import AppConfig
+from countdown.config_manager import GlowmarktConfig
 from countdown.glow_client import GlowClient, _get_utc_offset
 from countdown.http import DEFAULT_TIMEOUT
 
 
 def make_client() -> GlowClient:
-    config = AppConfig()
-    config.glowmarkt.username = "me@example.com"
-    config.glowmarkt.password = "hunter2"
-    return GlowClient(config)
+    return GlowClient(GlowmarktConfig(username="me@example.com", password="hunter2"))
 
 
 def test_get_utc_offset_for_utc():

@@ -7,6 +7,7 @@ from pydantic import BaseModel
 from countdown.http import DEFAULT_TIMEOUT, build_retrying_session
 
 CREDENTIALS_FILE = Path(".auth_broker_device")
+DEFAULT_BROKER_URL = "https://auth.nikolaivorkinn.com"
 
 
 class BrokerTflConfig(BaseModel):
@@ -23,11 +24,17 @@ class BrokerSpotifyConfig(BaseModel):
     enabled: bool
 
 
+class BrokerGlowmarktConfig(BaseModel):
+    username: str
+    password: str
+
+
 class BrokerConfig(BaseModel):
     interval: int
     tfl: BrokerTflConfig
     weather: BrokerWeatherConfig
     spotify: BrokerSpotifyConfig
+    glowmarkt: BrokerGlowmarktConfig
 
 
 class BrokerClient:
