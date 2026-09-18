@@ -17,7 +17,7 @@ class WeatherPanel(Panel):
         draw = ImageDraw.Draw(img)
         draw.font = METEOCONS
 
-        draw.text((image_width * 0.45, 0), ICON_MAP[self.weather.weather_code], "black", anchor="mt")
+        draw.text((image_width * 0.45, 0), ICON_MAP.get(self.weather.weather_code, ")"), "black", anchor="mt")
         draw.text((image_width, 140), f"{self.weather.temperature('celsius')['temp']:.1f}°C", "black", font=JOSEFIN_REGULAR, anchor="ra")
 
         return img
