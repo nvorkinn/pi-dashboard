@@ -8,7 +8,7 @@ from display.combined_arrival_panel import CombinedArrivalPanel
 from display.energy_panel import EnergyPanel
 from display.weather_panel import WeatherPanel
 from display.spotify_panel import build_spotify_panel
-from display.utils import TOTAL_WIDTH, TOTAL_HEIGHT
+from display.utils import TOTAL_WIDTH, TOTAL_HEIGHT, HELVETICA, UBUNTU_MEDIUM
 
 LIB_DIR = str(Path(__file__).resolve().parent / "lib")
 
@@ -102,6 +102,29 @@ class DisplayController:
                 buf[i] ^= 0xFF
 
             self.epd.display_Partial(buf, 0, 5, bus_stop_panel.size[0] + 9, bus_stop_panel.size[1] + 5)
+            self.epd.sleep()
+        else:
+            img.show()
+
+        return img
+
+    def display_pairing_screen(self, code: str, device_id: str) -> Image.Image:
+        """Shown once, on first boot, before the normal per-panel loop starts --
+        no existing Panel does a full-screen message, so this is a sibling method
+        to display_screen/display_partial rather than a new Panel subclass."""
+        img = Image.new("RGBA", (TOTAL_WIDTH, TOTAL_HEIGHT), (255, 255, 255, 255))
+        draw = ImageDraw.Draw(img)
+        center_x, center_y = TOTAL_WIDTH / 2, TOTAL_HEIGHT / 2
+
+        draw.text((center_x, center_y - 90), "Set up this display", anchor="mm", font=HELVETICA, fill="black")
+        draw.text((center_x, center_y - 60), "Go to nikolaivorkinn.com and enter this code:", anchor="mm", font=HELVETICA, fill="black")
+        draw.text((center_x, center_y), code, anchor="mm", font=UBUNTU_MEDIUM, fill="black")
+        draw.text((center_x, center_y + 60), f"Device: {device_id}", anchor="mm", font=HELVETICA, fill="black")
+
+        if self.display_enabled and self.epd:
+            self.epd.init()
+            self.epd.Clear()
+            self.epd.display(self.epd.getbuffer(img))
             self.epd.sleep()
         else:
             img.show()

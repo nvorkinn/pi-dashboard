@@ -8,9 +8,9 @@ from test_utils import highlight_diff, images_equal
 # Env vars AppConfig reads via pydantic-settings (see config_manager.py). Cleared so a
 # developer's real .env values can never leak into a test run.
 _APP_CONFIG_ENV_VARS = [
-    "TFL__APP_KEY", "TFL__STOP_IDS", "INTERVAL", "CONFIG_PORT",
+    "TFL__APP_KEY", "TFL__STOP_IDS", "INTERVAL", "CONFIG_PORT", "BROKER_URL",
     "WEATHER__API_KEY", "WEATHER__LOCATION",
-    "SPOTIFY__CLIENT_ID", "SPOTIFY__CLIENT_SECRET", "SPOTIFY__REDIRECT_URI", "SPOTIFY__ENABLED",
+    "SPOTIFY__ENABLED",
     "GLOWMARKT__USERNAME", "GLOWMARKT__PASSWORD",
 ]
 

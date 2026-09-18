@@ -116,9 +116,10 @@ SPOTIFY_TRACK_PAUSED = {**SPOTIFY_TRACK_PLAYING, "is_playing": False}
 
 
 def _album_art_bytes() -> bytes:
-    """64x64 to match what spotify_client.py actually picks (the *smallest* of the
-    sizes Spotify returns) -- a larger thumbnail here would overflow the panel's
-    fixed height budget below the energy panel."""
+    """64x64 to match what auth-broker actually picks (the *smallest* of the sizes
+    Spotify returns, same logic that used to live in this repo's spotify_client.py
+    before Spotify calls moved server-side) -- a larger thumbnail here would
+    overflow the panel's fixed height budget below the energy panel."""
     buf = io.BytesIO()
     Image.new("RGB", (64, 64), (30, 30, 30)).save(buf, format="PNG")
     return buf.getvalue()

@@ -86,10 +86,18 @@ runs the service as that user. Re-running the installer updates the app and
 restarts the service.
 
 Every config field has a default, so the app runs right away with no config
-file at all -- visit `http://<pi>:4000` and save settings there to write
-`/opt/countdown/config.json` for the first time. Secrets can go in
-`/opt/countdown/.env` instead (loaded the same way, from the service's
-working directory).
+file at all -- visit `http://<pi>:4000` for TfL stops/general settings, which
+writes `/opt/countdown/config.json` the first time you save. Secrets (TfL/
+weather API keys, Glowmarkt credentials) can go in `/opt/countdown/.env`
+instead, loaded the same way from the service's working directory.
+
+Spotify now-playing works differently: on first boot the app registers itself
+with [auth-broker](https://github.com/nvorkinn/auth-broker) and shows a
+pairing code on the display. Go to https://nikolaivorkinn.com, enter the
+code, and connect Spotify there -- the broker handles the OAuth handshake and
+proxies now-playing calls, so this device never holds a Spotify token itself.
+The code is only shown once per device; credentials persist in
+`/opt/countdown/.auth_broker_device` across restarts.
 
 Once installed:
 

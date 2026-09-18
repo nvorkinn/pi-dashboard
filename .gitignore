@@ -162,6 +162,10 @@ venv.bak/
 weather_cache.pkl
 .spotify_token_cache
 
+# auth-broker device credentials (device_id + device_secret), generated on first
+# boot -- see src/countdown/broker_client.py
+.auth_broker_device
+
 # Spyder project settings
 .spyderproject
 .spyproject
