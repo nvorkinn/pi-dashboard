@@ -11,6 +11,7 @@ from countdown.weather_client import WeatherClient
 from display.combined_arrival_panel import CombinedArrivalPanel
 from display.display import DisplayController
 from display.energy_panel import EnergyPanel
+from display.pairing_code_panel import PairingCodePanel
 
 def safe_fetch(func, fallback):
     try:
@@ -23,20 +24,23 @@ def safe_fetch(func, fallback):
         return fallback
 
 
-def fetch_app_config(broker: BrokerClient) -> tuple[AppConfig, str | None]:
+def fetch_app_config(broker: BrokerClient) -> tuple[AppConfig, PairingCodePanel]:
     """Tries once to get real config (and current pairing status) before
     DisplayLoop is constructed, so it never has to build a TflClient/
     WeatherClient/GlowClient from a config it already knows is empty. Falls back
-    to AppConfig()'s empty defaults and no pairing code if the broker's
-    unreachable at boot (e.g. network not up yet) -- the same graceful-degrade
-    safe_fetch provides everywhere else, not a retry loop that would block
-    startup indefinitely. A None pairing code in that fallback means "proceed as
-    normal", not "definitely paired" -- if we can't reach the broker we don't
-    actually know either way, and showing a stale/unverifiable code would be
-    worse than just falling through to the ordinary (empty) display."""
+    to AppConfig()'s empty defaults and a no-code PairingCodePanel if the
+    broker's unreachable at boot (e.g. network not up yet) -- the same
+    graceful-degrade safe_fetch provides everywhere else, not a retry loop that
+    would block startup indefinitely. No code in that fallback means "proceed
+    as normal", not "definitely paired" -- if we can't reach the broker we
+    don't actually know either way, and showing a stale/unverifiable code would
+    be worse than just falling through to the ordinary (empty) display. This
+    one case bypasses BrokerClient's own cache entirely (via has_changed=False
+    directly, not get_pairing_code_panel()) since there's nothing to compare
+    against yet -- no fetch happened at all."""
     fetched = safe_fetch(lambda: broker.get_config(), None)
     if fetched is None:
-        return AppConfig(), None
+        return AppConfig(), PairingCodePanel(None, broker.device_id, has_changed=False)
     config = AppConfig(
         interval=fetched.interval,
         tfl=TflConfig(**fetched.tfl.model_dump()),
@@ -44,7 +48,7 @@ def fetch_app_config(broker: BrokerClient) -> tuple[AppConfig, str | None]:
         spotify=SpotifyConfig(**fetched.spotify.model_dump()),
         glowmarkt=GlowmarktConfig(**fetched.glowmarkt.model_dump()),
     )
-    return config, fetched.pairing_code
+    return config, broker.get_pairing_code_panel(fetched)
 
 
 class DisplayLoop:
@@ -55,15 +59,15 @@ class DisplayLoop:
     display.py calls .render()), so it's rebuilt on demand from self.energy rather
     than kept as separate, redundant state -- current_track already works this way.
 
-    broker/config/pairing_code are required, not optional-with-a-computed-fallback:
-    the caller (see fetch_app_config()) resolves them before construction, so this
-    class never has an implicit "figure it out myself" branch to get wrong."""
+    broker/config/pairing_code_panel are required, not optional-with-a-computed-
+    fallback: the caller (see fetch_app_config()) resolves them before
+    construction, so this class never has an implicit "figure it out myself"
+    branch to get wrong."""
 
-    def __init__(self, broker: BrokerClient, config: AppConfig, pairing_code: str | None, display = DisplayController()):
+    def __init__(self, broker: BrokerClient, config: AppConfig, pairing_code_panel: PairingCodePanel, display = DisplayController()):
         self.broker = broker
         self.config = config
-        self.pairing_code = pairing_code
-        self._displayed_pairing_code: str | None = None
+        self.pairing_code_panel = pairing_code_panel
         self.interval = config.interval
         self.display = display
         self.tfl = TflClient(config.tfl)
@@ -85,14 +89,14 @@ class DisplayLoop:
     def run(self) -> None:
         while True:
             try:
-                if self.pairing_code:
-                    # Only repaint when the code actually changes -- this is a full
-                    # e-paper refresh, and a gifted device can sit unpaired for
-                    # hours or days; repainting an identical screen every cycle for
-                    # that whole window is avoidable hardware wear, not just noise.
-                    if self.pairing_code != self._displayed_pairing_code:
-                        self.display.display_pairing_screen(self.pairing_code, self.broker.device_id)
-                        self._displayed_pairing_code = self.pairing_code
+                if self.pairing_code_panel.pairing_code:
+                    # Only repaint when the code actually changes (BrokerClient's own
+                    # cache decides that, see get_pairing_code_panel) -- this is a full
+                    # e-paper refresh, and a gifted device can sit unpaired for hours
+                    # or days; repainting an identical screen every cycle for that
+                    # whole window is avoidable hardware wear, not just noise.
+                    if self.pairing_code_panel.has_changed:
+                        self.display.display_pairing_screen(self.pairing_code_panel)
                 else:
                     self.page_count = self.tfl.init()
                     arrival_panel = CombinedArrivalPanel(self.tfl.get_next_arrivals())
@@ -146,7 +150,7 @@ class DisplayLoop:
         if fetched is None:
             return
 
-        self.pairing_code = fetched.pairing_code
+        self.pairing_code_panel = self.broker.get_pairing_code_panel(fetched)
 
         # Compared via model_dump() rather than `fetched.tfl == self.config.tfl`:
         # fetched.tfl is a BrokerTflConfig (parsed from the wire response) and

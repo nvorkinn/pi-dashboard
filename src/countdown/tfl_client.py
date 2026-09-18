@@ -2,8 +2,9 @@ from math import ceil
 
 from pydantic import TypeAdapter
 
+from countdown.abstract_client import AbstractClient
 from countdown.config_manager import TflConfig
-from countdown.http import DEFAULT_TIMEOUT, build_retrying_session
+from countdown.http import DEFAULT_TIMEOUT
 from countdown.models import ArrivalUnion, StopPoint, StopPointUnion, SingleStopPoint, MetroStopPoint
 from display.abstract_arrival_panel import AbstractArrivalPanel
 from display.bus_arrival_panel import BusArrivalPanel
@@ -19,16 +20,16 @@ def _find_stop_child(stop: StopPoint, naptan_id: str) -> SingleStopPoint | Metro
     return None
 
 
-class TflClient:
+class TflClient(AbstractClient):
     def __init__(self, config: TflConfig):
         """Construction never touches the network -- stops are resolved lazily on first
         use (see _ensure_stops), so a flaky TfL API can never prevent this object from
         being created. Safe to just build a fresh TflClient whenever config changes."""
+        super().__init__()
         self._config = config
         self.stops: list[SingleStopPoint | MetroStopPoint] = []
         self.current_stop = 0
         self.params = {"app_key": config.app_key} if config.app_key else {}
-        self.session = build_retrying_session()
 
     def init(self) -> int:
         """Resolve self._config.stop_ids into self.stops if not already done. Safe to

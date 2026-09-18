@@ -2,8 +2,19 @@ import json
 from pathlib import Path
 from unittest.mock import MagicMock
 
-from countdown.broker_client import BrokerClient, CREDENTIALS_FILE
+from countdown.broker_client import BrokerClient, BrokerConfig, CREDENTIALS_FILE
 from countdown.http import DEFAULT_TIMEOUT
+
+
+def _broker_config(pairing_code: str | None) -> BrokerConfig:
+    return BrokerConfig(
+        interval=15,
+        tfl={"app_key": "", "stop_ids": []},
+        weather={"api_key": "", "location": ""},
+        spotify={"enabled": False},
+        glowmarkt={"username": None, "password": None},
+        pairing_code=pairing_code,
+    )
 
 
 def _response(json_data: dict | None = None) -> MagicMock:
@@ -19,7 +30,9 @@ def test_registers_and_persists_credentials_on_first_run(isolated_cwd, monkeypat
 
     # Patch the session methods before construction, since registration happens
     # inside __init__ (build_retrying_session() creates a fresh session each time).
-    monkeypatch.setattr("countdown.broker_client.build_retrying_session", lambda: MagicMock(post=post_mock))
+    # Patched where AbstractClient.__init__ actually calls it, since BrokerClient
+    # no longer imports/calls build_retrying_session() itself.
+    monkeypatch.setattr("countdown.abstract_client.build_retrying_session", lambda: MagicMock(post=post_mock))
 
     client = BrokerClient("https://broker.example.com")
 
@@ -113,3 +126,40 @@ def test_get_current_track_passes_through_track_dict(isolated_cwd):
     client.session.request = MagicMock(return_value=_response(track))
 
     assert client.get_current_track() == track
+
+
+def test_get_pairing_code_panel_wraps_code_and_device_id(isolated_cwd):
+    CREDENTIALS_FILE.write_text(json.dumps({"device_id": "device-123", "device_secret": "shh"}))
+    client = BrokerClient("https://broker.example.com")
+
+    panel = client.get_pairing_code_panel(_broker_config("ABC123"))
+
+    assert panel.pairing_code == "ABC123"
+    assert panel.device_id == "device-123"
+
+
+def test_get_pairing_code_panel_has_changed_false_on_repeat(isolated_cwd):
+    """A device that's already paired gets `pairing_code=None` on every poll --
+    has_changed must stay False for that steady state, not flip True forever
+    just because None happens to look like "nothing cached yet" if compared
+    carelessly."""
+    CREDENTIALS_FILE.write_text(json.dumps({"device_id": "device-123", "device_secret": "shh"}))
+    client = BrokerClient("https://broker.example.com")
+
+    first = client.get_pairing_code_panel(_broker_config(None))
+    second = client.get_pairing_code_panel(_broker_config(None))
+
+    assert first.has_changed is True  # first time this endpoint's been seen at all
+    assert second.has_changed is False
+
+
+def test_get_pairing_code_panel_has_changed_true_when_code_changes(isolated_cwd):
+    CREDENTIALS_FILE.write_text(json.dumps({"device_id": "device-123", "device_secret": "shh"}))
+    client = BrokerClient("https://broker.example.com")
+
+    client.get_pairing_code_panel(_broker_config("ABC123"))
+    regenerated = client.get_pairing_code_panel(_broker_config("XYZ789"))
+    now_paired = client.get_pairing_code_panel(_broker_config(None))
+
+    assert regenerated.has_changed is True
+    assert now_paired.has_changed is True
