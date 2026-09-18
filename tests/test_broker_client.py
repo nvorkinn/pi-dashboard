@@ -1,8 +1,7 @@
 import json
-from pathlib import Path
 from unittest.mock import MagicMock
 
-from countdown.broker_client import BrokerClient, BrokerConfig, CREDENTIALS_FILE
+from countdown.broker_client import CREDENTIALS_FILE, BrokerClient, BrokerConfig
 from countdown.http import DEFAULT_TIMEOUT
 
 

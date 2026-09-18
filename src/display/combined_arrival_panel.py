@@ -3,6 +3,7 @@ from PIL import Image, ImageDraw
 from display.abstract_arrival_panel import AbstractArrivalPanel
 from display.panel import Panel
 
+
 class CombinedArrivalPanel(Panel):
     def __init__(self, arrival_panels: list[AbstractArrivalPanel]):
         super().__init__()

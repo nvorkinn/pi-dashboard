@@ -1,4 +1,4 @@
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from unittest.mock import MagicMock
 
 import pytest
@@ -14,7 +14,7 @@ def make_client() -> GlowClient:
 
 
 def test_get_utc_offset_for_utc():
-    now = datetime(2026, 1, 1, tzinfo=timezone.utc)
+    now = datetime(2026, 1, 1, tzinfo=UTC)
     assert _get_utc_offset(now) == "0"
 
 

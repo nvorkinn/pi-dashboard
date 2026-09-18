@@ -2,9 +2,10 @@ from collections import defaultdict
 
 from PIL import Image, ImageDraw
 
-from countdown.models import TubeArrival, MetroStopPoint
+from countdown.models import MetroStopPoint, TubeArrival
 from display.abstract_arrival_panel import AbstractArrivalPanel
 from display.utils import ROUNDEL, TFL_MEDIUM_FONT_10
+
 
 class TubeArrivalPanel(AbstractArrivalPanel):
     def __init__(self, stop: MetroStopPoint, arrivals: list[TubeArrival]):

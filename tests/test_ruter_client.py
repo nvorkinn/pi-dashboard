@@ -4,6 +4,7 @@ import requests
 
 from countdown.ruter_client import RuterClient
 
+
 def test_ruter_client():
     client = RuterClient(
         ["NSR:StopPlace:59872"],

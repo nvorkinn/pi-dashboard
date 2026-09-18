@@ -3,6 +3,7 @@ from pathlib import Path
 
 sys.path.insert(1, str(Path(__file__).resolve().parent / "lib"))
 import epd7in5_V2
+
 epd = epd7in5_V2.EPD()
 epd.init()
 epd.Clear()

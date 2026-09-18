@@ -1,15 +1,15 @@
+import sys
 from datetime import datetime
 from pathlib import Path
-import sys
 
 from PIL import Image, ImageDraw
 
 from display.combined_arrival_panel import CombinedArrivalPanel
 from display.energy_panel import EnergyPanel
 from display.pairing_code_panel import PairingCodePanel
-from display.weather_panel import WeatherPanel
 from display.spotify_panel import build_spotify_panel
-from display.utils import TOTAL_WIDTH, TOTAL_HEIGHT
+from display.utils import TOTAL_HEIGHT, TOTAL_WIDTH
+from display.weather_panel import WeatherPanel
 
 LIB_DIR = str(Path(__file__).resolve().parent / "lib")
 

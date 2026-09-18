@@ -1,7 +1,8 @@
 from PIL import Image, ImageDraw
 
-from countdown.models import SingleStopPoint, BusArrival
+from countdown.models import BusArrival, SingleStopPoint
 from display.abstract_arrival_panel import AbstractArrivalPanel
+
 
 class BusArrivalPanel(AbstractArrivalPanel):
     def __init__(self, stop: SingleStopPoint, arrivals: list[BusArrival]):

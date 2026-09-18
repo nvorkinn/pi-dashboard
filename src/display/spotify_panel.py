@@ -5,6 +5,7 @@ from PIL import Image, ImageDraw, ImageFont
 
 from display.utils import HELVETICA
 
+
 def _truncate_to_fit(text: str, font: ImageFont.BaseImageFont, max_width: int) -> str:
     """Truncates text with an ellipsis if it exceeds max_width pixels."""
     if font.getlength(text) <= max_width:

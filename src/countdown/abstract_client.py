@@ -3,7 +3,7 @@ from abc import ABC
 from countdown.http import build_retrying_session
 
 
-class AbstractClient(ABC):
+class AbstractClient(ABC):  # noqa: B024 -- no abstract methods on purpose; ABC just marks it as a base
     """Base for the API clients (TflClient, GlowClient, BrokerClient, ...): just a
     shared session and a small per-endpoint cache, available to a client that wants
     to compare a fresh response against the last one it saw (BrokerClient uses this
