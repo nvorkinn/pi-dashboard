@@ -49,6 +49,7 @@ from countdown.models import (
 from display.bus_arrival_panel import BusArrivalPanel
 from display.combined_arrival_panel import CombinedArrivalPanel
 from display.display import DisplayController
+from display.empty_panel import EmptyPanel
 from display.energy_panel import EnergyPanel
 from display.panel import Panel
 from display.splash_panel import SplashPanel
@@ -231,12 +232,21 @@ def test_splash_text_stays_clear_of_the_screen_edges():
         assert img.crop(edge).getextrema() == (255, 255)  # nothing but white
 
 
+def test_empty_screen_stays_clear_of_the_screen_edges():
+    img = EmptyPanel().render(display.display.TOTAL_WIDTH, display.display.TOTAL_HEIGHT).convert("L")
+    width, height = img.size
+
+    for edge in [(0, 0, 40, height), (width - 40, 0, width, height)]:
+        assert img.crop(edge).getextrema() == (255, 255)
+
+
 def test_screen_with_no_panels_at_all_says_there_is_nothing_to_show(snapshot):
     """First cycle after boot, a paired device nobody's set up yet, or every API failing:
     a message saying so, not a blank white screen that looks broken (or a crash)."""
     img = _CONTROLLER.display_screen({})
     assert img.size == (display.display.TOTAL_WIDTH, display.display.TOTAL_HEIGHT)
-    snapshot.assert_matches("screen_nothing_to_show", img)
+    # Text-only and large: CI renders it ~1% differently from macOS (see screen_splash).
+    snapshot.assert_matches("screen_nothing_to_show", img, threshold=0.02)
 
 
 @responses.activate
