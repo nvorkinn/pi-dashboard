@@ -2,10 +2,11 @@ from datetime import datetime
 from math import ceil
 
 import matplotlib
+
 matplotlib.use("Agg")  # headless - no X server / display needed on the Pi
 
-from PIL import Image
 import matplotlib.pyplot as plt
+from PIL import Image
 
 from display.panel import Panel
 from display.utils import TOTAL_WIDTH
@@ -79,12 +80,11 @@ class EnergyPanel(Panel):
         ax = fig.add_subplot(111)
 
         if not values:
-            ax.text(0.5, 0.5, "No data", ha="center", va="center",
-                    transform=ax.transAxes, fontsize=14)
+            ax.text(0.5, 0.5, "No data", ha="center", va="center", transform=ax.transAxes, fontsize=14)
             ax.axis("off")
         else:
             x = range(len(values))
-            extracted = [reading['kwh'] for reading in values]
+            extracted = [reading["kwh"] for reading in values]
             ax.bar(x, extracted, color=BAR_COLOR, width=0.8)
 
             # Thin the labels so they don't overlap, same idea as the
