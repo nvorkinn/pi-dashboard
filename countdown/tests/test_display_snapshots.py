@@ -216,7 +216,10 @@ def test_screen_without_energy_panel(snapshot):
 
 def test_splash_screen_when_the_broker_cannot_be_reached(snapshot):
     img = SplashPanel().render(display.display.TOTAL_WIDTH, display.display.TOTAL_HEIGHT)
-    snapshot.assert_matches("screen_splash", img)
+    # A text-only screen with large glyphs: Ubuntu (CI) lays the same text out a pixel or so
+    # differently from macOS, which put the mean difference at ~0.011 -- over the default
+    # 0.005 -- with the same words in the same places. Measured from CI's failure artifact.
+    snapshot.assert_matches("screen_splash", img, threshold=0.02)
 
 
 def test_screen_with_no_panels_at_all_says_there_is_nothing_to_show(snapshot):
