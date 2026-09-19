@@ -19,7 +19,7 @@ class WeatherClient(AbstractClient):
     location is geocoded lazily on first fetch, and only once."""
 
     def __init__(self, config: WeatherConfig):
-        super().__init__()
+        super().__init__(config)
         self.location = config.location
         self._coordinates: tuple[float, float] | None = None
         self._panel: WeatherPanel | None = None
@@ -27,6 +27,10 @@ class WeatherClient(AbstractClient):
 
     async def initialise(self) -> None:
         pass
+
+    def needs_refresh(self, new_config: WeatherConfig) -> bool:
+        # Open-Meteo is keyless, so api_key changing changes nothing.
+        return self.location != new_config.location
 
     async def _update(self) -> WeatherPanel | None:
         """None means "nothing to show": no location configured, or one Open-Meteo

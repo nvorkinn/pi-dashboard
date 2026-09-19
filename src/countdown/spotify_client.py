@@ -30,8 +30,7 @@ class SpotifyClient(AbstractClient):
     """
 
     def __init__(self, config: SpotifyConfig):
-        super().__init__()
-        self.config = config
+        super().__init__(config)
         self.base_url = os.environ["BROKER_URL"]
         if CREDENTIALS_FILE.exists():
             data = json.loads(CREDENTIALS_FILE.read_text())

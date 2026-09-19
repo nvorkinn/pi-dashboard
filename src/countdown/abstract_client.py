@@ -2,6 +2,7 @@ from abc import ABC, abstractmethod
 from datetime import datetime, timedelta
 from enum import StrEnum, auto
 
+from countdown.config_manager import ApiConfig
 from countdown.http import build_retrying_session
 from display.panel import Panel
 
@@ -26,7 +27,8 @@ class AbstractClient(ABC):
 
     poll_interval: timedelta = timedelta(minutes=1)
 
-    def __init__(self):
+    def __init__(self, config: ApiConfig | None = None):
+        self.config = config
         self.session = build_retrying_session()
         self.cache: dict[str, object] = {}
         self.status: ClientStatus = ClientStatus.UNINITIALISED
@@ -35,6 +37,15 @@ class AbstractClient(ABC):
     @abstractmethod
     async def initialise(self) -> None:
         pass
+
+    def needs_refresh(self, new_config: ApiConfig) -> bool:
+        """Whether `new_config` differs from the one this client was built with in a way
+        that means it should be rebuilt and re-initialised (ApiRegistry does that).
+        Defaults to "any change at all"; a client overrides this when some of its
+        config doesn't affect it (see WeatherClient), so an irrelevant change doesn't
+        throw away its state -- Glowmarkt's token and reading cache, TfL's resolved
+        stops -- for nothing."""
+        return self.config != new_config
 
     def is_disabled(self) -> bool:
         return self.status == ClientStatus.DISABLED
