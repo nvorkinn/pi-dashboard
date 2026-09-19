@@ -1,3 +1,4 @@
+import asyncio
 import time
 
 import pydantic
@@ -57,7 +58,9 @@ class DisplayLoop:
         # crash-loop on every restart the way an eager, unguarded call here once did.
 
     async def run(self) -> None:
+        started = time.monotonic()
         await self.api_reg.on_config_update(self.config)
+        first_cycle_done = False
         while True:
             try:
                 if self.pairing_code_panel.pairing_code:
@@ -76,7 +79,14 @@ class DisplayLoop:
             except Exception as e:
                 print(f"Unexpected error: {e}")
 
-            time.sleep(self.interval)
+            if not first_cycle_done:
+                # Once, not every cycle: how long the device took to get its first screen up
+                # (client set-up included), to spot a slow start without spamming the journal.
+                print(f"First cycle finished {time.monotonic() - started:.1f}s after start")
+                first_cycle_done = True
+
+            # Not time.sleep(): that would freeze the event loop for the whole interval.
+            await asyncio.sleep(self.interval)
             await self.refresh_broker_config()
 
             if not self.interval:

@@ -35,7 +35,7 @@ class BrokerClient(AbstractClient):
         super().__init__()
         self.base_url = base_url.rstrip("/")
 
-    async def _initialise(self) -> None:
+    def _initialise(self) -> None:
         if CREDENTIALS_FILE.exists():
             data = json.loads(CREDENTIALS_FILE.read_text())
             self.device_id: str = data["device_id"]
@@ -74,7 +74,7 @@ class BrokerClient(AbstractClient):
         is_same = self._cache_and_compare("pairing_code", config.pairing_code)
         return PairingCodePanel(config.pairing_code, self.device_id, has_changed=not is_same)
 
-    async def _update(self) -> Panel | None:
+    def _update(self) -> Panel | None:
         pass
 
     def fetch_app_config(self) -> tuple[AppConfig, PairingCodePanel]:

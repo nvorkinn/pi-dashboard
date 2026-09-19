@@ -1,3 +1,5 @@
+import asyncio
+import time
 from abc import ABC, abstractmethod
 from datetime import datetime, timedelta
 from enum import StrEnum, auto
@@ -5,6 +7,10 @@ from enum import StrEnum, auto
 from countdown.config_manager import ApiConfig
 from countdown.http import build_retrying_session
 from display.panel import Panel
+
+# A client call slower than this is logged, so a slow API shows up in the journal by name
+# instead of just making the whole cycle late.
+SLOW_CALL_S = 5
 
 
 class ClientStatus(StrEnum):
@@ -23,7 +29,15 @@ class AbstractClient(ABC):
     for pairing-code change detection). Not force-piped into every client/call --
     see https://github.com/nvorkinn/countdown/issues/54 for the larger plan to use
     this more broadly for change-detection (skip a repaint / e-paper refresh when
-    nothing changed)."""
+    nothing changed).
+
+    _initialise() and _update() are plain, blocking functions (every client talks to
+    its API with `requests`). initialise() and update() run them in a worker thread, so
+    the ApiRegistry's asyncio.gather() over several clients really does poll them
+    concurrently -- a cycle takes as long as the slowest API, not all of them added up --
+    and a slow API can't freeze the event loop. That means a hook must not touch
+    anything that's only safe on the main thread: build the panel's data there and let
+    the display render it (matplotlib, SPI) later."""
 
     poll_interval: timedelta = timedelta(minutes=1)
 
@@ -45,16 +59,24 @@ class AbstractClient(ABC):
         if self.is_disabled():
             return
         self.status = ClientStatus.INITIALISING
+        started = time.monotonic()
         try:
-            await self._initialise()
+            await asyncio.to_thread(self._initialise)
         except Exception:
             self.status = ClientStatus.ERROR
             raise
+        finally:
+            self._log_if_slow("initialise", started)
         self.status = ClientStatus.CONNECTED
 
     @abstractmethod
-    async def _initialise(self) -> None:
+    def _initialise(self) -> None:
         pass
+
+    def _log_if_slow(self, what: str, started: float) -> None:
+        elapsed = time.monotonic() - started
+        if elapsed >= SLOW_CALL_S:
+            print(f"{type(self).__name__}: {what} took {elapsed:.1f}s")
 
     def needs_refresh(self, new_config: ApiConfig) -> bool:
         """Whether `new_config` differs from the one this client was built with in a way
@@ -89,12 +111,16 @@ class AbstractClient(ABC):
                 except Exception:
                     self.last_updated = datetime.now()
                     raise
-            panel = await self._update()
+            started = time.monotonic()
+            try:
+                panel = await asyncio.to_thread(self._update)
+            finally:
+                self._log_if_slow("update", started)
         self.last_updated = datetime.now()
         return panel
 
     @abstractmethod
-    async def _update(self) -> Panel | None:
+    def _update(self) -> Panel | None:
         pass
 
     def _cache_and_compare(self, endpoint: str, data: object) -> bool:

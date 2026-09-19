@@ -1,8 +1,10 @@
 import asyncio
+import threading
 from datetime import datetime, timedelta
 
 import pytest
 
+from countdown import abstract_client
 from countdown.abstract_client import AbstractClient, ClientStatus
 from countdown.config_manager import TflConfig
 
@@ -16,13 +18,13 @@ class FakeClient(AbstractClient):
         self.initialise_calls = 0
         self.update_calls = 0
 
-    async def _initialise(self) -> None:
+    def _initialise(self) -> None:
         self.initialise_calls += 1
         if self.initialise_failures:
             self.initialise_failures -= 1
             raise ConnectionError("API down")
 
-    async def _update(self):
+    def _update(self):
         self.update_calls += 1
         return "panel"
 
@@ -120,7 +122,7 @@ def test_a_failing_update_does_not_trigger_reinitialisation():
     client = FakeClient()
     asyncio.run(client.update())
 
-    async def failing_update():
+    def failing_update():
         raise ConnectionError("blip")
 
     client._update = failing_update
@@ -139,3 +141,59 @@ def test_disabled_client_stays_disabled_and_makes_no_calls():
 
     assert client.status == ClientStatus.DISABLED
     assert (client.initialise_calls, client.update_calls) == (0, 0)
+
+
+def test_the_hooks_run_in_a_worker_thread_not_on_the_event_loop():
+    """The clients block on `requests`; on the loop thread that would freeze everything."""
+    seen: dict[str, int] = {}
+
+    class Recording(FakeClient):
+        def _initialise(self):
+            seen["initialise"] = threading.get_ident()
+
+        def _update(self):
+            seen["update"] = threading.get_ident()
+
+    async def run():
+        loop_thread = threading.get_ident()
+        await Recording().update()
+        return loop_thread
+
+    loop_thread = asyncio.run(run())
+
+    assert seen["initialise"] != loop_thread
+    assert seen["update"] != loop_thread
+
+
+def test_several_clients_are_really_polled_concurrently():
+    """Both hooks wait for each other at a barrier: it only opens if they run at the same
+    time. Run one after the other (what `async def` around blocking calls used to do) the
+    first would time out waiting for a partner that never starts."""
+    barrier = threading.Barrier(2, timeout=5)
+
+    class Waits(FakeClient):
+        def _update(self):
+            barrier.wait()
+            return "panel"
+
+    async def run():
+        return await asyncio.gather(Waits().update(), Waits().update())
+
+    assert asyncio.run(run()) == ["panel", "panel"]
+
+
+def test_an_exception_in_a_hook_still_reaches_the_caller_from_its_thread():
+    with pytest.raises(ConnectionError, match="API down"):
+        asyncio.run(FakeClient(initialise_failures=1).initialise())
+
+
+def test_a_slow_call_is_logged_by_client_name_and_a_fast_one_is_not(monkeypatch, capsys):
+    client = FakeClient()
+
+    monkeypatch.setattr(abstract_client, "SLOW_CALL_S", 60)
+    asyncio.run(client.update())
+    assert capsys.readouterr().out == ""
+
+    monkeypatch.setattr(abstract_client, "SLOW_CALL_S", 0)
+    asyncio.run(client.update())
+    assert "FakeClient: update took" in capsys.readouterr().out

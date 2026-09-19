@@ -1,4 +1,3 @@
-import asyncio
 import json
 import os
 import socket
@@ -149,6 +148,8 @@ class MqttPublisher(AbstractClient):
         except ValueError:
             port = 1883
         broker_host = os.environ.get("MQTT_BROKER_HOST")
+        if not broker_host:
+            print("MQTT: MQTT_BROKER_HOST is not set -- not reporting health to Home Assistant")
         # Only resolved when there's a host to publish to: an unusable hostname must not
         # crash the app over a feature that's switched off.
         device_id = resolve_device_id(os.environ.get("DEVICE_ID"), socket.gethostname()) if broker_host else ""
@@ -162,7 +163,7 @@ class MqttPublisher(AbstractClient):
             password=os.environ.get("MQTT_BROKER_PASSWORD"),
         )
 
-    async def _initialise(self) -> None:
+    def _initialise(self) -> None:
         self._teardown()
         client = mqtt.Client(mqtt.CallbackAPIVersion.VERSION2, client_id=f"countdown-{self.device_id}")
         if self.username and self.password:
@@ -171,10 +172,10 @@ class MqttPublisher(AbstractClient):
         client.on_disconnect = self._on_disconnect
         self._client = client
         try:
-            # Both block (DNS, TCP, then the broker's CONNACK), so off the event loop.
-            await asyncio.to_thread(client.connect, self.broker_host, self.port)
+            # Blocks (DNS, TCP, then the broker's CONNACK) -- fine, we're in a worker thread.
+            client.connect(self.broker_host, self.port)
             client.loop_start()
-            if not await asyncio.to_thread(self._connected.wait, CONNECT_TIMEOUT_SECS):
+            if not self._connected.wait(CONNECT_TIMEOUT_SECS):
                 raise ConnectionError(f"MQTT broker at {self.broker_host}:{self.port} did not accept the connection")
         except Exception:
             self._teardown()
@@ -185,6 +186,7 @@ class MqttPublisher(AbstractClient):
             print(f"MQTT broker refused the connection: {reason_code}")
             return
         self._connected.set()
+        print(f"MQTT: connected to {self.broker_host}:{self.port} as countdown-{self.device_id}")
         # Retained so HA picks the device up after its own restart, and re-sent on every
         # (re)connect so it self-heals if the broker's store is wiped.
         client.publish(
@@ -196,6 +198,7 @@ class MqttPublisher(AbstractClient):
 
     def _on_disconnect(self, client, userdata, disconnect_flags, reason_code, properties) -> None:
         self._connected.clear()
+        print(f"MQTT: disconnected from {self.broker_host}:{self.port} ({reason_code})")
 
     def _teardown(self) -> None:
         if self._client is not None:
@@ -211,7 +214,7 @@ class MqttPublisher(AbstractClient):
         }
         return json.dumps({**statuses, "problem": any(s in UNHEALTHY for s in statuses.values())})
 
-    async def _update(self) -> Panel | None:
+    def _update(self) -> Panel | None:
         """Raises if the connection has dropped, flagging ERROR so the next update()
         rebuilds it rather than trusting a CONNECTED status that's no longer true."""
         if self._client is None or not self._connected.is_set():

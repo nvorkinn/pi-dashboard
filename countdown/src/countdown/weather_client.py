@@ -25,14 +25,14 @@ class WeatherClient(AbstractClient):
         self._panel: WeatherPanel | None = None
         self._last_attempt: dt.datetime | None = None
 
-    async def _initialise(self) -> None:
+    def _initialise(self) -> None:
         pass
 
     def needs_refresh(self, new_config: WeatherConfig) -> bool:
         # Open-Meteo is keyless, so api_key changing changes nothing.
         return self.location != new_config.location
 
-    async def _update(self) -> WeatherPanel | None:
+    def _update(self) -> WeatherPanel | None:
         """None means "nothing to show": no location configured, or one Open-Meteo
         couldn't find. Network/parse failures raise instead (RequestException /
         ValidationError), for safe_fetch to fall back to the last good panel."""
