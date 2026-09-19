@@ -20,10 +20,10 @@ class FakeClient(AbstractClient):
         self.initialised = False
         self.updates = 0
 
-    async def _initialise(self) -> None:
+    def _initialise(self) -> None:
         self.initialised = True
 
-    async def _update(self):
+    def _update(self):
         self.updates += 1
         result = self.results.pop(0)
         if isinstance(result, Exception):

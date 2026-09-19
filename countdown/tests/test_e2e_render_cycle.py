@@ -10,7 +10,7 @@ construction.
 The clients are created inside run(), so there's nothing to monkeypatch on a
 DisplayLoop beforehand: everything is faked at the transport layer instead. Two
 things let a test drive a known number of cycles without waiting on a real clock:
-`interval` is 1 (AppConfig rejects 0) and `time.sleep` is replaced by a fake that
+`interval` is 1 (AppConfig rejects 0) and `asyncio.sleep` is replaced by a fake that
 raises after N calls -- see _run_cycles().
 
 Most tests build a DisplayLoop directly from a `config`/`pairing_code` override, which
@@ -192,12 +192,12 @@ def _run_cycles(loop: DisplayLoop, monkeypatch, cycles: int = 1) -> None:
     fake sleep stops it there (before the broker config refresh, on the last one)."""
     sleeps: list[float] = []
 
-    def fake_sleep(seconds: float) -> None:
+    async def fake_sleep(seconds: float) -> None:
         sleeps.append(seconds)
         if len(sleeps) >= cycles:
             raise _StopLoop
 
-    monkeypatch.setattr(display_loop, "time", SimpleNamespace(sleep=fake_sleep))
+    monkeypatch.setattr(display_loop, "asyncio", SimpleNamespace(sleep=fake_sleep))
     with pytest.raises(_StopLoop):
         asyncio.run(loop.run())
 
@@ -447,3 +447,18 @@ def test_config_changes_from_the_broker_reach_the_screen_on_the_next_cycle(isola
 
     assert shown[0].get("tfl") is None
     assert len(shown[1]["tfl"].arrival_panels) == 1
+
+
+@responses.activate
+def test_the_first_cycle_reports_how_long_startup_took_once(isolated_cwd, monkeypatch, capsys):
+    responses.add(
+        responses.GET,
+        f"{TEST_BROKER_URL}/api/devices/test-device/config",
+        json=_app_config_json(pairing_code="ABC123"),
+    )
+    loop = _build_loop(AppConfig(), monkeypatch, pairing_code="ABC123")
+    monkeypatch.setattr(loop.display, "display_pairing_screen", lambda panel: None)
+
+    _run_cycles(loop, monkeypatch, cycles=2)
+
+    assert capsys.readouterr().out.count("First cycle finished") == 1

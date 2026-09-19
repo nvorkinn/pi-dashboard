@@ -65,10 +65,10 @@ class StubClient(AbstractClient):
         super().__init__()
         self.status = status
 
-    async def _initialise(self) -> None:
+    def _initialise(self) -> None:
         pass
 
-    async def _update(self):
+    def _update(self):
         pass
 
 

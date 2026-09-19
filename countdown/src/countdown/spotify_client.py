@@ -37,7 +37,7 @@ class SpotifyClient(AbstractClient):
             self.device_id: str = data["device_id"]
             self.device_secret: str = data["device_secret"]
 
-    async def _initialise(self) -> None:
+    def _initialise(self) -> None:
         pass
 
     def _request(self, method: str, path: str, **kwargs):
@@ -48,7 +48,7 @@ class SpotifyClient(AbstractClient):
         response.raise_for_status()
         return response.json()
 
-    async def _update(self) -> Panel | None:
+    def _update(self) -> Panel | None:
         """Same shape as the old SpotifyClient.get_current_track(): the broker
         refreshes and calls Spotify server-side, this device never sees a token."""
         json = self._request("GET", f"/api/devices/{self.device_id}/now-playing")

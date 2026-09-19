@@ -1,4 +1,3 @@
-import asyncio
 import json
 import os
 import socket
@@ -164,7 +163,7 @@ class MqttPublisher(AbstractClient):
             password=os.environ.get("MQTT_BROKER_PASSWORD"),
         )
 
-    async def _initialise(self) -> None:
+    def _initialise(self) -> None:
         self._teardown()
         client = mqtt.Client(mqtt.CallbackAPIVersion.VERSION2, client_id=f"countdown-{self.device_id}")
         if self.username and self.password:
@@ -173,10 +172,10 @@ class MqttPublisher(AbstractClient):
         client.on_disconnect = self._on_disconnect
         self._client = client
         try:
-            # Both block (DNS, TCP, then the broker's CONNACK), so off the event loop.
-            await asyncio.to_thread(client.connect, self.broker_host, self.port)
+            # Blocks (DNS, TCP, then the broker's CONNACK) -- fine, we're in a worker thread.
+            client.connect(self.broker_host, self.port)
             client.loop_start()
-            if not await asyncio.to_thread(self._connected.wait, CONNECT_TIMEOUT_SECS):
+            if not self._connected.wait(CONNECT_TIMEOUT_SECS):
                 raise ConnectionError(f"MQTT broker at {self.broker_host}:{self.port} did not accept the connection")
         except Exception:
             self._teardown()
@@ -215,7 +214,7 @@ class MqttPublisher(AbstractClient):
         }
         return json.dumps({**statuses, "problem": any(s in UNHEALTHY for s in statuses.values())})
 
-    async def _update(self) -> Panel | None:
+    def _update(self) -> Panel | None:
         """Raises if the connection has dropped, flagging ERROR so the next update()
         rebuilds it rather than trusting a CONNECTED status that's no longer true."""
         if self._client is None or not self._connected.is_set():
