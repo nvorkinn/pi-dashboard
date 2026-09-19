@@ -190,23 +190,41 @@ class DisplayController:
         self.epd.sleep()
         return True
 
+    def _paint_whole_screen(self, img: Image.Image) -> bool:
+        """For the screens that replace the picture outright (pairing code, splash) rather
+        than composing panels. False if there's no panel to paint on."""
+        # Whatever was on the panel is about to be replaced, so the next normal screen has
+        # to be painted in full even if it matches one shown before.
+        self._shown = None
+        if not self._wake_panel():
+            return False
+        self.epd.display(self.epd.getbuffer(img))
+        self.epd.sleep()
+        return True
+
     def display_pairing_screen(self, panel: PairingCodePanel) -> Image.Image:
         img = panel.render(TOTAL_WIDTH, TOTAL_HEIGHT)
 
         if self.display_enabled and self.epd:
-            # Whatever was on the panel is about to be replaced, so the next normal screen
-            # has to be painted in full even if it matches one shown before.
-            self._shown = None
-            if self._wake_panel():
-                self.epd.display(self.epd.getbuffer(img))
-                self.epd.sleep()
-            else:
+            if not self._paint_whole_screen(img):
                 # Called only when the code changes, so this is once per code. Without it a
                 # Pi with no screen can't be paired at all: nothing else is published or
                 # polled while a code is pending.
                 print(
                     f"No display to show the pairing code on -- it is {panel.pairing_code} (device {panel.device_id})"
                 )
+        else:
+            img.show()
+
+        return img
+
+    def display_splash(self, panel: Panel) -> Image.Image:
+        """The "can't reach the server" screen shown at boot. Painted once by the caller,
+        not on every retry -- it's a full refresh."""
+        img = panel.render(TOTAL_WIDTH, TOTAL_HEIGHT)
+
+        if self.display_enabled and self.epd:
+            self._paint_whole_screen(img)
         else:
             img.show()
 

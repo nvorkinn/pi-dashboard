@@ -1,10 +1,10 @@
 import asyncio
 
 import pytest
+from config_factory import make_config
 
 from countdown.abstract_client import AbstractClient
 from countdown.api_registry import ApiRegistry, ClientClasses
-from countdown.config_manager import AppConfig
 from countdown.glow_client import GlowClient
 from countdown.spotify_client import SpotifyClient
 from countdown.tfl_client import TflClient
@@ -39,14 +39,14 @@ def registry_with(**clients: AbstractClient) -> ApiRegistry:
 
 def test_api_names_match_the_config_field_names():
     """build_from_config looks each client's config up by name on AppConfig."""
-    config = AppConfig()
+    config = make_config()
     for member in ClientClasses:
         assert hasattr(config, member.api_name)
 
 
 def test_on_config_update_registers_the_enabled_clients(monkeypatch):
     monkeypatch.setenv("BROKER_URL", "https://broker.example.com")
-    config = AppConfig()
+    config = make_config()
     config.spotify.enabled = True
     registry = ApiRegistry()
 
@@ -61,7 +61,7 @@ def test_on_config_update_registers_the_enabled_clients(monkeypatch):
 
 
 def test_on_config_update_skips_disabled_clients():
-    config = AppConfig()  # spotify is off until the broker says otherwise
+    config = make_config()  # spotify is off until the broker says otherwise
     config.weather.enabled = False
     registry = ApiRegistry()
 
@@ -83,14 +83,14 @@ def test_on_config_update_initialises_new_clients_even_if_one_fails(monkeypatch)
     monkeypatch.setattr(WeatherClient, "initialise", healthy)
     registry = ApiRegistry()
 
-    asyncio.run(registry.on_config_update(AppConfig()))
+    asyncio.run(registry.on_config_update(make_config()))
 
     assert initialised == [registry.clients["weather"]]
 
 
 def test_on_config_update_survives_a_client_that_cannot_be_built(monkeypatch):
     """SpotifyClient needs BROKER_URL and saved credentials to even be constructed."""
-    config = AppConfig()
+    config = make_config()
     config.spotify.enabled = True  # BROKER_URL is unset in tests, so this raises KeyError
     registry = ApiRegistry()
 
@@ -102,11 +102,11 @@ def test_on_config_update_survives_a_client_that_cannot_be_built(monkeypatch):
 
 def test_unchanged_config_keeps_the_existing_clients_and_their_panels():
     registry = ApiRegistry()
-    asyncio.run(registry.on_config_update(AppConfig()))
+    asyncio.run(registry.on_config_update(make_config()))
     before = dict(registry.clients)
     registry.panels["tfl"] = "arrivals"
 
-    asyncio.run(registry.on_config_update(AppConfig()))
+    asyncio.run(registry.on_config_update(make_config()))
 
     assert all(registry.clients[name] is client for name, client in before.items())
     assert registry.panels == {"tfl": "arrivals"}
@@ -114,10 +114,10 @@ def test_unchanged_config_keeps_the_existing_clients_and_their_panels():
 
 def test_a_changed_config_replaces_only_that_client_and_drops_its_stale_panel():
     registry = ApiRegistry()
-    asyncio.run(registry.on_config_update(AppConfig()))
+    asyncio.run(registry.on_config_update(make_config()))
     old_tfl, old_weather = registry.clients["tfl"], registry.clients["weather"]
     registry.panels.update(tfl="old arrivals", weather="sunny")
-    changed = AppConfig()
+    changed = make_config()
     changed.tfl.stop_ids = ["940GZZLUKNG"]  # resolving it fails offline, which is fine here
 
     asyncio.run(registry.on_config_update(changed))
@@ -130,9 +130,9 @@ def test_a_changed_config_replaces_only_that_client_and_drops_its_stale_panel():
 
 def test_a_client_that_is_switched_off_is_dropped_with_its_panel():
     registry = ApiRegistry()
-    asyncio.run(registry.on_config_update(AppConfig()))
+    asyncio.run(registry.on_config_update(make_config()))
     registry.panels["weather"] = "sunny"
-    off = AppConfig()
+    off = make_config()
     off.weather.enabled = False
 
     asyncio.run(registry.on_config_update(off))
@@ -145,9 +145,9 @@ def test_a_change_the_client_says_is_irrelevant_does_not_rebuild_it():
     """Open-Meteo is keyless, so WeatherClient ignores api_key changes -- rebuilding
     would only throw away its cached coordinates and forecast."""
     registry = ApiRegistry()
-    asyncio.run(registry.on_config_update(AppConfig()))
+    asyncio.run(registry.on_config_update(make_config()))
     weather = registry.clients["weather"]
-    changed = AppConfig()
+    changed = make_config()
     changed.weather.api_key = "new-key"
 
     asyncio.run(registry.on_config_update(changed))

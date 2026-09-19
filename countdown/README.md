@@ -94,6 +94,13 @@ this device never holds a Spotify token itself). The code is only shown
 once per device; credentials persist in `/opt/countdown/.auth_broker_device`
 across restarts.
 
+That config is the one thing the app can't run without, so there's no empty
+fallback. If the broker can't be reached at boot (no network yet, broker down,
+first-time registration failing), the display shows a "The computer says no"
+splash once and the app keeps retrying, backing off from 30 seconds to 5
+minutes, until it gets a valid config. Once it's running it carries on through
+broker outages with the config it already has.
+
 The only local setting left is which broker to talk to
 (`BROKER_URL`, set via the systemd unit's `Environment=` line -- see
 `packaging/systemd/countdown.service`), since that's what the device needs

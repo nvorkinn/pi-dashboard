@@ -38,16 +38,21 @@ class GlowmarktConfig(ApiConfig):
 class AppConfig(BaseModel):
     """Everything auth-broker owns: TfL stops, weather location, interval, whether
     Spotify is enabled, and Glowmarkt credentials. A plain BaseModel, not
-    BaseSettings -- structurally cannot read .env or any env var, and is never
-    persisted anywhere, so there's no local copy of any of this to go stale. Starts
-    empty/off and is only ever populated by a successful
-    DisplayLoop.refresh_broker_config() fetch; if the broker is unreachable, these
-    fields simply stay whatever they last were (empty on a fresh boot) rather than
-    falling back to something written down once and never touched again."""
+    BaseSettings -- structurally cannot read .env or any env var.
 
-    interval: int = Field(default=15, gt=0, description="The interval in seconds between updates.")
-    tfl: TflConfig = Field(default_factory=TflConfig)
-    spotify: SpotifyConfig = Field(default_factory=SpotifyConfig)
-    weather: WeatherConfig = Field(default_factory=WeatherConfig)
-    glowmarkt: GlowmarktConfig = Field(default_factory=GlowmarktConfig)
-    pairing_code: str | None = Field(default=None)
+    Deliberately has no defaults at this level: an AppConfig only ever comes from a
+    validated broker response, so one that says "no stops" means the broker said so, not
+    that we never heard from it. A response with a section missing is rejected -- and the
+    device keeps the config it already had (see DisplayLoop.refresh_broker_config) --
+    rather than quietly turning into an empty one that blanks the screen. At boot the app
+    waits for a valid config (app.wait_for_config); there is no empty fallback. (Settings
+    nested inside a section still default where the broker legitimately omits or nulls
+    them.) Tests build one with tests/config_factory.make_config()."""
+
+    interval: int = Field(gt=0, description="The interval in seconds between updates.")
+    tfl: TflConfig
+    spotify: SpotifyConfig
+    weather: WeatherConfig
+    glowmarkt: GlowmarktConfig
+    # Required but nullable: the broker sends null once the device is paired.
+    pairing_code: str | None

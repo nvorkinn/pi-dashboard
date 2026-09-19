@@ -51,6 +51,7 @@ from display.combined_arrival_panel import CombinedArrivalPanel
 from display.display import DisplayController
 from display.energy_panel import EnergyPanel
 from display.panel import Panel
+from display.splash_panel import SplashPanel
 from display.spotify_panel import SpotifyPanel
 from display.tube_arrival_panel import TubeArrivalPanel
 from display.weather_panel import WeatherPanel
@@ -211,6 +212,11 @@ def test_screen_without_energy_panel(snapshot):
     empty and the weather panel takes over the full height."""
     img = _CONTROLLER.display_screen(_panels(_bus_only_arrivals(), energy=None))
     snapshot.assert_matches("screen_no_energy", img)
+
+
+def test_splash_screen_when_the_broker_cannot_be_reached(snapshot):
+    img = SplashPanel().render(display.display.TOTAL_WIDTH, display.display.TOTAL_HEIGHT)
+    snapshot.assert_matches("screen_splash", img)
 
 
 def test_screen_with_no_panels_at_all_says_there_is_nothing_to_show(snapshot):
