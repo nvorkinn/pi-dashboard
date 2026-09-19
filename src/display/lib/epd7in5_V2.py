@@ -29,6 +29,7 @@
 
 
 import logging
+import time
 import epdconfig
 
 # Display resolution
@@ -41,6 +42,14 @@ GRAY3  = 0x80 #gray
 GRAY4  = 0x00 #Blackest
 
 logger = logging.getLogger(__name__)
+
+# Local change to the Waveshare original: how long ReadBusy() waits for the panel before
+# giving up. A full refresh takes a few seconds, so this is generous.
+BUSY_TIMEOUT_S = 60
+# How long init() waits for the POWER ON handshake. A connected panel answers in well
+# under a second, so silence for this long means there's no panel (or it isn't powered) --
+# which is how display.py tells a headless Pi from a working display.
+POWER_ON_TIMEOUT_S = 10
 
 class EPD:
     def __init__(self):
@@ -82,11 +91,22 @@ class EPD:
         epdconfig.SPI.writebytes2(data)
         epdconfig.digital_write(self.cs_pin, 1)
 
-    def ReadBusy(self):
+    def ReadBusy(self, timeout_s=None):
+        # Local change to the Waveshare original, which polled flat out and forever: with
+        # no panel connected, or one that isn't responding, BUSY never releases, so that
+        # pinned a core and never returned -- freezing everything else in the process.
+        # Now it polls every 20ms and gives up after timeout_s (default BUSY_TIMEOUT_S), cutting
+        # the HAT's power (module_exit) so the next init() starts from a clean slate.
         logger.debug("e-Paper busy")
+        timeout_s = BUSY_TIMEOUT_S if timeout_s is None else timeout_s
+        deadline = time.monotonic() + timeout_s
         self.send_command(0x71)
         busy = epdconfig.digital_read(self.busy_pin)
         while(busy == 0):
+            if time.monotonic() > deadline:
+                epdconfig.module_exit()
+                raise RuntimeError("e-Paper still busy after %ss -- is the panel connected and powered?" % timeout_s)
+            epdconfig.delay_ms(20)
             self.send_command(0x71)
             busy = epdconfig.digital_read(self.busy_pin)
         epdconfig.delay_ms(20)
@@ -112,7 +132,7 @@ class EPD:
 
         self.send_command(0x04) #POWER ON
         epdconfig.delay_ms(100)
-        self.ReadBusy()
+        self.ReadBusy(POWER_ON_TIMEOUT_S)
 
         self.send_command(0X00)			#PANNEL SETTING
         self.send_data(0x1F)   #KW-3f   KWR-2F	BWROTP 0f	BWOTP 1f
