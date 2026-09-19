@@ -1,8 +1,10 @@
 import asyncio
 from unittest.mock import MagicMock
 
+import pytest
 from requests.adapters import HTTPAdapter
 
+from countdown.abstract_client import ClientStatus
 from countdown.config_manager import TflConfig
 from countdown.http import DEFAULT_TIMEOUT
 from countdown.models import MetroStopPoint, SingleStopPoint
@@ -105,18 +107,37 @@ def test_failed_setup_leaves_stops_empty_and_is_retried_on_next_update(monkeypat
     get_mock = MagicMock(side_effect=ConnectionError("network is down"))
     monkeypatch.setattr(client.session, "get", get_mock)
 
-    asyncio.run(client.initialise())
+    # TfL being down at boot mustn't leave the device without arrivals until it's restarted.
+    with pytest.raises(RuntimeError):
+        asyncio.run(client.update())
     assert client.stops == []
-    assert asyncio.run(client.update()) is None  # nothing resolved, nothing to show
+    assert client.status == ClientStatus.ERROR
 
-    # A later update retries setup rather than staying broken forever (TfL being
-    # down at boot mustn't leave the device without arrivals until it's restarted).
     get_mock.side_effect = None
     get_mock.return_value.raise_for_status = MagicMock()
     get_mock.return_value.json.return_value = METRO_STOP_JSON
 
     asyncio.run(client.update())
     assert len(client.stops) == 1
+    assert client.status == ClientStatus.CONNECTED
+
+
+def test_initialise_carries_on_when_only_some_stops_resolve(monkeypatch):
+    client = TflClient(make_config(["940GZZLUKNG", "unknown-stop"]))
+
+    def fake_get(url, params=None, timeout=None):
+        if "940GZZLUKNG" not in url:
+            raise ConnectionError("no such stop")
+        response = MagicMock()
+        response.json.return_value = METRO_STOP_JSON
+        return response
+
+    monkeypatch.setattr(client.session, "get", fake_get)
+
+    asyncio.run(client.initialise())
+
+    assert [stop.naptan_id for stop in client.stops] == ["940GZZLUKNG"]
+    assert client.status == ClientStatus.CONNECTED
 
 
 def test_init_stops_is_a_pure_function_returning_resolved_stops(monkeypatch):

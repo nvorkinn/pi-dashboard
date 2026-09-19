@@ -3,6 +3,7 @@ from datetime import UTC, datetime
 from unittest.mock import MagicMock
 
 import pytest
+import requests
 import responses
 from requests.adapters import HTTPAdapter
 
@@ -215,3 +216,22 @@ def test_update_returns_a_panel_and_rotates_through_the_three_pages(monkeypatch)
     pages = [asyncio.run(client.update()).page_index for _ in range(4)]
 
     assert pages == [0, 1, 2, 0]
+
+
+def test_glowmarkt_being_down_at_boot_heals_on_a_later_update(glowmarkt_api, monkeypatch):
+    """The regression this guards: initialise() failing once used to leave resource_id
+    unset forever, so every later poll asked for readings of resource "None"."""
+    glowmarkt_api.replace(responses.POST, f"{BASE_URL}/auth", status=503)
+    client = make_client()
+    with pytest.raises(requests.exceptions.RequestException):
+        asyncio.run(client.initialise())
+    assert client.status == ClientStatus.ERROR
+    assert client.resource_id is None
+
+    glowmarkt_api.replace(responses.POST, f"{BASE_URL}/auth", json={"token": "recovered"})
+    monkeypatch.setattr(client, "_get_readings", MagicMock(return_value=[]))
+    asyncio.run(client.update())
+
+    assert client.status == ClientStatus.CONNECTED
+    assert client.token == "recovered"
+    assert client.resource_id == "elec-id"
