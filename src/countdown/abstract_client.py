@@ -34,8 +34,26 @@ class AbstractClient(ABC):
         self.status: ClientStatus = ClientStatus.UNINITIALISED
         self.last_updated: datetime | None = None
 
-    @abstractmethod
     async def initialise(self) -> None:
+        """Runs the client's own _initialise() (authenticating, resolving ids, ...)
+        and tracks the outcome in self.status: CONNECTED on success, ERROR -- and the
+        exception re-raised for the caller to log -- on failure. update() calls this
+        itself for a client that never got, or failed, its initialisation, so a
+        boot-time failure (API down, no network yet) heals on its own instead of
+        leaving the client broken until its config happens to change. A disabled
+        client stays disabled and makes no calls."""
+        if self.is_disabled():
+            return
+        self.status = ClientStatus.INITIALISING
+        try:
+            await self._initialise()
+        except Exception:
+            self.status = ClientStatus.ERROR
+            raise
+        self.status = ClientStatus.CONNECTED
+
+    @abstractmethod
+    async def _initialise(self) -> None:
         pass
 
     def needs_refresh(self, new_config: ApiConfig) -> bool:
@@ -57,7 +75,21 @@ class AbstractClient(ABC):
         return datetime.now() - self.last_updated >= self.poll_interval
 
     async def update(self) -> Panel | None:
-        panel = await self._update()
+        """Polls the API and returns its panel. A client that isn't CONNECTED yet
+        (UNINITIALISED, or ERROR from a failed attempt) initialises first; if that
+        fails again the exception propagates, and last_updated is still stamped so the
+        retry waits a full poll_interval rather than hammering an API that's down or
+        rejecting credentials (Glowmarkt rate-limits those) every cycle."""
+        if self.is_disabled():
+            panel = None
+        else:
+            if self.status in (ClientStatus.UNINITIALISED, ClientStatus.ERROR):
+                try:
+                    await self.initialise()
+                except Exception:
+                    self.last_updated = datetime.now()
+                    raise
+            panel = await self._update()
         self.last_updated = datetime.now()
         return panel
 

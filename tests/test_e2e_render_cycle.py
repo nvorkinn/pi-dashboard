@@ -329,7 +329,7 @@ def test_one_api_being_down_does_not_stop_the_others_reaching_the_screen(isolate
     _run_cycles(loop, monkeypatch)
 
     assert len(shown) == 1
-    assert shown[0]["tfl"] is None  # no stops could be resolved, so nothing to show
+    assert shown[0].get("tfl") is None  # no stops could be resolved, so nothing to show
     assert isinstance(shown[0]["glowmarkt"], EnergyPanel)
 
 

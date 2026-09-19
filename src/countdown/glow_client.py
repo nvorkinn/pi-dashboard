@@ -37,9 +37,7 @@ class GlowClient(AbstractClient):
         if not config.username or not config.password:
             self.status = ClientStatus.DISABLED
 
-    async def initialise(self) -> None:
-        if self.is_disabled():
-            return
+    async def _initialise(self) -> None:
         self._authenticate()
         self.resource_id = self.get_electricity_resource_id()
 
@@ -86,8 +84,6 @@ class GlowClient(AbstractClient):
         raise ValueError("Could not find a resource with name 'electricity consumption'")
 
     async def _update(self) -> EnergyPanel | None:
-        if self.is_disabled():
-            return None
         current = datetime.now().astimezone()
         window_start, period, bucket_delta = self._page_config(self.page_index, current)
         open_start = self._truncate(current, period)
