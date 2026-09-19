@@ -35,7 +35,7 @@ async def wait_for_config(
 ) -> tuple[AppConfig, PairingCodePanel]:
     """Blocks until the broker has given this device a valid config, and returns it (with the
     pairing status that came with it). Everything the app does depends on that config, so
-    there's no empty fallback: until it arrives a splash says the computer says no (painted
+    there's no empty fallback: until it arrives a splash says so (painted
     once -- not on every retry, it's a full refresh) and the attempts continue with backoff.
     Covers a first-time registration failing too, which used to crash-loop the service.
     "Can't reach the broker" and "it answered with something that isn't a valid config" are

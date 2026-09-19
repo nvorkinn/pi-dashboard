@@ -4,11 +4,11 @@ from display.panel import Panel
 from display.utils import FONTS_DIR
 
 # Sized for reading across a room on the 800x480 panel, and to fit it with a margin: the
-# widest line (the subtitle) is about 710px wide. One sturdy face, all black: the panel is
+# widest line (the middle one) is about 700px wide. One sturdy face, all black: the panel is
 # 1-bit, so thin strokes break up and gray becomes a dither pattern.
-TITLE = ImageFont.truetype(str(FONTS_DIR / "Ubuntu-Medium.ttf"), 64)
-SUBTITLE = ImageFont.truetype(str(FONTS_DIR / "Ubuntu-Medium.ttf"), 38)
-HINT = ImageFont.truetype(str(FONTS_DIR / "Ubuntu-Medium.ttf"), 34)
+OPENER = ImageFont.truetype(str(FONTS_DIR / "Ubuntu-Medium.ttf"), 72)
+MIDDLE = ImageFont.truetype(str(FONTS_DIR / "Ubuntu-Medium.ttf"), 36)
+PUNCHLINE = ImageFont.truetype(str(FONTS_DIR / "Ubuntu-Medium.ttf"), 46)
 
 
 class SplashPanel(Panel):
@@ -22,11 +22,9 @@ class SplashPanel(Panel):
         center_x, center_y = image_width / 2, image_height / 2
 
         lines = [
-            (-95, "The computer says no.", TITLE),
-            (-20, "I can't reach the set-up server right now.", SUBTITLE),
-            (50, "Nothing for you to do -- I'll keep trying,", HINT),
-            (90, "and this will clear itself.", HINT),
-            (140, "If it lasts, check the Wi-Fi.", HINT),
+            (-80, "How embarrassing...", OPENER),
+            (5, "We can't reach the setup server right now", MIDDLE),
+            (85, "I bet it's your fault...", PUNCHLINE),
         ]
         for offset, text, font in lines:
             draw.text((center_x, center_y + offset), text, anchor="mm", font=font, fill="black")
