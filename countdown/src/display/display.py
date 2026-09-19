@@ -3,22 +3,31 @@ import time
 from datetime import datetime
 from pathlib import Path
 
-from PIL import Image, ImageDraw
+from PIL import Image, ImageChops, ImageDraw
 
 from countdown.api_registry import ClientClasses
 from display.combined_arrival_panel import CombinedArrivalPanel
-from display.energy_panel import EnergyPanel
+from display.empty_panel import EmptyPanel
 from display.pairing_code_panel import PairingCodePanel
 from display.panel import Panel
-from display.spotify_panel import build_spotify_panel
 from display.utils import TOTAL_HEIGHT, TOTAL_WIDTH
-from display.weather_panel import WeatherPanel
 
 LIB_DIR = str(Path(__file__).resolve().parent / "lib")
 
 # How long to leave it before asking a panel that didn't answer whether it's there yet,
 # so plugging a screen in later just works, without a restart.
 PANEL_RETRY_INTERVAL_S = 300
+
+# A partial refresh is quick and doesn't flash, but each one leaves a little ghosting
+# behind, so once this long has passed since the last full refresh the next change is
+# repainted in full. Also the most often the screen flashes: the arrivals change about
+# once a minute, everything else far less.
+FULL_REFRESH_INTERVAL_S = 600
+
+# Where display_screen() puts the arrivals panel, the part of the screen that changes
+# every minute and so the only part worth a partial refresh.
+ARRIVALS_ORIGIN = (5, 5)
+ARRIVALS_HEIGHT = 275
 
 
 class DisplayController:
@@ -38,18 +47,23 @@ class DisplayController:
         # driver at all previews via img.show() instead, and never asks a panel anything.
         self.panel_connected: bool | None = None
         self._next_probe = 0.0
+        # What's on the panel right now (minus the "Updated:" footer), so an unchanged
+        # picture isn't repainted and a changed arrivals panel can be refreshed alone.
+        # None whenever that isn't known -- nothing painted yet, or the last paint failed.
+        self._shown: Image.Image | None = None
+        self._last_full_refresh = 0.0
 
-    def _wake_panel(self) -> bool:
-        """Initialises the panel, or returns False if it doesn't answer -- no screen
-        connected (or powered), which init() finds out via the POWER ON handshake, and
-        which can't be told apart from a connected one that's broken. Once a panel's
-        known to be absent it isn't asked again until PANEL_RETRY_INTERVAL_S has passed,
-        so a Pi running without a display neither waits on it every cycle nor spams the
-        log; it's said once when the answer changes."""
+    def _wake_panel(self, init=None) -> bool:
+        """Initialises the panel (`init` defaults to the full-refresh init), or returns
+        False if it doesn't answer -- no screen connected (or powered), which init() finds
+        out via the POWER ON handshake, and which can't be told apart from a connected one
+        that's broken. Once a panel's known to be absent it isn't asked again until
+        PANEL_RETRY_INTERVAL_S has passed, so a Pi running without a display neither waits
+        on it every cycle nor spams the log; it's said once when the answer changes."""
         if self.panel_connected is False and time.monotonic() < self._next_probe:
             return False
         try:
-            self.epd.init()
+            (init or self.epd.init)()
         except RuntimeError as e:
             if self.panel_connected is not False:
                 print(f"No e-paper panel responding ({e}) -- running without a display, re-checking every 5 minutes")
@@ -62,15 +76,40 @@ class DisplayController:
         return True
 
     def display_screen(self, panels: dict[str, Panel | None]) -> Image.Image:
-        """Composes whatever panels the registry has. A missing/None panel just leaves
-        its slot empty (no stops configured, Glowmarkt not set up, nothing playing,
-        weather not fetched yet) rather than failing the whole screen."""
+        """Composes whatever panels the registry has and puts it on the panel only if it
+        changed: not at all if the picture is the same, as a quick partial refresh if only
+        the arrivals changed, otherwise as a full refresh (which flashes). A missing/None
+        panel just leaves its slot empty (no stops configured, Glowmarkt not set up,
+        nothing playing, weather not fetched yet) rather than failing the whole screen --
+        unless there's nothing at all, which shows a "nothing to show yet" message."""
+        img, arrivals_box = self._compose(panels)
+        content = img.convert("RGB")
+        # Drawn after `content` is taken, so it never counts as a change: it's only as
+        # current as the last repaint.
+        ImageDraw.Draw(img).text(
+            (2, TOTAL_HEIGHT - 2), f"Updated: {datetime.now().isoformat()}", "LightGray", anchor="ld"
+        )
+        self._show(img, content, arrivals_box)
+        return img
+
+    def _compose(self, panels: dict[str, Panel | None]) -> tuple[Image.Image, tuple[int, int, int, int] | None]:
+        """The screen without its footer, and the box the arrivals panel occupies (None
+        when it's the whole-screen "nothing to show" message)."""
         img = Image.new("RGBA", (TOTAL_WIDTH, TOTAL_HEIGHT), (255, 255, 255, 255))
 
         # Arrivals
         arrival_panel = panels.get(ClientClasses.TFL.api_name) or CombinedArrivalPanel([])
-        bus_stop_panel = arrival_panel.render(TOTAL_WIDTH, 275)
-        img.paste(bus_stop_panel, (5, 5), bus_stop_panel)
+        bus_stop_panel = arrival_panel.render(TOTAL_WIDTH, ARRIVALS_HEIGHT)
+        others = [ClientClasses.GLOWMARKT, ClientClasses.WEATHER, ClientClasses.SPOTIFY]
+        if bus_stop_panel.size[0] == 0 and not any(panels.get(client.api_name) for client in others):
+            return EmptyPanel().render(TOTAL_WIDTH, TOTAL_HEIGHT), None
+        img.paste(bus_stop_panel, ARRIVALS_ORIGIN, bus_stop_panel)
+        arrivals_box = (
+            ARRIVALS_ORIGIN[0],
+            ARRIVALS_ORIGIN[1],
+            ARRIVALS_ORIGIN[0] + bus_stop_panel.size[0],
+            ARRIVALS_ORIGIN[1] + bus_stop_panel.size[1],
+        )
 
         energy_height = 0
         energy_panel = panels.get(ClientClasses.GLOWMARKT.api_name)
@@ -94,75 +133,71 @@ class DisplayController:
             rendered_weather = weather_panel.render(TOTAL_WIDTH - spotify_x, weather_height)
             img.paste(rendered_weather, (spotify_x - 5, 5), rendered_weather)
 
-        draw.text((2, TOTAL_HEIGHT - 2), f"Updated: {datetime.now().isoformat()}", "LightGray", anchor="ld")
+        return img, arrivals_box
 
-        if self.display_enabled and self.epd:
-            if self._wake_panel():
-                self.epd.Clear()
-                self.epd.display(self.epd.getbuffer(img))
-                self.epd.sleep()
-        else:
+    def _show(self, img: Image.Image, content: Image.Image, arrivals_box) -> None:
+        if not (self.display_enabled and self.epd):
             img.show()
+            return
 
-        return img
+        changed = ImageChops.difference(self._shown, content).getbbox() if self._shown is not None else None
+        if self._shown is not None and changed is None:
+            return  # this exact picture is already on the panel
 
-    def display_partial(
-        self,
-        arrival_panel: CombinedArrivalPanel,
-        energy_panel: EnergyPanel | None,
-        current_track: dict[str, str] | None,
-        weather_panel: WeatherPanel | None,
-    ) -> Image.Image:
-        img = Image.new("RGBA", (TOTAL_WIDTH, TOTAL_HEIGHT), (255, 255, 255, 255))
+        region = self._partial_region(changed, arrivals_box)
+        now = time.monotonic()
+        try:
+            if region is not None and now - self._last_full_refresh < FULL_REFRESH_INTERVAL_S:
+                painted = self._refresh_partial(img, region)
+            else:
+                painted = self._refresh_full(img)
+                if painted:
+                    self._last_full_refresh = now
+        except Exception:
+            self._shown = None  # can't know what state the panel was left in
+            raise
+        self._shown = content if painted else None
 
-        # Arrivals
-        bus_stop_panel = arrival_panel.render(TOTAL_WIDTH, 275)
-        img.paste(bus_stop_panel, (5, 5), bus_stop_panel)
+    @staticmethod
+    def _partial_region(changed, arrivals_box) -> tuple[int, int, int, int] | None:
+        """The byte-aligned box to partially refresh, or None if that isn't enough: no
+        picture to compare with yet, or something outside the arrivals changed. (A wider or
+        narrower arrivals panel shifts everything beside it, so that lands here too.)"""
+        if changed is None or arrivals_box is None:
+            return None
+        ax0, ay0, ax1, ay1 = arrivals_box
+        if changed[0] < ax0 or changed[1] < ay0 or changed[2] > ax1 or changed[3] > ay1:
+            return None
+        return (0, ay0, -(-ax1 // 8) * 8, ay1)  # x in whole bytes (8 pixels), as the panel needs
 
-        if energy_panel:
-            energy_panel = energy_panel.render(TOTAL_WIDTH, 200)
-            img.paste(energy_panel, (0, TOTAL_HEIGHT - energy_panel.size[1]))
+    def _refresh_full(self, img: Image.Image) -> bool:
+        # No Clear() first: display() overwrites every pixel itself, so Clear() only added a
+        # whole extra black-and-white flash (it is a full refresh of its own).
+        if not self._wake_panel():
+            return False
+        self.epd.display(self.epd.getbuffer(img))
+        self.epd.sleep()
+        return True
 
-        draw = ImageDraw.Draw(img)
-        spotify_x = 10 + bus_stop_panel.size[0]
-        if current_track:
-            spotify_panel = build_spotify_panel(current_track, TOTAL_WIDTH - spotify_x)
-            spotify_y = TOTAL_HEIGHT - energy_panel.size[1] - spotify_panel.size[1]
-            img.paste(spotify_panel, (spotify_x, spotify_y))
-            draw.line((spotify_x, spotify_y - 5, TOTAL_WIDTH - 10, spotify_y - 5), fill="black")
-            if weather_panel:
-                weather_panel = weather_panel.render(TOTAL_WIDTH - spotify_x, spotify_y)
-                img.paste(weather_panel, (spotify_x - 5, 5), weather_panel)
-        else:
-            if weather_panel:
-                weather_panel = weather_panel.render(TOTAL_WIDTH - spotify_x, TOTAL_HEIGHT - energy_panel.size[1])
-                img.paste(weather_panel, (spotify_x - 5, 5), weather_panel)
-
-        if self.display_enabled and self.epd:
-            self.epd.init_part()
-            x_start = 0
-            y_start = 5
-            x_end = (bus_stop_panel.size[0] + 9) // 8 * 8  # round up to nearest multiple of 8
-            y_end = bus_stop_panel.size[1] + 5
-
-            cropped = img.crop((x_start, y_start, x_end, y_end)).convert("1")
-            buf = bytearray(cropped.tobytes("raw"))
-            for i in range(len(buf)):
-                buf[i] ^= 0xFF
-
-            self.epd.display_Partial(buf, 0, 5, bus_stop_panel.size[0] + 9, bus_stop_panel.size[1] + 5)
-            self.epd.sleep()
-        else:
-            img.show()
-
-        return img
+    def _refresh_partial(self, img: Image.Image, region: tuple[int, int, int, int]) -> bool:
+        if not self._wake_panel(self.epd.init_part):
+            return False
+        x0, y0, x1, y1 = region
+        buf = bytearray(img.crop(region).convert("1").tobytes("raw"))
+        for i in range(len(buf)):
+            buf[i] ^= 0xFF
+        self.epd.display_Partial(buf, x0, y0, x1, y1)
+        self.epd.sleep()
+        return True
 
     def display_pairing_screen(self, panel: PairingCodePanel) -> Image.Image:
         img = panel.render(TOTAL_WIDTH, TOTAL_HEIGHT)
 
         if self.display_enabled and self.epd:
+            # Whatever was on the panel is about to be replaced, so the next normal screen
+            # has to be painted in full even if it matches one shown before.
+            self._shown = None
             if self._wake_panel():
-                self.epd.Clear()
                 self.epd.display(self.epd.getbuffer(img))
                 self.epd.sleep()
             else:

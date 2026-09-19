@@ -213,10 +213,12 @@ def test_screen_without_energy_panel(snapshot):
     snapshot.assert_matches("screen_no_energy", img)
 
 
-def test_screen_with_no_panels_at_all_still_renders():
-    """First cycle after boot, or every API failing: a blank-ish screen, not a crash."""
+def test_screen_with_no_panels_at_all_says_there_is_nothing_to_show(snapshot):
+    """First cycle after boot, a paired device nobody's set up yet, or every API failing:
+    a message saying so, not a blank white screen that looks broken (or a crash)."""
     img = _CONTROLLER.display_screen({})
     assert img.size == (display.display.TOTAL_WIDTH, display.display.TOTAL_HEIGHT)
+    snapshot.assert_matches("screen_nothing_to_show", img)
 
 
 @responses.activate
@@ -231,13 +233,6 @@ def test_screen_with_spotify_paused(snapshot):
     responses.add(responses.GET, SPOTIFY_TRACK_PAUSED.album_image, body=_album_art_bytes(), content_type="image/png")
     img = _CONTROLLER.display_screen(_panels(_bus_only_arrivals(), track=SPOTIFY_TRACK_PAUSED))
     snapshot.assert_matches("screen_spotify_paused", img)
-
-
-def test_partial_screen_with_no_cached_state_yet(snapshot):
-    """A partial-refresh cycle before energy/weather have ever been fetched --
-    display_partial must not crash when those are still None."""
-    img = _CONTROLLER.display_partial(_bus_and_tube_arrivals(), None, None, None)
-    snapshot.assert_matches("partial_screen_no_cached_state", img)
 
 
 def test_weather_panel_rainy_night(snapshot):
