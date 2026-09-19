@@ -25,7 +25,7 @@ class WeatherClient(AbstractClient):
         self._panel: WeatherPanel | None = None
         self._last_attempt: dt.datetime | None = None
 
-    async def initialise(self) -> None:
+    async def _initialise(self) -> None:
         pass
 
     def needs_refresh(self, new_config: WeatherConfig) -> bool:

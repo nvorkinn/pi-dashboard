@@ -35,12 +35,17 @@ class TflClient(AbstractClient):
         self.current_stop = 0
         self.params = {"app_key": config.app_key} if config.app_key else {}
 
-    async def initialise(self) -> None:
-        """Resolve self.config.stop_ids into self.stops if not already done. Safe to
-        call repeatedly and safe to fail: self.stops is only ever assigned once fully
-        built, so a failed attempt just leaves it empty for the next call to retry."""
-        if not self.stops:
-            self.stops = self.init_stops(self.config.stop_ids)
+    async def _initialise(self) -> None:
+        """Resolve self.config.stop_ids into self.stops if not already done. Fails (so
+        the client goes to ERROR and is retried) when stops are configured but none
+        could be resolved, e.g. the TfL API is down; resolving only some of them is
+        good enough to carry on with. Nothing configured is not a failure."""
+        if self.stops:
+            return
+        resolved = self.init_stops(self.config.stop_ids)
+        if self.config.stop_ids and not resolved:
+            raise RuntimeError(f"None of the {len(self.config.stop_ids)} configured TfL stops could be resolved")
+        self.stops = resolved
 
     def init_stops(self, stop_ids: list[str]) -> list[SingleStopPoint | MetroStopPoint]:
         stops: list[SingleStopPoint | MetroStopPoint] = []
@@ -74,8 +79,6 @@ class TflClient(AbstractClient):
         return stop
 
     async def _update(self) -> CombinedArrivalPanel | None:
-        if not self.stops:
-            await self.initialise()  # boot-time resolution may have failed; retry
         if not self.stops:
             return None
         stop_and_arrivals = []

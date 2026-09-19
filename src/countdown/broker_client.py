@@ -35,7 +35,7 @@ class BrokerClient(AbstractClient):
         super().__init__()
         self.base_url = base_url.rstrip("/")
 
-    async def initialise(self) -> None:
+    async def _initialise(self) -> None:
         if CREDENTIALS_FILE.exists():
             data = json.loads(CREDENTIALS_FILE.read_text())
             self.device_id: str = data["device_id"]

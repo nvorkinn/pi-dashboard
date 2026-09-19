@@ -37,7 +37,7 @@ class SpotifyClient(AbstractClient):
             self.device_id: str = data["device_id"]
             self.device_secret: str = data["device_secret"]
 
-    async def initialise(self) -> None:
+    async def _initialise(self) -> None:
         pass
 
     def _request(self, method: str, path: str, **kwargs):
