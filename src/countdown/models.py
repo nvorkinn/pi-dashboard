@@ -43,6 +43,7 @@ class AdditionalProperty(BaseModel):
 class StopType(StrEnum):
     NAPTAN_ONSTREET_BUS_COACH_STOP_PAIR = "NaptanOnstreetBusCoachStopPair"
     NAPTAN_PUBLIC_BUS_COACH_TRAM = "NaptanPublicBusCoachTram"
+    NAPTAN_BUS_COACH_STATION = "NaptanBusCoachStation"
     TRANSPORT_INTERCHANGE = "TransportInterchange"
     NAPTAN_ONSTREET_BUS_COACH_STOP_CLUSTER = "NaptanOnstreetBusCoachStopCluster"
     NAPTAN_RAIL_STATION = "NaptanRailStation"
@@ -73,6 +74,7 @@ class OtherStopPoint(StopPoint):
         StopType.NAPTAN_METRO_ENTRANCE,
         StopType.NAPTAN_METRO_ACCESS_AREA,
         StopType.NAPTAN_METRO_PLATFORM,
+        StopType.NAPTAN_BUS_COACH_STATION,
     ] = Field(alias="stopType")
 
 
@@ -103,3 +105,52 @@ class Entity(BaseModel):
 
 class Readings(BaseModel):
     data: list[tuple[int, float]]
+
+
+class GeocodingResult(BaseModel):
+    latitude: float
+    longitude: float
+    name: str
+
+
+class GeocodingResponse(BaseModel):
+    # Open-Meteo leaves "results" out entirely (rather than sending []) when nothing matches
+    results: list[GeocodingResult] = []
+
+
+class CurrentConditions(BaseModel):
+    temperature: float = Field(alias="temperature_2m")
+    weather_code: int  # WMO code, see display.weather_panel.ICON_MAP
+    is_day: bool
+
+
+class DailyForecast(BaseModel):
+    """Open-Meteo returns one parallel list per variable, one entry per day (today first)."""
+
+    temperature_max: list[float] = Field(alias="temperature_2m_max")
+    temperature_min: list[float] = Field(alias="temperature_2m_min")
+    precipitation_probability_max: list[int | None]
+
+
+class ForecastResponse(BaseModel):
+    current: CurrentConditions
+    daily: DailyForecast
+
+
+class Weather(BaseModel):
+    """What the weather panel shows: right now, plus today's outlook."""
+
+    temperature: float
+    weather_code: int
+    is_day: bool
+    high: float
+    low: float
+    precipitation_probability: int | None = None
+
+
+class SpotifyPlayingRightNow(BaseModel):
+    album: str
+    album_image: str
+    artist: str
+    is_playing: bool
+    song: str

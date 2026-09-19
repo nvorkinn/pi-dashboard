@@ -16,6 +16,7 @@ TFL_MEDIUM_FONT_16 = ImageFont.truetype(str(FONTS_DIR / "Johnston100-Medium.ttf"
 HELVETICA = ImageFont.truetype(str(FONTS_DIR / "Helvetica.ttf"), 11)
 METEOCONS = ImageFont.truetype(str(FONTS_DIR / "meteocons.ttf"), 190)
 JOSEFIN_REGULAR = ImageFont.truetype(str(FONTS_DIR / "JosefinSans-Regular.ttf"), 40)
+JOSEFIN_SMALL = ImageFont.truetype(str(FONTS_DIR / "JosefinSans-Regular.ttf"), 28)
 JOSEFIN_MEDIUM = ImageFont.truetype(str(FONTS_DIR / "JosefinSans-Medium.ttf"), 50)
 UBUNTU_REGULAR = ImageFont.truetype(str(FONTS_DIR / "Ubuntu-Regular.ttf"), 50)
 UBUNTU_MEDIUM = ImageFont.truetype(str(FONTS_DIR / "Ubuntu-Medium.ttf"), 50)

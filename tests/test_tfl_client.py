@@ -1,3 +1,4 @@
+import asyncio
 from unittest.mock import MagicMock
 
 from requests.adapters import HTTPAdapter
@@ -67,57 +68,54 @@ def test_construction_never_touches_the_network():
     assert client.params == {"app_key": "app-key"}
 
 
-def test_init_lazily_resolves_stops(monkeypatch):
+def test_initialise_resolves_stops(monkeypatch):
     client = TflClient(make_config(["940GZZLUKNG"]))
     get_mock = MagicMock()
     get_mock.return_value.raise_for_status = MagicMock()
     get_mock.return_value.json.return_value = METRO_STOP_JSON
     monkeypatch.setattr(client.session, "get", get_mock)
 
-    assert client.init() == 1
+    asyncio.run(client.initialise())
+
     assert len(client.stops) == 1
     get_mock.assert_called_once()
 
 
-def test_init_empty_when_no_stops_configured():
+def test_initialise_leaves_stops_empty_when_none_configured():
     client = TflClient(make_config())
-    assert client.init() == 1
+    asyncio.run(client.initialise())
     assert client.stops == []
 
 
-def test_init_rounds_up():
-    client = TflClient(make_config())
-    client.stops = [make_bus_stop(), make_metro_stop(), make_bus_stop("490000456X")]
-    assert client.init() == 2
-
-
-def test_ensure_stops_is_not_repeated_once_populated(monkeypatch):
+def test_initialise_is_not_repeated_once_stops_are_populated(monkeypatch):
     client = TflClient(make_config(["940GZZLUKNG"]))
     get_mock = MagicMock()
     get_mock.return_value.raise_for_status = MagicMock()
     get_mock.return_value.json.return_value = METRO_STOP_JSON
     monkeypatch.setattr(client.session, "get", get_mock)
 
-    client.init()
-    client.init()
+    asyncio.run(client.initialise())
+    asyncio.run(client.initialise())
 
     get_mock.assert_called_once()
 
 
-def test_failed_setup_leaves_stops_empty_and_is_retried_on_next_call(monkeypatch):
+def test_failed_setup_leaves_stops_empty_and_is_retried_on_next_update(monkeypatch):
     client = TflClient(make_config(["940GZZLUKNG"]))
     get_mock = MagicMock(side_effect=ConnectionError("network is down"))
     monkeypatch.setattr(client.session, "get", get_mock)
 
-    assert client.get_next_arrivals() == []
+    asyncio.run(client.initialise())
     assert client.stops == []
+    assert asyncio.run(client.update()) is None  # nothing resolved, nothing to show
 
-    # A later call retries setup rather than staying broken forever.
+    # A later update retries setup rather than staying broken forever (TfL being
+    # down at boot mustn't leave the device without arrivals until it's restarted).
     get_mock.side_effect = None
     get_mock.return_value.raise_for_status = MagicMock()
     get_mock.return_value.json.return_value = METRO_STOP_JSON
 
-    assert client.init() == 1
+    asyncio.run(client.update())
     assert len(client.stops) == 1
 
 
@@ -143,7 +141,7 @@ def test_get_next_stop_cycles_and_wraps():
     assert client._get_next_stop() is a
 
 
-def test_get_next_arrivals_builds_correct_panels(monkeypatch):
+def test_update_builds_correct_panels(monkeypatch):
     client = TflClient(make_config())
     client.stops = [make_bus_stop(), make_metro_stop()]
 
@@ -175,14 +173,14 @@ def test_get_next_arrivals_builds_correct_panels(monkeypatch):
 
     monkeypatch.setattr(client.session, "get", fake_get)
 
-    panels = client.get_next_arrivals()
+    panel = asyncio.run(client.update())
 
-    assert len(panels) == 2
-    assert isinstance(panels[0], BusArrivalPanel)
-    assert isinstance(panels[1], TubeArrivalPanel)
+    assert len(panel.arrival_panels) == 2
+    assert isinstance(panel.arrival_panels[0], BusArrivalPanel)
+    assert isinstance(panel.arrival_panels[1], TubeArrivalPanel)
 
 
-def test_get_next_arrivals_skips_stop_on_request_failure(monkeypatch):
+def test_update_skips_stop_on_request_failure(monkeypatch):
     client = TflClient(make_config())
     client.stops = [make_bus_stop()]
 
@@ -191,10 +189,10 @@ def test_get_next_arrivals_skips_stop_on_request_failure(monkeypatch):
 
     monkeypatch.setattr(client.session, "get", failing_get)
 
-    assert client.get_next_arrivals() == []
+    assert asyncio.run(client.update()).arrival_panels == []
 
 
-def test_get_next_arrivals_passes_a_timeout(monkeypatch):
+def test_update_passes_a_timeout(monkeypatch):
     client = TflClient(make_config())
     client.stops = [make_bus_stop()]
 
@@ -211,7 +209,7 @@ def test_get_next_arrivals_passes_a_timeout(monkeypatch):
     ]
     monkeypatch.setattr(client.session, "get", get_mock)
 
-    client.get_next_arrivals()
+    asyncio.run(client.update())
 
     assert get_mock.call_args.kwargs["timeout"] == DEFAULT_TIMEOUT
 

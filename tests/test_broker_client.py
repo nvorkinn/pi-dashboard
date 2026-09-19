@@ -1,12 +1,18 @@
+import asyncio
 import json
 from unittest.mock import MagicMock
 
-from countdown.broker_client import CREDENTIALS_FILE, BrokerClient, BrokerConfig
+import responses
+
+from countdown.broker_client import CREDENTIALS_FILE, BrokerClient
+from countdown.config_manager import AppConfig
 from countdown.http import DEFAULT_TIMEOUT
 
+BROKER_URL = "https://broker.example.com"
 
-def _broker_config(pairing_code: str | None) -> BrokerConfig:
-    return BrokerConfig(
+
+def _app_config(pairing_code: str | None) -> AppConfig:
+    return AppConfig(
         interval=15,
         tfl={"app_key": "", "stop_ids": []},
         weather={"api_key": "", "location": ""},
@@ -23,17 +29,35 @@ def _response(json_data: dict | None = None) -> MagicMock:
     return response
 
 
+def _seed_credentials(device_id: str = "device-123", device_secret: str = "shh") -> None:
+    CREDENTIALS_FILE.write_text(json.dumps({"device_id": device_id, "device_secret": device_secret}))
+
+
+def _initialised_client() -> BrokerClient:
+    """A client with credentials loaded from a seeded file (so no registration call)."""
+    client = BrokerClient(BROKER_URL)
+    asyncio.run(client.initialise())
+    return client
+
+
+def test_construction_makes_no_requests_and_loads_no_credentials(isolated_cwd):
+    _seed_credentials()
+
+    client = BrokerClient(BROKER_URL)
+
+    assert not hasattr(client, "device_id")  # credentials are loaded by initialise(), not __init__
+
+
 def test_registers_and_persists_credentials_on_first_run(isolated_cwd, monkeypatch):
     register_response = _response({"device_id": "device-123"})
     post_mock = MagicMock(return_value=register_response)
 
-    # Patch the session methods before construction, since registration happens
-    # inside __init__ (build_retrying_session() creates a fresh session each time).
-    # Patched where AbstractClient.__init__ actually calls it, since BrokerClient
-    # no longer imports/calls build_retrying_session() itself.
+    # Patch the session before construction (build_retrying_session() creates a fresh
+    # session each time), at the spot AbstractClient.__init__ actually calls it.
     monkeypatch.setattr("countdown.abstract_client.build_retrying_session", lambda: MagicMock(post=post_mock))
 
-    client = BrokerClient("https://broker.example.com")
+    client = BrokerClient(BROKER_URL)
+    asyncio.run(client.initialise())  # registration happens here, not in __init__
 
     assert client.device_id == "device-123"
     post_mock.assert_called_once()
@@ -45,17 +69,17 @@ def test_registers_and_persists_credentials_on_first_run(isolated_cwd, monkeypat
 
 
 def test_reuses_credentials_file_without_registering_again(isolated_cwd):
-    CREDENTIALS_FILE.write_text(json.dumps({"device_id": "existing-device", "device_secret": "existing-secret"}))
+    _seed_credentials("existing-device", "existing-secret")
 
-    client = BrokerClient("https://broker.example.com")
+    client = _initialised_client()
 
     assert client.device_id == "existing-device"
     assert client.device_secret == "existing-secret"
 
 
 def test_request_sends_bearer_auth_header(isolated_cwd):
-    CREDENTIALS_FILE.write_text(json.dumps({"device_id": "device-123", "device_secret": "shh"}))
-    client = BrokerClient("https://broker.example.com")
+    _seed_credentials()
+    client = _initialised_client()
 
     response = _response({"ok": True})
     request_mock = MagicMock(return_value=response)
@@ -69,8 +93,8 @@ def test_request_sends_bearer_auth_header(isolated_cwd):
 
 
 def test_get_config_parses_response(isolated_cwd):
-    CREDENTIALS_FILE.write_text(json.dumps({"device_id": "device-123", "device_secret": "shh"}))
-    client = BrokerClient("https://broker.example.com")
+    _seed_credentials()
+    client = _initialised_client()
     client.session.request = MagicMock(
         return_value=_response(
             {
@@ -96,8 +120,8 @@ def test_get_config_parses_response(isolated_cwd):
 def test_get_config_accepts_null_glowmarkt_credentials(isolated_cwd):
     """The common case: a device whose owner hasn't set up Glowmarkt on the
     broker. Sent as null, not omitted -- must parse, not raise."""
-    CREDENTIALS_FILE.write_text(json.dumps({"device_id": "device-123", "device_secret": "shh"}))
-    client = BrokerClient("https://broker.example.com")
+    _seed_credentials()
+    client = _initialised_client()
     client.session.request = MagicMock(
         return_value=_response(
             {
@@ -118,34 +142,11 @@ def test_get_config_accepts_null_glowmarkt_credentials(isolated_cwd):
     assert config.pairing_code == "ABC123"
 
 
-def test_get_current_track_returns_none_when_broker_returns_null(isolated_cwd):
-    CREDENTIALS_FILE.write_text(json.dumps({"device_id": "device-123", "device_secret": "shh"}))
-    client = BrokerClient("https://broker.example.com")
-    client.session.request = MagicMock(return_value=_response(None))
-
-    assert client.get_current_track() is None
-
-
-def test_get_current_track_passes_through_track_dict(isolated_cwd):
-    CREDENTIALS_FILE.write_text(json.dumps({"device_id": "device-123", "device_secret": "shh"}))
-    client = BrokerClient("https://broker.example.com")
-    track = {
-        "song": "A Song",
-        "artist": "An Artist",
-        "album": "An Album",
-        "album_image": "http://x",
-        "is_playing": True,
-    }
-    client.session.request = MagicMock(return_value=_response(track))
-
-    assert client.get_current_track() == track
-
-
 def test_get_pairing_code_panel_wraps_code_and_device_id(isolated_cwd):
-    CREDENTIALS_FILE.write_text(json.dumps({"device_id": "device-123", "device_secret": "shh"}))
-    client = BrokerClient("https://broker.example.com")
+    _seed_credentials()
+    client = _initialised_client()
 
-    panel = client.get_pairing_code_panel(_broker_config("ABC123"))
+    panel = client.get_pairing_code_panel(_app_config("ABC123"))
 
     assert panel.pairing_code == "ABC123"
     assert panel.device_id == "device-123"
@@ -156,23 +157,77 @@ def test_get_pairing_code_panel_has_changed_false_on_repeat(isolated_cwd):
     has_changed must stay False for that steady state, not flip True forever
     just because None happens to look like "nothing cached yet" if compared
     carelessly."""
-    CREDENTIALS_FILE.write_text(json.dumps({"device_id": "device-123", "device_secret": "shh"}))
-    client = BrokerClient("https://broker.example.com")
+    _seed_credentials()
+    client = _initialised_client()
 
-    first = client.get_pairing_code_panel(_broker_config(None))
-    second = client.get_pairing_code_panel(_broker_config(None))
+    first = client.get_pairing_code_panel(_app_config(None))
+    second = client.get_pairing_code_panel(_app_config(None))
 
     assert first.has_changed is True  # first time this endpoint's been seen at all
     assert second.has_changed is False
 
 
 def test_get_pairing_code_panel_has_changed_true_when_code_changes(isolated_cwd):
-    CREDENTIALS_FILE.write_text(json.dumps({"device_id": "device-123", "device_secret": "shh"}))
-    client = BrokerClient("https://broker.example.com")
+    _seed_credentials()
+    client = _initialised_client()
 
-    client.get_pairing_code_panel(_broker_config("ABC123"))
-    regenerated = client.get_pairing_code_panel(_broker_config("XYZ789"))
-    now_paired = client.get_pairing_code_panel(_broker_config(None))
+    client.get_pairing_code_panel(_app_config("ABC123"))
+    regenerated = client.get_pairing_code_panel(_app_config("XYZ789"))
+    now_paired = client.get_pairing_code_panel(_app_config(None))
 
     assert regenerated.has_changed is True
     assert now_paired.has_changed is True
+
+
+@responses.activate
+def test_fetch_app_config_uses_real_broker_response(isolated_cwd):
+    _seed_credentials("test-device", "test-secret")
+    client = _initialised_client()
+    responses.add(
+        responses.GET,
+        f"{BROKER_URL}/api/devices/test-device/config",
+        json={
+            "interval": 20,
+            "tfl": {"app_key": "tfl-key", "stop_ids": ["940GZZLUEUS"]},
+            "weather": {"api_key": "weather-key", "location": "London"},
+            "spotify": {"enabled": True},
+            "glowmarkt": {"username": None, "password": None},
+            "pairing_code": "XYZ789",
+        },
+    )
+
+    config, pairing_code_panel = client.fetch_app_config()
+
+    assert config.interval == 20
+    assert config.tfl.stop_ids == ["940GZZLUEUS"]
+    assert config.spotify.enabled is True
+    assert pairing_code_panel.pairing_code == "XYZ789"
+    assert pairing_code_panel.device_id == "test-device"
+    assert pairing_code_panel.has_changed is True  # first time this device's ever checked
+
+
+@responses.activate
+def test_fetch_app_config_falls_back_to_empty_when_broker_unreachable(isolated_cwd):
+    _seed_credentials("test-device", "test-secret")
+    client = _initialised_client()
+    # /config deliberately left unmocked -- responses raises ConnectionError for it.
+
+    config, pairing_code_panel = client.fetch_app_config()
+
+    assert config.tfl.stop_ids == []
+    assert config.interval == 15
+    assert pairing_code_panel.pairing_code is None
+    assert pairing_code_panel.device_id == "test-device"
+    assert pairing_code_panel.has_changed is False  # nothing was fetched, so nothing to repaint
+
+
+@responses.activate
+def test_fetch_app_config_falls_back_to_empty_when_response_is_invalid(isolated_cwd):
+    _seed_credentials("test-device", "test-secret")
+    client = _initialised_client()
+    responses.add(responses.GET, f"{BROKER_URL}/api/devices/test-device/config", json={"interval": "soon"})
+
+    config, pairing_code_panel = client.fetch_app_config()
+
+    assert config.interval == 15
+    assert pairing_code_panel.pairing_code is None

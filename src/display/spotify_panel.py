@@ -3,7 +3,18 @@ import io
 import requests
 from PIL import Image, ImageDraw, ImageFont
 
+from countdown.models import SpotifyPlayingRightNow
+from display.panel import Panel
 from display.utils import HELVETICA
+
+
+class SpotifyPanel(Panel):
+    def __init__(self, playingRightNow: SpotifyPlayingRightNow) -> None:
+        self.playingRightNow = playingRightNow
+
+    def render(self, image_width: int, image_height: int) -> Image.Image:
+        # Height is dictated by the album art, not the caller.
+        return build_spotify_panel(self.playingRightNow.model_dump(), image_width)
 
 
 def _truncate_to_fit(text: str, font: ImageFont.BaseImageFont, max_width: int) -> str:
