@@ -1,0 +1,5 @@
+# Commits that are mechanical reformatting; skipped by `git blame`.
+# Enable locally with: git config blame.ignoreRevsFile .git-blame-ignore-revs
+
+# Add ruff format, enforced in CI (#57)
+9771c04f31466d69c6de57f5741643dc9a4ead7a
