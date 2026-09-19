@@ -1,0 +1,32 @@
+name: pi-telemetry CI
+
+on:
+  push:
+    branches: [ "main" ]
+    paths:
+      - "pi-telemetry/**"
+      - ".github/workflows/pi-telemetry-ci.yml"
+  pull_request:
+    branches: [ "main" ]
+    paths:
+      - "pi-telemetry/**"
+      - ".github/workflows/pi-telemetry-ci.yml"
+
+env:
+  CARGO_TERM_COLOR: always
+
+defaults:
+  run:
+    working-directory: pi-telemetry
+
+jobs:
+  build:
+
+    runs-on: ubuntu-latest
+
+    steps:
+    - uses: actions/checkout@v4
+    - name: Build
+      run: cargo build --verbose
+    - name: Run tests
+      run: cargo test --verbose

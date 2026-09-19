@@ -1,0 +1,68 @@
+name: countdown CI
+
+on:
+  push:
+    paths:
+      - "countdown/**"
+      - ".github/workflows/countdown-ci.yml"
+  pull_request:
+    paths:
+      - "countdown/**"
+      - ".github/workflows/countdown-ci.yml"
+
+defaults:
+  run:
+    working-directory: countdown
+
+jobs:
+  lint:
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@v4
+
+    - name: Set up uv
+      uses: astral-sh/setup-uv@v5
+
+    - name: Run Ruff
+      run: uv run --frozen --only-group dev ruff check --output-format=github .
+
+    - name: Check Ruff formatting
+      run: uv run --frozen --only-group dev ruff format --check --diff .
+
+  test:
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@v4
+
+    - name: Set up uv
+      uses: astral-sh/setup-uv@v5
+
+    - name: Set up Python
+      uses: actions/setup-python@v5
+      with:
+        python-version: "3.12"
+
+    - name: Install lgpio build dependencies
+      run: sudo apt-get update && sudo apt-get install -y --no-install-recommends swig liblgpio-dev
+
+    - name: Install dependencies
+      run: uv sync --frozen
+
+    - name: Run tests
+      run: uv run pytest --cov --cov-report=term-missing --cov-report=xml
+
+    - name: Upload snapshot failure artifacts
+      if: failure()
+      uses: actions/upload-artifact@v4
+      with:
+        name: snapshot-failures
+        path: countdown/tests/images/_failures/
+        if-no-files-found: ignore
+
+    - name: Add coverage summary
+      if: always()
+      run: uv run coverage report --format=markdown >> "$GITHUB_STEP_SUMMARY"

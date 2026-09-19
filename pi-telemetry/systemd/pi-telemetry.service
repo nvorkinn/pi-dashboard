@@ -1,0 +1,10 @@
+[Unit]
+Description=Publish pi-telemetry data to MQTT
+Wants=network-online.target
+After=network-online.target
+
+[Service]
+Type=oneshot
+User=@USER@
+EnvironmentFile=/etc/pi-telemetry/env
+ExecStart=/opt/pi-telemetry/pi-telemetry
