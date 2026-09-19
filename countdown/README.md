@@ -94,6 +94,10 @@ this device never holds a Spotify token itself). The code is only shown
 once per device; credentials persist in `/opt/countdown/.auth_broker_device`
 across restarts.
 
+Once paired, a device that isn't set up enough yet (it needs a weather location
+and at least one bus or tube stop) shows a "You're paired!" checklist of what's
+still missing, and doesn't poll any API, until they're set.
+
 That config is the one thing the app can't run without, so there's no empty
 fallback. If the broker can't be reached at boot (no network yet, broker down,
 first-time registration failing), the display shows a "How embarrassing..."

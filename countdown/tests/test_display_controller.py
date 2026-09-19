@@ -376,3 +376,29 @@ def test_the_splash_on_a_pi_with_no_panel_is_skipped_quietly(no_preview, clock):
 
     assert isinstance(img, Image.Image)
     assert epd.calls == ["init"]
+
+
+def test_the_setup_screen_is_one_full_paint_and_resets_what_is_remembered(no_preview, clock):
+    from display.setup_panel import SetupPanel
+
+    epd = FakeEpd(answers=True)
+    controller = controller_with(epd)
+    controller.display_screen(frame())
+    epd.calls.clear()
+
+    controller.display_setup_screen(SetupPanel(["a weather location"]))
+    assert epd.calls == ["init", "display", "sleep"]
+
+    epd.calls.clear()
+    controller.display_screen(frame())
+    assert epd.calls == ["init", "display", "sleep"]
+
+
+def test_the_setup_checklist_goes_to_the_log_when_there_is_no_panel(no_preview, clock, capsys):
+    from display.setup_panel import SetupPanel
+
+    controller = controller_with(FakeEpd(answers=False))
+
+    controller.display_setup_screen(SetupPanel(["a weather location", "a bus or tube stop"]))
+
+    assert "a weather location, a bus or tube stop" in capsys.readouterr().out

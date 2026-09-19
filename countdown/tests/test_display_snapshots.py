@@ -49,8 +49,10 @@ from countdown.models import (
 from display.bus_arrival_panel import BusArrivalPanel
 from display.combined_arrival_panel import CombinedArrivalPanel
 from display.display import DisplayController
+from display.empty_panel import EmptyPanel
 from display.energy_panel import EnergyPanel
 from display.panel import Panel
+from display.setup_panel import SetupPanel
 from display.splash_panel import SplashPanel
 from display.spotify_panel import SpotifyPanel
 from display.tube_arrival_panel import TubeArrivalPanel
@@ -222,6 +224,35 @@ def test_splash_screen_when_the_broker_cannot_be_reached(snapshot):
     snapshot.assert_matches("screen_splash", img, threshold=0.02)
 
 
+def test_empty_screen_stays_clear_of_the_screen_edges():
+    img = EmptyPanel().render(display.display.TOTAL_WIDTH, display.display.TOTAL_HEIGHT).convert("L")
+    width, height = img.size
+
+    for edge in [(0, 0, 40, height), (width - 40, 0, width, height)]:
+        assert img.crop(edge).getextrema() == (255, 255)
+
+
+def test_setup_checklist_screen(snapshot):
+    img = SetupPanel(["a weather location", "a bus or tube stop"]).render(
+        display.display.TOTAL_WIDTH, display.display.TOTAL_HEIGHT
+    )
+    snapshot.assert_matches("screen_setup_checklist", img, threshold=0.02)
+
+
+@pytest.mark.parametrize("missing", [["a weather location"], ["a weather location", "a bus or tube stop"], ["x"] * 4])
+def test_setup_checklist_stays_on_the_screen(missing):
+    img = SetupPanel(missing).render(display.display.TOTAL_WIDTH, display.display.TOTAL_HEIGHT).convert("L")
+    width, height = img.size
+
+    for edge in [
+        (0, 0, 20, height),
+        (width - 20, 0, width, height),
+        (0, 0, width, 10),
+        (0, height - 10, width, height),
+    ]:
+        assert img.crop(edge).getextrema() == (255, 255)
+
+
 def test_splash_text_stays_clear_of_the_screen_edges():
     """The text is big; a longer line or a bigger font must not run off the panel."""
     img = SplashPanel().render(display.display.TOTAL_WIDTH, display.display.TOTAL_HEIGHT).convert("L")
@@ -236,7 +267,8 @@ def test_screen_with_no_panels_at_all_says_there_is_nothing_to_show(snapshot):
     a message saying so, not a blank white screen that looks broken (or a crash)."""
     img = _CONTROLLER.display_screen({})
     assert img.size == (display.display.TOTAL_WIDTH, display.display.TOTAL_HEIGHT)
-    snapshot.assert_matches("screen_nothing_to_show", img)
+    # Text-only and large: CI renders it ~1% differently from macOS (see screen_splash).
+    snapshot.assert_matches("screen_nothing_to_show", img, threshold=0.02)
 
 
 @responses.activate
