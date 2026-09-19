@@ -222,6 +222,15 @@ def test_splash_screen_when_the_broker_cannot_be_reached(snapshot):
     snapshot.assert_matches("screen_splash", img, threshold=0.02)
 
 
+def test_splash_text_stays_clear_of_the_screen_edges():
+    """The text is big; a longer line or a bigger font must not run off the panel."""
+    img = SplashPanel().render(display.display.TOTAL_WIDTH, display.display.TOTAL_HEIGHT).convert("L")
+    width, height = img.size
+
+    for edge in [(0, 0, 20, height), (width - 20, 0, width, height)]:
+        assert img.crop(edge).getextrema() == (255, 255)  # nothing but white
+
+
 def test_screen_with_no_panels_at_all_says_there_is_nothing_to_show(snapshot):
     """First cycle after boot, a paired device nobody's set up yet, or every API failing:
     a message saying so, not a blank white screen that looks broken (or a crash)."""
