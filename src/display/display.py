@@ -1,4 +1,5 @@
 import sys
+import time
 from datetime import datetime
 from pathlib import Path
 
@@ -15,6 +16,10 @@ from display.weather_panel import WeatherPanel
 
 LIB_DIR = str(Path(__file__).resolve().parent / "lib")
 
+# How long to leave it before asking a panel that didn't answer whether it's there yet,
+# so plugging a screen in later just works, without a restart.
+PANEL_RETRY_INTERVAL_S = 300
+
 
 class DisplayController:
     def __init__(self):
@@ -28,6 +33,33 @@ class DisplayController:
             print(f"Error importing epd7in5_V2: {e}")
             self.display_enabled = False
             self.epd = None
+        # None until the panel's first been asked (or if there's no driver at all); then
+        # whether it answered. Only meaningful when display_enabled: a machine with no
+        # driver at all previews via img.show() instead, and never asks a panel anything.
+        self.panel_connected: bool | None = None
+        self._next_probe = 0.0
+
+    def _wake_panel(self) -> bool:
+        """Initialises the panel, or returns False if it doesn't answer -- no screen
+        connected (or powered), which init() finds out via the POWER ON handshake, and
+        which can't be told apart from a connected one that's broken. Once a panel's
+        known to be absent it isn't asked again until PANEL_RETRY_INTERVAL_S has passed,
+        so a Pi running without a display neither waits on it every cycle nor spams the
+        log; it's said once when the answer changes."""
+        if self.panel_connected is False and time.monotonic() < self._next_probe:
+            return False
+        try:
+            self.epd.init()
+        except RuntimeError as e:
+            if self.panel_connected is not False:
+                print(f"No e-paper panel responding ({e}) -- running without a display, re-checking every 5 minutes")
+            self.panel_connected = False
+            self._next_probe = time.monotonic() + PANEL_RETRY_INTERVAL_S
+            return False
+        if self.panel_connected is False:
+            print("E-paper panel detected")
+        self.panel_connected = True
+        return True
 
     def display_screen(self, panels: dict[str, Panel | None]) -> Image.Image:
         """Composes whatever panels the registry has. A missing/None panel just leaves
@@ -65,10 +97,10 @@ class DisplayController:
         draw.text((2, TOTAL_HEIGHT - 2), f"Updated: {datetime.now().isoformat()}", "LightGray", anchor="ld")
 
         if self.display_enabled and self.epd:
-            self.epd.init()
-            self.epd.Clear()
-            self.epd.display(self.epd.getbuffer(img))
-            self.epd.sleep()
+            if self._wake_panel():
+                self.epd.Clear()
+                self.epd.display(self.epd.getbuffer(img))
+                self.epd.sleep()
         else:
             img.show()
 
@@ -129,15 +161,20 @@ class DisplayController:
         img = panel.render(TOTAL_WIDTH, TOTAL_HEIGHT)
 
         if self.display_enabled and self.epd:
-            self.epd.init()
-            self.epd.Clear()
-            self.epd.display(self.epd.getbuffer(img))
-            self.epd.sleep()
+            if self._wake_panel():
+                self.epd.Clear()
+                self.epd.display(self.epd.getbuffer(img))
+                self.epd.sleep()
         else:
             img.show()
 
         return img
 
     def shutdown(self) -> None:
-        if self.epd:
-            self.epd.sleep()
+        # Only a panel known to be awake needs putting to sleep; asking one that never
+        # answered would just wait out the busy timeout.
+        if self.epd and self.panel_connected:
+            try:
+                self.epd.sleep()
+            except RuntimeError as e:
+                print(f"Could not put the e-paper panel to sleep: {e}")
