@@ -5,47 +5,17 @@ from pathlib import Path
 from pydantic import BaseModel
 
 from countdown.abstract_client import AbstractClient
+from countdown.config_manager import AppConfig
 from countdown.http import DEFAULT_TIMEOUT
 from display.pairing_code_panel import PairingCodePanel
 
 CREDENTIALS_FILE = Path(".auth_broker_device")
-
-
-class BrokerTflConfig(BaseModel):
-    app_key: str
-    stop_ids: list[str]
-
-
-class BrokerWeatherConfig(BaseModel):
-    api_key: str
-    location: str
-
-
-class BrokerSpotifyConfig(BaseModel):
-    enabled: bool
-
 
 class BrokerGlowmarktConfig(BaseModel):
     # None, not "" -- the broker sends null when a device's owner hasn't set up
     # Glowmarkt (the common case for most gifted devices).
     username: str | None
     password: str | None
-
-
-class BrokerConfig(BaseModel):
-    interval: int
-    tfl: BrokerTflConfig
-    weather: BrokerWeatherConfig
-    spotify: BrokerSpotifyConfig
-    glowmarkt: BrokerGlowmarktConfig
-    # Non-null exactly while this device hasn't been paired with a recipient yet
-    # (the server tracks that durably, not just "has an active pairing code" --
-    # a code can expire and get regenerated without the device ever un-pairing).
-    # Checked/displayed every cycle via DisplayLoop.refresh_broker_config(), not
-    # requested once at registration -- a code generated once at boot could sit
-    # unseen and expire long before a gifted device's recipient gets around to
-    # unboxing it.
-    pairing_code: str | None
 
 
 class BrokerClient(AbstractClient):
@@ -93,11 +63,11 @@ class BrokerClient(AbstractClient):
         response.raise_for_status()
         return response.json()
 
-    def get_config(self) -> BrokerConfig:
+    def get_config(self) -> AppConfig:
         json_data = self._request("GET", f"/api/devices/{self.device_id}/config")
-        return BrokerConfig.model_validate(json_data)
+        return AppConfig.model_validate(json_data)
 
-    def get_pairing_code_panel(self, config: BrokerConfig) -> PairingCodePanel:
+    def get_pairing_code_panel(self, config: AppConfig) -> PairingCodePanel:
         """Wraps an already-fetched BrokerConfig's pairing_code as a renderable
         panel -- doesn't fetch anything itself (get_config() already did, once,
         this cycle; no reason for a second round-trip just for this field) -- and

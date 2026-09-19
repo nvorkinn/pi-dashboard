@@ -37,7 +37,7 @@ import display.energy_panel
 # display.abstract_arrival_panel (via tfl_client.py) -- importing a display.* module first
 # re-enters it mid-initialization and raises ImportError. Every other test file avoids this
 # by happening to import something from countdown first.
-from countdown.models import BusArrival, MetroStopPoint, SingleStopPoint, TubeArrival
+from countdown.models import BusArrival, MetroStopPoint, SingleStopPoint, TubeArrival, Weather
 from display.bus_arrival_panel import BusArrivalPanel
 from display.combined_arrival_panel import CombinedArrivalPanel
 from display.display import DisplayController
@@ -108,26 +108,17 @@ TUBE_ARRIVALS = [
     ),
 ]
 
-ENERGY = EnergyPanel(
-    readings_day=[1.5, 2.25] * 12,
-    readings_month=[12.0 + i * 0.3 for i in range(30)],
-    readings_year=[200.0 + i * 15 for i in range(12)],
+ENERGY = EnergyPanel([
+    {
+        'kwh': 0.15,
+        'start': '2026-09-19T01:12:36.711383'
+    }
+], 0)
+
+
+WEATHER = WeatherPanel(
+    Weather(temperature=14.2, weather_code=3, is_day=True, high=18.4, low=9.1, precipitation_probability=40)
 )
-
-
-class _FakeWeather:
-    """Minimal stand-in for pyowm's Weather -- WeatherPanel only ever touches
-    these two members, so there's nothing gained by building a real one."""
-
-    def __init__(self, weather_code: int, temp_c: float):
-        self.weather_code = weather_code
-        self._temp_c = temp_c
-
-    def temperature(self, unit: str) -> dict[str, float]:
-        return {"temp": self._temp_c}
-
-
-WEATHER = WeatherPanel(_FakeWeather(weather_code=804, temp_c=14.2))
 
 SPOTIFY_TRACK_PLAYING = {
     "song": "Around The World",
@@ -209,3 +200,12 @@ def test_partial_screen_with_no_cached_state_yet(snapshot):
     display_partial must not crash when those are still None."""
     img = _CONTROLLER.display_partial(_bus_and_tube_arrivals(), None, None, None)
     snapshot.assert_matches("partial_screen_no_cached_state", img)
+
+
+def test_weather_panel_rainy_night(snapshot):
+    """A different code and the night variant, at the shorter height the panel gets
+    while a Spotify track is playing."""
+    panel = WeatherPanel(
+        Weather(temperature=8.6, weather_code=63, is_day=False, high=11, low=6, precipitation_probability=85)
+    )
+    snapshot.assert_matches("weather_rainy_night", panel.render(528, 170))

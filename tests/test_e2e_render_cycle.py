@@ -6,7 +6,7 @@ PIL image -- catching integration bugs (mismatched fields between layers, panel 
 that per-component unit tests miss by construction.
 
 Spotify and weather are mocked at the client-method level rather than their underlying
-HTTP APIs: weather is being replaced with an Open-Meteo-based client (see #24), and
+HTTP APIs: WeatherClient has its own test suite (test_weather_client.py), and
 BrokerClient.get_current_track() is a thin passthrough to auth-broker (which has its
 own test suite) -- neither is "our" integration logic in the way TfL/Glowmarkt parsing
 is, so there's nothing gained by faking their transport layer here.
@@ -27,14 +27,14 @@ from pathlib import Path
 import responses
 from PIL import Image
 
-from countdown.broker_client import BrokerClient, BrokerConfig
+from countdown.broker_client import BrokerClient
 from countdown.config_manager import AppConfig
 from countdown.display_loop import DisplayLoop, fetch_app_config
 
 TEST_BROKER_URL = "https://broker.example.com"
 
 
-def _broker_config_json(pairing_code: str | None = None, interval: int = 0) -> dict:
+def _app_config_json(pairing_code: str | None = None, interval: int = 0) -> dict:
     return {
         "interval": interval,
         "tfl": {"app_key": "", "stop_ids": []},
@@ -85,7 +85,7 @@ METRO_ARRIVALS_JSON = [
 
 class _StubWeatherPanel:
     """Stands in for a real WeatherPanel -- weather is mocked at the client-method
-    level (see module docstring), so this never touches pyowm/Open-Meteo internals."""
+    level (see module docstring), so this never touches Open-Meteo internals."""
 
     def render(self, image_width: int, image_height: int) -> Image.Image:
         return Image.new("RGBA", (max(image_width, 1), max(image_height, 1)), (255, 255, 255, 0))
@@ -146,7 +146,7 @@ def _build_loop(
     # PairingCodePanel(...)), same as fetch_app_config() does for real -- so a
     # test that later re-polls with the same code sees has_changed=False, not a
     # spurious "first time" every call.
-    pairing_code_panel = broker.get_pairing_code_panel(BrokerConfig.model_validate(_broker_config_json(pairing_code)))
+    pairing_code_panel = broker.get_pairing_code_panel(AppConfig.model_validate(_app_config_json(pairing_code)))
     loop = DisplayLoop(broker, config, pairing_code_panel)
     monkeypatch.setattr(loop.broker, "get_current_track", lambda: spotify_track)
     monkeypatch.setattr(loop.weather, "get_weather", lambda: _StubWeatherPanel())
@@ -297,7 +297,7 @@ def test_run_only_repaints_pairing_screen_when_code_changes(isolated_cwd, monkey
     responses.add(
         responses.GET,
         f"{TEST_BROKER_URL}/api/devices/test-device/config",
-        json=_broker_config_json(pairing_code="ABC123", interval=0),
+        json=_app_config_json(pairing_code="ABC123", interval=0),
     )
 
     loop = _build_loop(config, monkeypatch, spotify_track=None, pairing_code="ABC123")

@@ -1,12 +1,13 @@
 import json
 from unittest.mock import MagicMock
 
-from countdown.broker_client import CREDENTIALS_FILE, BrokerClient, BrokerConfig
+from countdown.broker_client import CREDENTIALS_FILE, BrokerClient
+from countdown.config_manager import AppConfig
 from countdown.http import DEFAULT_TIMEOUT
 
 
-def _broker_config(pairing_code: str | None) -> BrokerConfig:
-    return BrokerConfig(
+def _app_config(pairing_code: str | None) -> AppConfig:
+    return AppConfig(
         interval=15,
         tfl={"app_key": "", "stop_ids": []},
         weather={"api_key": "", "location": ""},
@@ -145,7 +146,7 @@ def test_get_pairing_code_panel_wraps_code_and_device_id(isolated_cwd):
     CREDENTIALS_FILE.write_text(json.dumps({"device_id": "device-123", "device_secret": "shh"}))
     client = BrokerClient("https://broker.example.com")
 
-    panel = client.get_pairing_code_panel(_broker_config("ABC123"))
+    panel = client.get_pairing_code_panel(_app_config("ABC123"))
 
     assert panel.pairing_code == "ABC123"
     assert panel.device_id == "device-123"
@@ -159,8 +160,8 @@ def test_get_pairing_code_panel_has_changed_false_on_repeat(isolated_cwd):
     CREDENTIALS_FILE.write_text(json.dumps({"device_id": "device-123", "device_secret": "shh"}))
     client = BrokerClient("https://broker.example.com")
 
-    first = client.get_pairing_code_panel(_broker_config(None))
-    second = client.get_pairing_code_panel(_broker_config(None))
+    first = client.get_pairing_code_panel(_app_config(None))
+    second = client.get_pairing_code_panel(_app_config(None))
 
     assert first.has_changed is True  # first time this endpoint's been seen at all
     assert second.has_changed is False
@@ -170,9 +171,9 @@ def test_get_pairing_code_panel_has_changed_true_when_code_changes(isolated_cwd)
     CREDENTIALS_FILE.write_text(json.dumps({"device_id": "device-123", "device_secret": "shh"}))
     client = BrokerClient("https://broker.example.com")
 
-    client.get_pairing_code_panel(_broker_config("ABC123"))
-    regenerated = client.get_pairing_code_panel(_broker_config("XYZ789"))
-    now_paired = client.get_pairing_code_panel(_broker_config(None))
+    client.get_pairing_code_panel(_app_config("ABC123"))
+    regenerated = client.get_pairing_code_panel(_app_config("XYZ789"))
+    now_paired = client.get_pairing_code_panel(_app_config(None))
 
     assert regenerated.has_changed is True
     assert now_paired.has_changed is True

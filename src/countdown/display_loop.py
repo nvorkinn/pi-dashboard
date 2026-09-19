@@ -45,17 +45,10 @@ def fetch_app_config(broker: BrokerClient) -> tuple[AppConfig, PairingCodePanel]
     one case bypasses BrokerClient's own cache entirely (via has_changed=False
     directly, not get_pairing_code_panel()) since there's nothing to compare
     against yet -- no fetch happened at all."""
-    fetched = safe_fetch(lambda: broker.get_config(), None)
-    if fetched is None:
+    config = safe_fetch(lambda: broker.get_config(), None)
+    if config is None:
         return AppConfig(), PairingCodePanel(None, broker.device_id, has_changed=False)
-    config = AppConfig(
-        interval=fetched.interval,
-        tfl=TflConfig(**fetched.tfl.model_dump()),
-        weather=WeatherConfig(**fetched.weather.model_dump()),
-        spotify=SpotifyConfig(**fetched.spotify.model_dump()),
-        glowmarkt=GlowmarktConfig(**fetched.glowmarkt.model_dump()),
-    )
-    return config, broker.get_pairing_code_panel(fetched)
+    return config, broker.get_pairing_code_panel(config)
 
 
 class DisplayLoop:
@@ -113,26 +106,8 @@ class DisplayLoop:
                 else:
                     self.page_count = self.tfl.init()
                     arrival_panel = CombinedArrivalPanel(self.tfl.get_next_arrivals())
+                    energy_panel = self.glow.get_readings()
                     if self.page % self.page_count == 0:
-                        # Most gifted devices never get Glowmarkt set up on the broker at
-                        # all -- username/password come back None, not omitted, so this
-                        # is the normal case for most devices, not a failure to recover
-                        # from. Skip attempting auth entirely rather than hitting
-                        # Glowmarkt with known-missing credentials every cycle forever.
-                        have_glowmarkt_creds = self.config.glowmarkt.username and self.config.glowmarkt.password
-                        if self.resource_id is None and have_glowmarkt_creds:
-                            self.resource_id = safe_fetch(lambda: self.glow.get_electricity_resource_id(), None)
-                        if self.resource_id is not None:
-                            self.energy["day"] = safe_fetch(
-                                lambda: self.glow.get_day_readings(self.resource_id), self.energy["day"]
-                            )
-                            self.energy["month"] = safe_fetch(
-                                lambda: self.glow.get_month_readings(self.resource_id), self.energy["month"]
-                            )
-                            self.energy["year"] = safe_fetch(
-                                lambda: self.glow.get_year_readings(self.resource_id), self.energy["year"]
-                            )
-                        energy_panel = EnergyPanel(self.energy["day"], self.energy["month"], self.energy["year"])
                         # The broker already gates this on spotify.enabled server-side, so
                         # there's no local check to duplicate here (and no race on cycle 1
                         # before refresh_broker_config has synced that flag from the server).
@@ -140,7 +115,6 @@ class DisplayLoop:
                         self.weather_panel = safe_fetch(lambda: self.weather.get_weather(), self.weather_panel)
                         self.display.display_screen(arrival_panel, energy_panel, self.current_track, self.weather_panel)
                     else:
-                        energy_panel = EnergyPanel(self.energy["day"], self.energy["month"], self.energy["year"])
                         self.display.display_partial(
                             arrival_panel, energy_panel, self.current_track, self.weather_panel
                         )

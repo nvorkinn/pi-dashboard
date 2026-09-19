@@ -1,7 +1,15 @@
 from abc import ABC
+from enum import StrEnum, auto
 
 from countdown.http import build_retrying_session
 
+class ClientStatus(StrEnum):
+    DISABLED = auto()
+    UNINITIALISED = auto()
+    INITIALISING = auto()
+    CONNECTED = auto()
+    ERROR = auto()
+    FATAL = auto()
 
 class AbstractClient(ABC):  # noqa: B024 -- no abstract methods on purpose; ABC just marks it as a base
     """Base for the API clients (TflClient, GlowClient, BrokerClient, ...): just a
@@ -15,6 +23,7 @@ class AbstractClient(ABC):  # noqa: B024 -- no abstract methods on purpose; ABC 
     def __init__(self):
         self.session = build_retrying_session()
         self.cache: dict[str, object] = {}
+        self.status: ClientStatus = ClientStatus.UNINITIALISED
 
     def _cache_and_compare(self, endpoint: str, data: object) -> bool:
         """Returns True if the last call to the same endpoint returned the same data.

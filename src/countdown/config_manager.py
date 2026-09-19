@@ -44,3 +44,4 @@ class AppConfig(BaseModel):
     spotify: SpotifyConfig = Field(default_factory=SpotifyConfig)
     weather: WeatherConfig = Field(default_factory=WeatherConfig)
     glowmarkt: GlowmarktConfig = Field(default_factory=GlowmarktConfig)
+    pairing_code: str | None = Field(default=None)
