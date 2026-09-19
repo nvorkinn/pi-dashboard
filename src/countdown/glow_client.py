@@ -10,8 +10,10 @@ from countdown.models import Entity, Readings
 from display.energy_panel import EnergyPanel
 
 
-def _get_utc_offset(now: datetime = datetime.now()) -> str:
-    utc_offset = now.astimezone().utcoffset()
+def _get_utc_offset(now: datetime | None = None) -> str:
+    # Evaluated per call, not as a default argument: that would freeze the offset at
+    # import time, wrong for a long-running device after the clocks change.
+    utc_offset = (now or datetime.now()).astimezone().utcoffset()
     if utc_offset is None:
         raise ValueError("Could not find a UTC offset")
     offset_int: int = floor(utc_offset.seconds * -1 / 60)
