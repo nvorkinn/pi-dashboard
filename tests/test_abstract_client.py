@@ -2,6 +2,7 @@ import asyncio
 from datetime import datetime, timedelta
 
 from countdown.abstract_client import AbstractClient
+from countdown.config_manager import TflConfig
 
 
 class FakeClient(AbstractClient):
@@ -42,3 +43,11 @@ def test_cache_and_compare_is_false_the_first_time_even_for_none():
     assert client._cache_and_compare("endpoint", None) is False
     assert client._cache_and_compare("endpoint", None) is True
     assert client._cache_and_compare("endpoint", "changed") is False
+
+
+def test_needs_refresh_is_true_for_any_config_change_by_default():
+    client = FakeClient(TflConfig(stop_ids=["a"]))
+
+    assert not client.needs_refresh(TflConfig(stop_ids=["a"]))
+    assert client.needs_refresh(TflConfig(stop_ids=["a", "b"]))
+    assert client.needs_refresh(TflConfig(stop_ids=["a"], app_key="new"))

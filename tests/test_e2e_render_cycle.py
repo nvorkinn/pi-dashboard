@@ -424,9 +424,26 @@ def test_refresh_broker_config_applies_the_new_interval_and_pairing_state(isolat
     )
     loop = _build_loop(AppConfig(), monkeypatch, pairing_code="ABC123")
 
-    loop.refresh_broker_config()
+    asyncio.run(loop.refresh_broker_config())
 
     assert loop.interval == 42
     assert loop.config.interval == 42
     assert loop.pairing_code_panel.pairing_code is None  # the device just got paired
     assert loop.pairing_code_panel.has_changed is True
+
+
+@responses.activate
+def test_config_changes_from_the_broker_reach_the_screen_on_the_next_cycle(isolated_cwd, monkeypatch):
+    """The device boots with nothing set up; the owner then adds a stop on the broker.
+    Cycle 2 must pick that up without a restart."""
+    _mock_tfl({"490000123W": BUS_STOP_JSON}, {"490000123W": BUS_ARRIVALS_JSON})
+    new_config = _app_config_json()
+    new_config["tfl"]["stop_ids"] = ["490000123W"]
+    responses.add(responses.GET, f"{TEST_BROKER_URL}/api/devices/test-device/config", json=new_config)
+    loop = _build_loop(AppConfig(), monkeypatch)
+    shown = _spy_on_display_screen(loop, monkeypatch)
+
+    _run_cycles(loop, monkeypatch, cycles=2)
+
+    assert shown[0].get("tfl") is None
+    assert len(shown[1]["tfl"].arrival_panels) == 1
