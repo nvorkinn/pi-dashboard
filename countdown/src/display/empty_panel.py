@@ -9,8 +9,8 @@ HINT = ImageFont.truetype(str(FONTS_DIR / "Ubuntu-Medium.ttf"), 34)
 
 
 class EmptyPanel(Panel):
-    """Shown full-screen when there's nothing to display: no stops, weather, energy account or
-    Spotify, or every API still loading or unreachable."""
+    """Shown full-screen when the device is set up but has nothing to display yet: the first
+    data hasn't arrived, or every API is failing."""
 
     def render(self, image_width: int, image_height: int) -> Image.Image:
         img = Image.new("RGBA", (image_width, image_height), (255, 255, 255, 255))
@@ -19,9 +19,9 @@ class EmptyPanel(Panel):
 
         lines = [
             (-110, "Nothing to show yet", TITLE),
-            (-25, "Set up your bus stops and weather", INSTRUCTION),
-            (30, "at nikolaivorkinn.com", INSTRUCTION),
-            (110, "(or the first data is still on its way)", HINT),
+            (-25, "Waiting for your first bus times", INSTRUCTION),
+            (30, "and weather to arrive", INSTRUCTION),
+            (110, "(if it stays like this, check the Wi-Fi)", HINT),
         ]
         for offset, text, font in lines:
             draw.text((center_x, center_y + offset), text, anchor="mm", font=font, fill="black")

@@ -11,6 +11,7 @@ from countdown.config_manager import (
 )
 from display.display import DisplayController
 from display.pairing_code_panel import PairingCodePanel
+from display.setup_panel import SetupPanel
 
 
 def safe_fetch(func, fallback):
@@ -50,6 +51,7 @@ class DisplayLoop:
         self.interval = config.interval
         self.display = display if display is not None else DisplayController()
         self.api_reg = ApiRegistry()
+        self._setup_shown: list[str] | None = None
         # Unlike tfl/weather, resolving a Glowmarkt resource id means actually
         # authenticating against Glowmarkt's own API, not just reading a value out
         # of config -- deferred to run(), retried lazily each full-refresh cycle via
@@ -64,6 +66,7 @@ class DisplayLoop:
         while True:
             try:
                 if self.pairing_code_panel.pairing_code:
+                    self._setup_shown = None
                     # Only repaint when the code actually changes (BrokerClient's own
                     # cache decides that, see get_pairing_code_panel) -- this is a full
                     # e-paper refresh, and a gifted device can sit unpaired for hours
@@ -71,7 +74,12 @@ class DisplayLoop:
                     # whole window is avoidable hardware wear, not just noise.
                     if self.pairing_code_panel.has_changed:
                         self.display.display_pairing_screen(self.pairing_code_panel)
+                elif self.config.setup_missing:
+                    if self.config.setup_missing != self._setup_shown:
+                        self.display.display_setup_screen(SetupPanel(self.config.setup_missing))
+                        self._setup_shown = list(self.config.setup_missing)
                 else:
+                    self._setup_shown = None
                     panels = await self.api_reg.update_all()
                     self.display.display_screen(panels)
             except requests.exceptions.RequestException as e:

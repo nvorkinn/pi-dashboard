@@ -91,6 +91,7 @@ def wait(broker, display=None):
 
     async def sleep(seconds):
         delays.append(seconds)
+        assert len(delays) < 50, "wait_for_config is retrying forever"
 
     result = asyncio.run(app.wait_for_config(broker, display, sleep=sleep))
     return result, display, delays

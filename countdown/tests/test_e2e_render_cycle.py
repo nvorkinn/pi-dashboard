@@ -47,7 +47,9 @@ GLOWMARKT_URL = "https://api.glowmarkt.com/api/v0-1"
 NOW_PLAYING_URL = f"{TEST_BROKER_URL}/api/devices/test-device/now-playing"
 
 
-def _app_config_json(pairing_code: str | None = None, interval: int = 1) -> dict:
+def _app_config_json(
+    pairing_code: str | None = None, interval: int = 1, setup_missing: list[str] | None = None
+) -> dict:
     return {
         "interval": interval,
         "tfl": {"app_key": "", "stop_ids": []},
@@ -55,6 +57,7 @@ def _app_config_json(pairing_code: str | None = None, interval: int = 1) -> dict
         "spotify": {"enabled": False},
         "glowmarkt": {"username": None, "password": None},
         "pairing_code": pairing_code,
+        "setup_missing": setup_missing or [],
     }
 
 
@@ -463,3 +466,69 @@ def test_the_first_cycle_reports_how_long_startup_took_once(isolated_cwd, monkey
     _run_cycles(loop, monkeypatch, cycles=2)
 
     assert capsys.readouterr().out.count("First cycle finished") == 1
+
+
+MISSING_BOTH = ["a weather location", "a bus or tube stop"]
+
+
+def _spy_on_setup_screen(loop: DisplayLoop, monkeypatch) -> list[list[str]]:
+    seen: list[list[str]] = []
+    monkeypatch.setattr(loop.display, "display_setup_screen", lambda panel: seen.append(list(panel.missing)))
+    return seen
+
+
+def _mock_config(**kwargs) -> None:
+    responses.add(responses.GET, f"{TEST_BROKER_URL}/api/devices/test-device/config", json=_app_config_json(**kwargs))
+
+
+@responses.activate
+def test_run_shows_the_setup_checklist_once_and_leaves_the_apis_alone_until_set_up(isolated_cwd, monkeypatch):
+    _mock_config(setup_missing=MISSING_BOTH)
+    loop = _build_loop(make_config(setup_missing=MISSING_BOTH), monkeypatch)
+    shown = _spy_on_display_screen(loop, monkeypatch)
+    setup_screens = _spy_on_setup_screen(loop, monkeypatch)
+
+    _run_cycles(loop, monkeypatch, cycles=2)
+
+    assert setup_screens == [MISSING_BOTH]
+    assert shown == []
+    assert loop.api_reg.panels == {}
+
+
+@responses.activate
+def test_run_moves_on_to_the_dashboard_once_setup_is_complete(isolated_cwd, monkeypatch):
+    _mock_config(setup_missing=[])
+    loop = _build_loop(make_config(setup_missing=MISSING_BOTH), monkeypatch)
+    shown = _spy_on_display_screen(loop, monkeypatch)
+    setup_screens = _spy_on_setup_screen(loop, monkeypatch)
+
+    _run_cycles(loop, monkeypatch, cycles=2)
+
+    assert setup_screens == [MISSING_BOTH]
+    assert len(shown) == 1
+
+
+@responses.activate
+def test_a_pairing_code_takes_precedence_over_the_setup_checklist(isolated_cwd, monkeypatch):
+    loop = _build_loop(make_config(setup_missing=MISSING_BOTH), monkeypatch, pairing_code="ABC123")
+    setup_screens = _spy_on_setup_screen(loop, monkeypatch)
+    pairing_screens = []
+    monkeypatch.setattr(
+        loop.display, "display_pairing_screen", lambda panel: pairing_screens.append(panel.pairing_code)
+    )
+
+    _run_cycles(loop, monkeypatch)
+
+    assert pairing_screens == ["ABC123"]
+    assert setup_screens == []
+
+
+@responses.activate
+def test_the_setup_checklist_is_repainted_when_the_list_changes(isolated_cwd, monkeypatch):
+    _mock_config(setup_missing=["a bus or tube stop"])
+    loop = _build_loop(make_config(setup_missing=MISSING_BOTH), monkeypatch)
+    setup_screens = _spy_on_setup_screen(loop, monkeypatch)
+
+    _run_cycles(loop, monkeypatch, cycles=2)
+
+    assert setup_screens == [MISSING_BOTH, ["a bus or tube stop"]]

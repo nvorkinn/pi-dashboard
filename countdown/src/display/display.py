@@ -10,6 +10,7 @@ from display.combined_arrival_panel import CombinedArrivalPanel
 from display.empty_panel import EmptyPanel
 from display.pairing_code_panel import PairingCodePanel
 from display.panel import Panel
+from display.setup_panel import SetupPanel
 from display.utils import TOTAL_HEIGHT, TOTAL_WIDTH
 
 LIB_DIR = str(Path(__file__).resolve().parent / "lib")
@@ -213,6 +214,17 @@ class DisplayController:
                 print(
                     f"No display to show the pairing code on -- it is {panel.pairing_code} (device {panel.device_id})"
                 )
+        else:
+            img.show()
+
+        return img
+
+    def display_setup_screen(self, panel: SetupPanel) -> Image.Image:
+        img = panel.render(TOTAL_WIDTH, TOTAL_HEIGHT)
+
+        if self.display_enabled and self.epd:
+            if not self._paint_whole_screen(img):
+                print(f"No display to show the setup checklist on -- still needed: {', '.join(panel.missing)}")
         else:
             img.show()
 

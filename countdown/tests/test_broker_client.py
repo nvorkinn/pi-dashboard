@@ -22,6 +22,7 @@ def _app_config(pairing_code: str | None) -> AppConfig:
         spotify={"enabled": False},
         glowmarkt={"username": None, "password": None},
         pairing_code=pairing_code,
+        setup_missing=[],
     )
 
 
@@ -107,6 +108,7 @@ def test_get_config_parses_response(isolated_cwd):
                 "spotify": {"enabled": True},
                 "glowmarkt": {"username": "me@example.com", "password": "hunter2"},
                 "pairing_code": None,
+                "setup_missing": [],
             }
         )
     )
@@ -134,6 +136,7 @@ def test_get_config_accepts_null_glowmarkt_credentials(isolated_cwd):
                 "spotify": {"enabled": False},
                 "glowmarkt": {"username": None, "password": None},
                 "pairing_code": "ABC123",
+                "setup_missing": [],
             }
         )
     )
@@ -196,6 +199,7 @@ def test_fetch_app_config_uses_real_broker_response(isolated_cwd):
             "spotify": {"enabled": True},
             "glowmarkt": {"username": None, "password": None},
             "pairing_code": "XYZ789",
+            "setup_missing": [],
         },
     )
 
