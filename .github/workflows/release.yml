@@ -84,4 +84,5 @@ jobs:
           countdown/packaging/systemd/countdown.service \
           "${{ env.BIN_NAME }}-${{ env.TARGET }}" \
           secrets.zip \
+          install.sh \
           --title "$GITHUB_REF_NAME" --generate-notes
