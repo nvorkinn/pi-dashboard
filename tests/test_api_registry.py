@@ -205,6 +205,30 @@ def test_update_all_omits_a_client_that_has_never_succeeded():
     assert asyncio.run(registry.update_all()) == {"weather": "sunny"}
 
 
+def test_update_all_publishes_health_after_polling_the_clients():
+    tfl = FakeClient("arrivals")
+    registry = registry_with(tfl=tfl)
+    registry.pub = health = FakeClient(None)
+
+    asyncio.run(registry.update_all())
+
+    assert (tfl.updates, health.updates) == (1, 1)
+
+
+def test_update_all_still_returns_the_panels_when_publishing_health_fails():
+    registry = registry_with(weather=FakeClient("sunny"))
+    registry.pub = FakeClient(ConnectionError("mqtt down"))
+
+    assert asyncio.run(registry.update_all()) == {"weather": "sunny"}
+
+
+def test_the_publisher_reads_the_registrys_own_client_dict():
+    registry = registry_with(tfl=FakeClient("arrivals"))
+
+    assert registry.pub.clients is registry.clients
+    assert registry.pub.api_names == [member.api_name for member in ClientClasses]
+
+
 @pytest.mark.parametrize("bad", [ValueError("bad"), KeyError("bad")])
 def test_update_all_never_lets_one_clients_failure_escape(bad):
     registry = registry_with(a=FakeClient(bad), b=FakeClient("fine"))

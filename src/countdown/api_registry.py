@@ -4,6 +4,7 @@ from enum import Enum
 from countdown.abstract_client import AbstractClient
 from countdown.config_manager import ApiConfig, AppConfig
 from countdown.glow_client import GlowClient
+from countdown.mqtt_publisher import MqttPublisher
 from countdown.spotify_client import SpotifyClient
 from countdown.tfl_client import TflClient
 from countdown.weather_client import WeatherClient
@@ -25,6 +26,8 @@ class ApiRegistry:
     def __init__(self):
         self.clients: dict[str, AbstractClient] = {}
         self.panels: dict[str, Panel | None] = {}
+        # Shares self.clients (mutated in place, never reassigned) to read their statuses.
+        self.pub = MqttPublisher.from_env(self.clients, [member.api_name for member in ClientClasses])
 
     async def on_config_update(self, config: AppConfig) -> None:
         """Brings the registry in line with `config`, touching only what changed: a
@@ -74,4 +77,16 @@ class ApiRegistry:
                 print(f"Error updating {api_name}: {outcome}")
             else:
                 self.panels[api_name] = outcome
+        await self._publish_health()
         return dict(self.panels)
+
+    async def _publish_health(self) -> None:
+        """Runs after the clients so the statuses it reports are this cycle's. Like a
+        client failing, an MQTT failure is logged, never raised: telemetry must not cost
+        the display a refresh."""
+        if not self.pub.is_due:
+            return
+        try:
+            await self.pub.update()
+        except Exception as e:
+            print(f"Error publishing health over MQTT: {e}")
