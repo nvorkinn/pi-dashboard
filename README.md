@@ -102,6 +102,16 @@ Glowmarkt credentials, which are the frame owner's own energy account and
 never shared with other devices -- comes from there, so there's no local
 secret file on the device at all.
 
+Reporting API health to Home Assistant is optional and configured the same way as
+[pi-telemetry](https://github.com/nvorkinn/pi-telemetry), which it sits alongside: the
+service loads `/etc/pi-telemetry/env` (if it exists) for `MQTT_BROKER_HOST`,
+`MQTT_BROKER_PORT`, `MQTT_BROKER_USERNAME`, `MQTT_BROKER_PASSWORD` and `DEVICE_ID`.
+With no `MQTT_BROKER_HOST` it doesn't publish at all. Countdown adds a status sensor
+per API and an "API problem" sensor to the same Home Assistant device as
+pi-telemetry's (same `DEVICE_ID`), publishing to `pi-telemetry/<DEVICE_ID>/countdown/state`.
+The env file is only read when the service starts, so restart countdown
+(`sudo systemctl restart countdown`) after installing pi-telemetry or editing it.
+
 Once installed:
 
 ```bash

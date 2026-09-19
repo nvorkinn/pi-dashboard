@@ -8,6 +8,9 @@ Type=simple
 User=@USER@
 WorkingDirectory=@WORKING_DIRECTORY@
 Environment=BROKER_URL=https://auth.nikolaivorkinn.com
+# Shared with pi-telemetry (MQTT_BROKER_HOST etc, DEVICE_ID). Optional: without it
+# there's no MQTT host, so health reporting to Home Assistant is simply off.
+EnvironmentFile=-/etc/pi-telemetry/env
 ExecStart=@EXEC_START@
 Restart=always
 RestartSec=5
