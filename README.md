@@ -1,11 +1,21 @@
-# pi-setup
+# pi-dashboard
 
-One script that provisions a Raspberry Pi with both
-[countdown](https://github.com/nvorkinn/countdown) and
-[pi-telemetry](https://github.com/nvorkinn/pi-telemetry), each installed via
-its own release and set up as its own systemd unit. It also hands each app
-its real secrets, decrypted from this repo, so you don't have to copy
-`.env`/`env` files onto every Pi by hand.
+A Raspberry Pi e-paper dashboard and the telemetry that goes with it, in one
+repo:
+
+- [`countdown/`](countdown/) -- the long-running Python app that drives the
+  display.
+- [`pi-telemetry/`](pi-telemetry/) -- a short-lived Rust binary, run once a
+  minute by a systemd timer, that reports Pi telemetry to Home Assistant over
+  MQTT.
+- Root -- `install.sh`, which provisions a Pi with both, and `secrets/`, the
+  encrypted config it hands them.
+
+The two apps are always deployed together and share config (`DEVICE_ID` and
+the MQTT settings in `/etc/pi-telemetry/env`), so they're released together:
+one tag builds the countdown wheel, the pi-telemetry binary and the secrets
+bundle, and `install.sh` installs exactly that tag. Each app is still its own
+systemd unit, and its own installer can be used on its own.
 
 Uses the [`gh` CLI](https://cli.github.com) (bootstrapped automatically if
 missing) to resolve releases and download assets, since it handles
@@ -15,44 +25,49 @@ needs the asset API plus an `Accept` header, because a private repo's
 
 ## Install
 
-All three repos involved here are private -- `nvorkinn/countdown`,
-`nvorkinn/pi-telemetry`, and this repo itself, since fetching `install.sh`
-in the first place is also a private-repo fetch. So you need one GitHub
-token with read access to **all three**, not just the two apps -- create
-one at
+This repo is private, and fetching `install.sh` in the first place is also a
+private-repo fetch, so you need a GitHub token with read access to it --
+create one at
 [github.com/settings/personal-access-tokens](https://github.com/settings/personal-access-tokens),
-fine-grained, read-only, scoped to `countdown`, `pi-telemetry`, and
-`pi-setup`. It has to be in your shell *before* the very first `curl` that
-fetches this script.
+fine-grained, read-only, scoped to `pi-dashboard`. It has to be in your
+shell *before* the very first `curl` that fetches this script.
 
 Nothing here is ever fetched from `main` -- every fetch is pinned to a
-specific tagged release, including `pi-setup`'s own `install.sh`. Check
-[the releases page](https://github.com/nvorkinn/pi-setup/releases) for the
-current tag (there's no script running yet at the very first `curl` to
+specific tagged release. Check
+[the releases page](https://github.com/nvorkinn/pi-dashboard/releases) for
+the tag you want (there's no script running yet at the very first `curl` to
 resolve "latest" for you, so it's the one place you look it up by hand) and
-pass it explicitly, both in the URL and as the first argument:
+pass it explicitly, both in the URL and as the first argument. The script
+installs exactly that release of both apps:
 
 ```sh
 export GITHUB_TOKEN=github_pat_...
 curl -fsSL -H "Authorization: Bearer $GITHUB_TOKEN" \
-    https://raw.githubusercontent.com/nvorkinn/pi-setup/v1.0.0/install.sh \
+    https://raw.githubusercontent.com/nvorkinn/pi-dashboard/v1.0.0/install.sh \
     | sudo -E env GITHUB_TOKEN="$GITHUB_TOKEN" bash -s -- \
-        v1.0.0 <device name> [countdown_version] [pi_telemetry_version]
+        v1.0.0 <device name>
 ```
 
 `<device name>` is required -- see [Device name](#device-name) below.
 
-`countdown_version`/`pi_telemetry_version` are release tags too (e.g.
-`v0.3.1`), but *those* don't need a manual lookup -- both default to
-`latest`, resolved automatically via the releases API once `install.sh` is
-actually running.
-
 The first run also asks for the age private key (see below) via a hidden
 prompt. Both the GitHub token and the age key are cached under
-`/etc/pi-setup` (root-only) afterwards, so re-running the installer to
-update doesn't ask again -- except `GITHUB_TOKEN` still needs to be in your
-environment for that first `curl`, since it happens before this script (and
-its cache) exists.
+`/etc/pi-setup` (root-only) afterwards, so re-running the installer with a
+newer tag to update doesn't ask again -- except `GITHUB_TOKEN` still needs to
+be in your environment for that first `curl`, since it happens before this
+script (and its cache) exists.
+
+## Releasing
+
+Push a `v*` tag on a commit that's on `main`; `.github/workflows/release.yml`
+builds everything and creates the GitHub release. The tag is the version of
+both apps -- it's stamped into the wheel and the binary at build time, so the
+`version` in `countdown/pyproject.toml` and `pi-telemetry/Cargo.toml` is just
+a placeholder and doesn't need bumping.
+
+Each app also has its own CI workflow that only runs when files under its
+folder change (`.github/workflows/countdown-ci.yml`,
+`.github/workflows/pi-telemetry-ci.yml`).
 
 ## Device name
 
@@ -78,7 +93,7 @@ when that happens. Re-run with the same name to keep it.
 Each app's real secrets file (countdown's `.env`, pi-telemetry's
 `/etc/pi-telemetry/env`) is encrypted with [age](https://age-encryption.org)
 and committed here as `secrets/<app>.env.age`. `install.sh` gets them from
-the `pi-setup.zip` release asset (built by `.github/workflows/release.yml`)
+the `secrets.zip` release asset (built by `.github/workflows/release.yml`)
 via `gh release download`, not a direct file fetch. There's one keypair for
 all of it:
 
@@ -99,7 +114,7 @@ have to edit by hand).
 ### Adding or updating a secret
 
 Edit the real file locally (e.g. a scratch copy of countdown's `.env` or
-pi-telemetry's `systemd/env.example` filled in with real values), then:
+pi-telemetry's `pi-telemetry/systemd/env.example` filled in with real values), then:
 
 ```sh
 age -e -r age1mrlql83ne3jewsuqzemmlrxsdscn9sqlksl4uqhy8da5krn75usq5u46ak \
@@ -111,10 +126,9 @@ age -e -r age1mrlql83ne3jewsuqzemmlrxsdscn9sqlksl4uqhy8da5krn75usq5u46ak \
 
 Commit the resulting `.age` file. It's ciphertext -- safe in git even
 though the repo is private anyway. Since `install.sh` only ever reads
-secrets from the pinned `PISETUP_TAG` it was fetched at, a new secret
-doesn't take effect anywhere until you **cut a new pi-setup release**
-(tag + `gh release create`) and re-run the installer against that new tag
-(or just use `latest`). It also won't overwrite pi-telemetry's env if one
+secrets from the release tag it was fetched at, a new secret doesn't take
+effect anywhere until you **cut a new release** (push a new tag) and re-run
+the installer against it. It also won't overwrite pi-telemetry's env if one
 already exists on disk -- delete `/etc/pi-telemetry/env` on the Pi first if
 you want the new encrypted value to actually take effect there.
 

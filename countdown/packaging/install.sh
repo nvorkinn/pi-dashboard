@@ -1,29 +1,31 @@
 #!/usr/bin/env bash
 # Installs countdown from a GitHub release and sets it up as a systemd service.
 #
-# countdown is a private repo, so fetching from it needs a token with read
-# access, passed via GITHUB_TOKEN. Uses the gh CLI (bootstrapped below if
-# missing) to resolve releases and download assets -- gh handles private-repo
-# auth correctly on its own; a hand-rolled curl approach needs the asset API
-# plus an Accept header, since a private repo's browser_download_url doesn't
-# work with a bearer token. Nothing is ever fetched from main -- see
-# README.md for the full bootstrap snippet that resolves a tag (specified,
-# or latest via the releases API) before the first curl fetches this script
-# from that tag.
+# The pi-dashboard repo (which countdown lives in) is private, so fetching
+# from it needs a token with read access, passed via GITHUB_TOKEN. Uses the
+# gh CLI (bootstrapped below if missing) to resolve releases and download
+# assets -- gh handles private-repo auth correctly on its own; a hand-rolled
+# curl approach needs the asset API plus an Accept header, since a private
+# repo's browser_download_url doesn't work with a bearer token. Nothing is
+# ever fetched from main -- see README.md for the full bootstrap snippet that
+# resolves a tag (specified, or latest via the releases API) before the first
+# curl fetches this script from that tag.
 #
 # Usage (once TAG is resolved -- see README.md):
 #   curl -fsSL -H "Authorization: Bearer $GITHUB_TOKEN" \
-#       "https://raw.githubusercontent.com/nvorkinn/countdown/$TAG/packaging/install.sh" \
+#       "https://raw.githubusercontent.com/nvorkinn/pi-dashboard/$TAG/countdown/packaging/install.sh" \
 #       | GITHUB_TOKEN="$GITHUB_TOKEN" sudo -E bash -s -- "$TAG"
 #
 # [version] is a release tag such as "v0.3.0". Defaults to the latest release.
+# Releases are shared with pi-telemetry (see the repo root README.md), so the
+# tag is the repo-wide one, not a countdown-specific version.
 #
 # Re-running this script (e.g. to update) reinstalls the wheel and restarts
 # the service, but never touches APP_DIR -- .auth_broker_device (the device's
 # auth-broker pairing credentials) survives untouched.
 set -euo pipefail
 
-REPO="nvorkinn/countdown"
+REPO="nvorkinn/pi-dashboard"
 VERSION="${1:-latest}"
 APP_DIR="${COUNTDOWN_APP_DIR:-/opt/countdown}"
 
@@ -31,7 +33,7 @@ if [ "$(id -u)" -ne 0 ]; then
     echo "This script needs root to install the systemd unit. Re-run with sudo." >&2
     exit 1
 fi
-[ -n "${GITHUB_TOKEN:-}" ] || { echo "GITHUB_TOKEN is required (countdown is a private repo)." >&2; exit 1; }
+[ -n "${GITHUB_TOKEN:-}" ] || { echo "GITHUB_TOKEN is required (pi-dashboard is a private repo)." >&2; exit 1; }
 export GITHUB_TOKEN
 
 # SPI only becomes usable after a reboot (it's a device-tree overlay applied
@@ -89,9 +91,9 @@ gh release download "$TAG" --repo "$REPO" --dir "$TMP_DIR" --clobber \
 # preserves the real name (e.g. countdown-0.3.1-py3-none-any.whl).
 WHEEL_PATH="$(ls "$TMP_DIR"/*.whl)"
 # gh creates these respecting the caller's umask -- when invoked from a
-# script that tightened its own umask (e.g. pi-setup, to protect its token/
-# key files), that leaks in here too and leaves the wheel unreadable by
-# TARGET_USER. Force it open regardless of what we inherited.
+# script that tightened its own umask (e.g. the repo-root install.sh, to
+# protect its token/key files), that leaks in here too and leaves the wheel
+# unreadable by TARGET_USER. Force it open regardless of what we inherited.
 chmod 644 "$WHEEL_PATH" "$TMP_DIR/countdown.service"
 
 if ! run_as_target "command -v uv" >/dev/null 2>&1; then

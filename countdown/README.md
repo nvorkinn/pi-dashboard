@@ -46,11 +46,11 @@ it.
 # Deploying to a Raspberry Pi
 
 Each tagged release publishes a wheel and a `countdown.service` unit to
-GitHub Releases (see `.github/workflows/release.yml`). `packaging/install.sh`
+GitHub Releases (see `.github/workflows/release.yml` at the repo root; the release is shared with pi-telemetry, so the tag is the repo-wide one). `packaging/install.sh`
 downloads a release, installs it with `uv tool install`, and sets it up as a
 systemd service.
 
-This repo is private, so every fetch it does (including fetching the
+This repo (`pi-dashboard`) is private, so every fetch it does (including fetching the
 installer itself) needs a GitHub token with read access to it. Nothing is
 ever fetched from `main` -- `install.sh` is pinned to a tagged release like
 everything else it downloads, so resolve one (or use `latest`, via the
@@ -63,22 +63,22 @@ export GITHUB_TOKEN=github_pat_...
 VERSION=latest
 if [ "$VERSION" = latest ]; then
     TAG="$(curl -fsSL -H "Authorization: Bearer $GITHUB_TOKEN" \
-        https://api.github.com/repos/nvorkinn/countdown/releases/latest \
+        https://api.github.com/repos/nvorkinn/pi-dashboard/releases/latest \
         | python3 -c 'import json,sys; print(json.load(sys.stdin)["tag_name"])')"
 else
     TAG="$VERSION"
 fi
 
 curl -fsSL -H "Authorization: Bearer $GITHUB_TOKEN" \
-    "https://raw.githubusercontent.com/nvorkinn/countdown/$TAG/packaging/install.sh" \
+    "https://raw.githubusercontent.com/nvorkinn/pi-dashboard/$TAG/countdown/packaging/install.sh" \
     | GITHUB_TOKEN="$GITHUB_TOKEN" sudo -E bash -s -- "$TAG"
 ```
 
 `install.sh` itself uses the [`gh` CLI](https://cli.github.com) to resolve releases and download assets from that point on (installing it automatically if it's missing) -- `gh` handles private-repo auth correctly on its own, where a hand-rolled `curl` approach needs a separate asset-API dance.
 
-If you're provisioning a Pi with other apps too, see
-[pi-setup](https://github.com/nvorkinn/pi-setup) instead -- it wraps this
-installer and installs everything else you need in one command.
+If you're provisioning a Pi with pi-telemetry too, use the repo-root
+[`install.sh`](../README.md#install) instead -- it wraps this installer and
+installs everything else you need in one command.
 
 This installs `uv` for the invoking user if it isn't already present, and
 runs the service as that user. Re-running the installer updates the app and
@@ -103,7 +103,7 @@ never shared with other devices -- comes from there, so there's no local
 secret file on the device at all.
 
 Reporting API health to Home Assistant is optional and configured the same way as
-[pi-telemetry](https://github.com/nvorkinn/pi-telemetry), which it sits alongside: the
+[pi-telemetry](../pi-telemetry/), which it sits alongside: the
 service loads `/etc/pi-telemetry/env` (if it exists) for `MQTT_BROKER_HOST`,
 `MQTT_BROKER_PORT`, `MQTT_BROKER_USERNAME`, `MQTT_BROKER_PASSWORD` and `DEVICE_ID`.
 With no `MQTT_BROKER_HOST` it doesn't publish at all. Countdown adds a status sensor
