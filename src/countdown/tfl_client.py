@@ -30,18 +30,17 @@ class TflClient(AbstractClient):
         """Construction never touches the network -- stops are resolved lazily on first
         use (see _ensure_stops), so a flaky TfL API can never prevent this object from
         being created. Safe to just build a fresh TflClient whenever config changes."""
-        super().__init__()
-        self._config = config
+        super().__init__(config)
         self.stops: list[SingleStopPoint | MetroStopPoint] = []
         self.current_stop = 0
         self.params = {"app_key": config.app_key} if config.app_key else {}
 
     async def initialise(self) -> None:
-        """Resolve self._config.stop_ids into self.stops if not already done. Safe to
+        """Resolve self.config.stop_ids into self.stops if not already done. Safe to
         call repeatedly and safe to fail: self.stops is only ever assigned once fully
         built, so a failed attempt just leaves it empty for the next call to retry."""
         if not self.stops:
-            self.stops = self.init_stops(self._config.stop_ids)
+            self.stops = self.init_stops(self.config.stop_ids)
 
     def init_stops(self, stop_ids: list[str]) -> list[SingleStopPoint | MetroStopPoint]:
         stops: list[SingleStopPoint | MetroStopPoint] = []

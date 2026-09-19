@@ -26,7 +26,7 @@ class GlowClient(AbstractClient):
     token = None
 
     def __init__(self, config: GlowmarktConfig):
-        super().__init__()
+        super().__init__(config)
         self.page_index = 0
         self.username = config.username
         self.password = config.password

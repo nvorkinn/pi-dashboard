@@ -44,13 +44,13 @@ def test_api_names_match_the_config_field_names():
         assert hasattr(config, member.api_name)
 
 
-def test_build_from_config_registers_the_enabled_clients(monkeypatch):
+def test_on_config_update_registers_the_enabled_clients(monkeypatch):
     monkeypatch.setenv("BROKER_URL", "https://broker.example.com")
     config = AppConfig()
     config.spotify.enabled = True
     registry = ApiRegistry()
 
-    registry.build_from_config(config)
+    asyncio.run(registry.on_config_update(config))
 
     assert {name: type(client) for name, client in registry.clients.items()} == {
         "glowmarkt": GlowClient,
@@ -60,27 +60,102 @@ def test_build_from_config_registers_the_enabled_clients(monkeypatch):
     }
 
 
-def test_build_from_config_skips_disabled_clients():
+def test_on_config_update_skips_disabled_clients():
     config = AppConfig()  # spotify is off until the broker says otherwise
     config.weather.enabled = False
     registry = ApiRegistry()
 
-    registry.build_from_config(config)
+    asyncio.run(registry.on_config_update(config))
 
     assert set(registry.clients) == {"glowmarkt", "tfl"}
 
 
-def test_authenticate_all_initialises_every_client_even_if_one_fails():
-    class Broken(FakeClient):
-        async def initialise(self) -> None:
-            raise ConnectionError("down")
+def test_on_config_update_initialises_new_clients_even_if_one_fails(monkeypatch):
+    initialised = []
 
-    healthy = FakeClient()
-    registry = registry_with(broken=Broken(), healthy=healthy)
+    async def broken(self):
+        raise ConnectionError("down")
 
-    asyncio.run(registry.authenticate_all())
+    async def healthy(self):
+        initialised.append(self)
 
-    assert healthy.initialised
+    monkeypatch.setattr(TflClient, "initialise", broken)
+    monkeypatch.setattr(WeatherClient, "initialise", healthy)
+    registry = ApiRegistry()
+
+    asyncio.run(registry.on_config_update(AppConfig()))
+
+    assert initialised == [registry.clients["weather"]]
+
+
+def test_on_config_update_survives_a_client_that_cannot_be_built(monkeypatch):
+    """SpotifyClient needs BROKER_URL and saved credentials to even be constructed."""
+    config = AppConfig()
+    config.spotify.enabled = True  # BROKER_URL is unset in tests, so this raises KeyError
+    registry = ApiRegistry()
+
+    asyncio.run(registry.on_config_update(config))
+
+    assert "spotify" not in registry.clients
+    assert "tfl" in registry.clients
+
+
+def test_unchanged_config_keeps_the_existing_clients_and_their_panels():
+    registry = ApiRegistry()
+    asyncio.run(registry.on_config_update(AppConfig()))
+    before = dict(registry.clients)
+    registry.panels["tfl"] = "arrivals"
+
+    asyncio.run(registry.on_config_update(AppConfig()))
+
+    assert all(registry.clients[name] is client for name, client in before.items())
+    assert registry.panels == {"tfl": "arrivals"}
+
+
+def test_a_changed_config_replaces_only_that_client_and_drops_its_stale_panel():
+    registry = ApiRegistry()
+    asyncio.run(registry.on_config_update(AppConfig()))
+    old_tfl, old_weather = registry.clients["tfl"], registry.clients["weather"]
+    registry.panels.update(tfl="old arrivals", weather="sunny")
+    changed = AppConfig()
+    changed.tfl.stop_ids = ["940GZZLUKNG"]  # resolving it fails offline, which is fine here
+
+    asyncio.run(registry.on_config_update(changed))
+
+    assert registry.clients["tfl"] is not old_tfl
+    assert registry.clients["tfl"].config.stop_ids == ["940GZZLUKNG"]
+    assert registry.clients["weather"] is old_weather
+    assert registry.panels == {"weather": "sunny"}
+
+
+def test_a_client_that_is_switched_off_is_dropped_with_its_panel():
+    registry = ApiRegistry()
+    asyncio.run(registry.on_config_update(AppConfig()))
+    registry.panels["weather"] = "sunny"
+    off = AppConfig()
+    off.weather.enabled = False
+
+    asyncio.run(registry.on_config_update(off))
+
+    assert "weather" not in registry.clients
+    assert "weather" not in registry.panels
+
+
+def test_a_change_the_client_says_is_irrelevant_does_not_rebuild_it():
+    """Open-Meteo is keyless, so WeatherClient ignores api_key changes -- rebuilding
+    would only throw away its cached coordinates and forecast."""
+    registry = ApiRegistry()
+    asyncio.run(registry.on_config_update(AppConfig()))
+    weather = registry.clients["weather"]
+    changed = AppConfig()
+    changed.weather.api_key = "new-key"
+
+    asyncio.run(registry.on_config_update(changed))
+    assert registry.clients["weather"] is weather
+
+    changed.weather.location = "Paris"
+    asyncio.run(registry.on_config_update(changed))
+    assert registry.clients["weather"] is not weather
 
 
 def test_update_all_returns_each_clients_panel():

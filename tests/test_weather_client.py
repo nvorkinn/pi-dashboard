@@ -115,3 +115,10 @@ def test_failed_fetch_raises_and_is_retried_next_cycle():
         asyncio.run(client.update())
 
     assert asyncio.run(client.update()).weather.temperature == 14.2
+
+
+def test_needs_refresh_only_when_the_location_changes():
+    client = WeatherClient(WeatherConfig(api_key="old", location="London"))
+
+    assert not client.needs_refresh(WeatherConfig(api_key="new", location="London"))  # keyless API
+    assert client.needs_refresh(WeatherConfig(api_key="old", location="Paris"))

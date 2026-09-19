@@ -26,17 +26,38 @@ class ApiRegistry:
         self.clients: dict[str, AbstractClient] = {}
         self.panels: dict[str, Panel | None] = {}
 
-    def build_from_config(self, config: AppConfig):
+    async def on_config_update(self, config: AppConfig) -> None:
+        """Brings the registry in line with `config`, touching only what changed: a
+        client that's now disabled is dropped (with its panel), a newly enabled one is
+        built, and an existing one is asked via needs_refresh() whether the new config
+        matters to it -- if so it's replaced by a fresh client, if not it carries on
+        with its state intact. Used for the first build too (nothing is registered
+        yet, so everything enabled is new). Construction and initialise() failures are
+        logged, not raised: one broken API must not take the others down."""
+        to_initialise: dict[str, AbstractClient] = {}
         for member in ClientClasses:
             name, clazz = member.value
             client_config: ApiConfig = getattr(config, name)
-            if client_config.enabled:
-                self.clients[name] = clazz(client_config)
+            current = self.clients.get(name)
 
-    async def authenticate_all(self):
-        coros = [client.initialise() for client in self.clients.values()]
-        outcomes = await asyncio.gather(*coros, return_exceptions=True)
-        # TODO: Do something if Exception
+            if not client_config.enabled:
+                self._drop(name)
+            elif current is None or current.needs_refresh(client_config):
+                # The old panel came from the old config, so it goes too.
+                self._drop(name)
+                try:
+                    to_initialise[name] = self.clients[name] = clazz(client_config)
+                except Exception as e:
+                    print(f"Error building {name} client: {e}")
+
+        outcomes = await asyncio.gather(*[c.initialise() for c in to_initialise.values()], return_exceptions=True)
+        for name, outcome in zip(to_initialise, outcomes, strict=True):
+            if isinstance(outcome, Exception):
+                print(f"Error initialising {name}: {outcome}")
+
+    def _drop(self, name: str) -> None:
+        self.clients.pop(name, None)
+        self.panels.pop(name, None)
 
     async def update_all(self) -> dict[str, Panel | None]:
         """Polls whichever clients are due and returns the panels for *all* clients:
@@ -54,8 +75,3 @@ class ApiRegistry:
             else:
                 self.panels[api_name] = outcome
         return dict(self.panels)
-
-    def on_config_update(self, new_config: AppConfig) -> None:
-        for member in ClientClasses:
-            name, clazz = member.value
-            current_config = self.clients[name]
