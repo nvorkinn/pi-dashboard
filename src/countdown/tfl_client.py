@@ -1,5 +1,3 @@
-from math import ceil
-
 from pydantic import TypeAdapter
 
 from countdown.abstract_client import AbstractClient
@@ -12,8 +10,8 @@ from countdown.models import (
     StopPoint,
     StopPointUnion,
 )
-from display.abstract_arrival_panel import AbstractArrivalPanel
 from display.bus_arrival_panel import BusArrivalPanel
+from display.combined_arrival_panel import CombinedArrivalPanel
 from display.tube_arrival_panel import TubeArrivalPanel
 
 
@@ -38,15 +36,12 @@ class TflClient(AbstractClient):
         self.current_stop = 0
         self.params = {"app_key": config.app_key} if config.app_key else {}
 
-    def init(self) -> int:
+    async def initialise(self) -> None:
         """Resolve self._config.stop_ids into self.stops if not already done. Safe to
         call repeatedly and safe to fail: self.stops is only ever assigned once fully
         built, so a failed attempt just leaves it empty for the next call to retry."""
         if not self.stops:
             self.stops = self.init_stops(self._config.stop_ids)
-        if not self.stops:
-            return 1
-        return ceil(len(self.stops) / 2)
 
     def init_stops(self, stop_ids: list[str]) -> list[SingleStopPoint | MetroStopPoint]:
         stops: list[SingleStopPoint | MetroStopPoint] = []
@@ -79,9 +74,11 @@ class TflClient(AbstractClient):
             self.current_stop = 0
         return stop
 
-    def get_next_arrivals(self) -> list[AbstractArrivalPanel]:
+    async def _update(self) -> CombinedArrivalPanel | None:
         if not self.stops:
-            return []
+            await self.initialise()  # boot-time resolution may have failed; retry
+        if not self.stops:
+            return None
         stop_and_arrivals = []
         count_to_fetch = min(2, len(self.stops))
         for _ in range(count_to_fetch):
@@ -102,4 +99,4 @@ class TflClient(AbstractClient):
                     stop_and_arrivals.append(TubeArrivalPanel(stop, sortd))
             except Exception as e:
                 print(f"Error fetching arrivals for stop {stop.naptan_id}: {e}")
-        return stop_and_arrivals
+        return CombinedArrivalPanel(stop_and_arrivals)

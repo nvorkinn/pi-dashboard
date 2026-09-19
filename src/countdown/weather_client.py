@@ -25,7 +25,10 @@ class WeatherClient(AbstractClient):
         self._panel: WeatherPanel | None = None
         self._last_attempt: dt.datetime | None = None
 
-    def get_weather(self) -> WeatherPanel | None:
+    async def initialise(self) -> None:
+        pass
+
+    async def _update(self) -> WeatherPanel | None:
         """None means "nothing to show": no location configured, or one Open-Meteo
         couldn't find. Network/parse failures raise instead (RequestException /
         ValidationError), for safe_fetch to fall back to the last good panel."""

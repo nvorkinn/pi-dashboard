@@ -2,20 +2,16 @@ import json
 import secrets
 from pathlib import Path
 
-from pydantic import BaseModel
+import pydantic
+import requests
 
 from countdown.abstract_client import AbstractClient
 from countdown.config_manager import AppConfig
 from countdown.http import DEFAULT_TIMEOUT
 from display.pairing_code_panel import PairingCodePanel
+from display.panel import Panel
 
 CREDENTIALS_FILE = Path(".auth_broker_device")
-
-class BrokerGlowmarktConfig(BaseModel):
-    # None, not "" -- the broker sends null when a device's owner hasn't set up
-    # Glowmarkt (the common case for most gifted devices).
-    username: str | None
-    password: str | None
 
 
 class BrokerClient(AbstractClient):
@@ -39,6 +35,7 @@ class BrokerClient(AbstractClient):
         super().__init__()
         self.base_url = base_url.rstrip("/")
 
+    async def initialise(self) -> None:
         if CREDENTIALS_FILE.exists():
             data = json.loads(CREDENTIALS_FILE.read_text())
             self.device_id: str = data["device_id"]
@@ -54,6 +51,7 @@ class BrokerClient(AbstractClient):
         response.raise_for_status()
         self.device_id = response.json()["device_id"]
         CREDENTIALS_FILE.write_text(json.dumps({"device_id": self.device_id, "device_secret": self.device_secret}))
+        return
 
     def _request(self, method: str, path: str, **kwargs):
         headers = {"Authorization": f"Bearer {self.device_secret}"}
@@ -76,7 +74,28 @@ class BrokerClient(AbstractClient):
         is_same = self._cache_and_compare("pairing_code", config.pairing_code)
         return PairingCodePanel(config.pairing_code, self.device_id, has_changed=not is_same)
 
-    def get_current_track(self) -> dict[str, str] | None:
-        """Same shape as the old SpotifyClient.get_current_track(): the broker
-        refreshes and calls Spotify server-side, this device never sees a token."""
-        return self._request("GET", f"/api/devices/{self.device_id}/now-playing")
+    async def _update(self) -> Panel | None:
+        pass
+
+    def fetch_app_config(self) -> tuple[AppConfig, PairingCodePanel]:
+        """Tries once to get real config (and current pairing status) before
+        DisplayLoop is constructed, so it never has to build a TflClient/
+        WeatherClient/GlowClient from a config it already knows is empty. Falls back
+        to AppConfig()'s empty defaults and a no-code PairingCodePanel if the
+        broker's unreachable at boot (e.g. network not up yet) -- the same
+        graceful-degrade safe_fetch provides everywhere else, not a retry loop that
+        would block startup indefinitely. No code in that fallback means "proceed
+        as normal", not "definitely paired" -- if we can't reach the broker we
+        don't actually know either way, and showing a stale/unverifiable code would
+        be worse than just falling through to the ordinary (empty) display. This
+        one case bypasses BrokerClient's own cache entirely (via has_changed=False
+        directly, not get_pairing_code_panel()) since there's nothing to compare
+        against yet -- no fetch happened at all."""
+        try:
+            config = self.get_config()
+            return config, self.get_pairing_code_panel(config)
+        except requests.exceptions.RequestException as e:
+            print(f"Exception with API call to the broker: {e}")
+        except pydantic.ValidationError as e:
+            print(f"Pydantic validation error: {e}")
+        return AppConfig(), PairingCodePanel(None, self.device_id, has_changed=False)

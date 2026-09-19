@@ -1,25 +1,31 @@
+from abc import ABC
+
 from pydantic import BaseModel, Field
 
 
-class TflConfig(BaseModel):
+class ApiConfig(ABC, BaseModel):
+    enabled: bool | None = Field(default=True)
+
+
+class TflConfig(ApiConfig):
     app_key: str = Field(default="")
     # Flat ordered list of NaPTAN stop IDs to cycle through on the display
     stop_ids: list[str] = Field(default_factory=list)
 
 
-class SpotifyConfig(BaseModel):
+class SpotifyConfig(ApiConfig):
     # Client credentials/OAuth live entirely in auth-broker now; this device only
     # ever sees whether the panel should be shown, fetched from the broker each
     # cycle (see DisplayLoop.refresh_broker_config).
-    enabled: bool = Field(default=False)
+    enabled: bool | None = Field(default=False)
 
 
-class WeatherConfig(BaseModel):
+class WeatherConfig(ApiConfig):
     api_key: str = Field(default="")
     location: str = Field(default="")
 
 
-class GlowmarktConfig(BaseModel):
+class GlowmarktConfig(ApiConfig):
     # None, not "" -- these come from the broker as null when a device's owner
     # hasn't set up Glowmarkt (the common case), and an explicit "not configured"
     # is worth keeping honest rather than folding into the same empty-string

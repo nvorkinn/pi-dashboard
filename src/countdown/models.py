@@ -146,3 +146,11 @@ class Weather(BaseModel):
     high: float
     low: float
     precipitation_probability: int | None = None
+
+
+class SpotifyPlayingRightNow(BaseModel):
+    album: str
+    album_image: str
+    artist: str
+    is_playing: bool
+    song: str

@@ -1,9 +1,9 @@
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 from math import floor
 
 from pydantic import TypeAdapter
 
-from countdown.abstract_client import AbstractClient
+from countdown.abstract_client import AbstractClient, ClientStatus
 from countdown.config_manager import GlowmarktConfig
 from countdown.http import DEFAULT_TIMEOUT, build_retrying_session
 from countdown.models import Entity, Readings
@@ -19,18 +19,27 @@ def _get_utc_offset(now: datetime = datetime.now()) -> str:
 
 
 class GlowClient(AbstractClient):
+    poll_interval = timedelta(minutes=15)
     base_url = "https://api.glowmarkt.com/api/v0-1"
     app_id = "b0f1b774-a586-4f72-9edd-27ead8aa7a8d"
+    resource_id = None
+    token = None
 
     def __init__(self, config: GlowmarktConfig):
         super().__init__()
-        self.session = build_retrying_session()
+        self.page_index = 0
         self.username = config.username
         self.password = config.password
+        self.glow_cache = {0: {}, 1: {}, 2: {}}
+        self.session = build_retrying_session()
+        if not config.username or not config.password:
+            self.status = ClientStatus.DISABLED
+
+    async def initialise(self) -> None:
+        if self.is_disabled():
+            return
         self._authenticate()
-        self._cache = {0: {}, 1: {}, 2: {}}
         self.resource_id = self.get_electricity_resource_id()
-        self.page_index = -1
 
     def _authenticate(self):
         """Internal method to fetch and store the session token."""
@@ -74,8 +83,9 @@ class GlowClient(AbstractClient):
                 return resource.resourceId
         raise ValueError("Could not find a resource with name 'electricity consumption'")
 
-    def get_readings(self) -> EnergyPanel:
-        self.page_index = (self.page_index + 1) % 3
+    async def _update(self) -> EnergyPanel | None:
+        if self.is_disabled():
+            return None
         current = datetime.now().astimezone()
         window_start, period, bucket_delta = self._page_config(self.page_index, current)
         open_start = self._truncate(current, period)
@@ -85,7 +95,7 @@ class GlowClient(AbstractClient):
         # cache, and every call looks like a cache miss.
         window_start = self._truncate(window_start, period)
 
-        cache = self._cache[self.page_index]
+        cache = self.glow_cache[self.page_index]
         # Walk forward from window_start to open_start to see which closed
         # buckets we SHOULD have, and whether any of them are missing from
         # the cache (true on first run, or after the window has slid forward).
@@ -122,7 +132,10 @@ class GlowClient(AbstractClient):
         if open_value is not None:
             usage.append({"start": open_start.isoformat(), "kwh": round(open_value, 3)})
 
-        return EnergyPanel(usage, self.page_index)
+        self.glow_cache[self.page_index] = cache
+        panel = EnergyPanel(usage, self.page_index)
+        self.page_index = (self.page_index + 1) % 3
+        return panel
 
     def _page_config(self, page_index: int, current: datetime) -> tuple[datetime, str, timedelta]:
         if page_index == 0:
@@ -182,9 +195,9 @@ class GlowClient(AbstractClient):
             # The API has returned both Unix-epoch-seconds and ISO strings
             # across different versions/resources in the wild, so handle both.
             if isinstance(ts, (int, float)):
-                bucket_start = datetime.fromtimestamp(ts, tz=timezone.utc)
+                bucket_start = datetime.fromtimestamp(ts, tz=UTC)
             else:
-                bucket_start = datetime.fromisoformat(ts).replace(tzinfo=timezone.utc)
+                bucket_start = datetime.fromisoformat(ts).replace(tzinfo=UTC)
             readings.append((bucket_start, value))
 
         return readings
