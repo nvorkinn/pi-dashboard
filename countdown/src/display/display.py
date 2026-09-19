@@ -165,6 +165,13 @@ class DisplayController:
                 self.epd.Clear()
                 self.epd.display(self.epd.getbuffer(img))
                 self.epd.sleep()
+            else:
+                # Called only when the code changes, so this is once per code. Without it a
+                # Pi with no screen can't be paired at all: nothing else is published or
+                # polled while a code is pending.
+                print(
+                    f"No display to show the pairing code on -- it is {panel.pairing_code} (device {panel.device_id})"
+                )
         else:
             img.show()
 

@@ -139,3 +139,23 @@ def test_shutdown_survives_a_panel_that_stops_answering():
     controller.panel_connected = True
 
     controller.shutdown()  # must not raise: it runs inside the SIGTERM handler
+
+
+def test_the_pairing_code_goes_to_the_log_when_there_is_no_panel_to_show_it(no_preview, capsys):
+    from display.pairing_code_panel import PairingCodePanel
+
+    controller = controller_with(FakeEpd(answers=False))
+
+    controller.display_pairing_screen(PairingCodePanel("ABC123", "device-1", has_changed=True))
+
+    assert "ABC123" in capsys.readouterr().out
+
+
+def test_the_pairing_code_is_not_logged_when_the_panel_shows_it(no_preview, capsys):
+    from display.pairing_code_panel import PairingCodePanel
+
+    controller = controller_with(FakeEpd(answers=True))
+
+    controller.display_pairing_screen(PairingCodePanel("ABC123", "device-1", has_changed=True))
+
+    assert "ABC123" not in capsys.readouterr().out

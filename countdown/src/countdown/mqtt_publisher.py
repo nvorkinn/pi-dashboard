@@ -149,6 +149,8 @@ class MqttPublisher(AbstractClient):
         except ValueError:
             port = 1883
         broker_host = os.environ.get("MQTT_BROKER_HOST")
+        if not broker_host:
+            print("MQTT: MQTT_BROKER_HOST is not set -- not reporting health to Home Assistant")
         # Only resolved when there's a host to publish to: an unusable hostname must not
         # crash the app over a feature that's switched off.
         device_id = resolve_device_id(os.environ.get("DEVICE_ID"), socket.gethostname()) if broker_host else ""
@@ -185,6 +187,7 @@ class MqttPublisher(AbstractClient):
             print(f"MQTT broker refused the connection: {reason_code}")
             return
         self._connected.set()
+        print(f"MQTT: connected to {self.broker_host}:{self.port} as countdown-{self.device_id}")
         # Retained so HA picks the device up after its own restart, and re-sent on every
         # (re)connect so it self-heals if the broker's store is wiped.
         client.publish(
@@ -196,6 +199,7 @@ class MqttPublisher(AbstractClient):
 
     def _on_disconnect(self, client, userdata, disconnect_flags, reason_code, properties) -> None:
         self._connected.clear()
+        print(f"MQTT: disconnected from {self.broker_host}:{self.port} ({reason_code})")
 
     def _teardown(self) -> None:
         if self._client is not None:
