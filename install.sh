@@ -26,7 +26,12 @@
 #   curl -fsSL -H "Authorization: Bearer $GITHUB_TOKEN" \
 #       "https://raw.githubusercontent.com/nvorkinn/pi-setup/<pi-setup tag>/install.sh" \
 #       | sudo -E env GITHUB_TOKEN="$GITHUB_TOKEN" bash -s -- \
-#           <pi-setup tag> [countdown_version] [pi_telemetry_version]
+#           <pi-setup tag> <device name> [countdown_version] [pi_telemetry_version]
+#
+# <device name> is required and identifies this Pi to Home Assistant -- pick
+# something that says whose it is (e.g. "sister-hat"). It's sanitized to
+# [a-z0-9_-] and written as DEVICE_ID into both apps' env files, so their MQTT
+# topics and HA device line up. See README.md.
 #
 # countdown_version/pi_telemetry_version are release tags too, e.g. "v0.3.1",
 # but those don't need a manual lookup -- both default to "latest", resolved
@@ -43,8 +48,19 @@ if [ "$(id -u)" -ne 0 ]; then
 fi
 
 PISETUP_TAG="${1:?PISETUP_TAG is required -- pass the exact tag this script was fetched from}"
-COUNTDOWN_VERSION="${2:-latest}"
-TELEMETRY_VERSION="${3:-latest}"
+DEVICE_NAME="${2:?device name is required -- pass it as the second argument (e.g. \"sister-hat\")}"
+COUNTDOWN_VERSION="${3:-latest}"
+TELEMETRY_VERSION="${4:-latest}"
+
+# Same rules as pi-telemetry's device_id.rs: trim, lowercase, and replace
+# anything outside [a-z0-9_-] with "-", so the id is safe as an MQTT topic
+# level and client id suffix.
+DEVICE_ID="$(printf '%s' "$DEVICE_NAME" | sed -e 's/^[[:space:]]*//' -e 's/[[:space:]]*$//' \
+    | tr '[:upper:]' '[:lower:]' | sed 's/[^a-z0-9_-]/-/g')"
+if [ -z "$(printf '%s' "$DEVICE_ID" | tr -d '-')" ]; then
+    echo "Device name \"$DEVICE_NAME\" has no usable characters (need at least one of a-z, 0-9, _)." >&2
+    exit 1
+fi
 
 COUNTDOWN_REPO="nvorkinn/countdown"
 TELEMETRY_REPO="nvorkinn/pi-telemetry"
@@ -57,6 +73,7 @@ TELEMETRY_ENV_FILE="/etc/pi-telemetry/env"
 STATE_DIR="/etc/pi-setup"
 TOKEN_FILE="$STATE_DIR/github-token"
 KEY_FILE="$STATE_DIR/age-key.txt"
+DEVICE_ID_FILE="$STATE_DIR/device-id"
 
 umask 077
 mkdir -p "$STATE_DIR"
@@ -65,6 +82,13 @@ chmod 700 "$STATE_DIR"
 TMP_DIR="$(mktemp -d)"
 chmod 755 "$TMP_DIR"
 trap 'rm -rf "$TMP_DIR"' EXIT
+
+if [ -f "$DEVICE_ID_FILE" ] && [ "$(cat "$DEVICE_ID_FILE")" != "$DEVICE_ID" ]; then
+    echo "Warning: changing device id from \"$(cat "$DEVICE_ID_FILE")\" to \"$DEVICE_ID\"." >&2
+    echo "         Home Assistant will treat this as a new device; the old one's entities are orphaned." >&2
+fi
+echo "$DEVICE_ID" > "$DEVICE_ID_FILE"
+echo "Device id: $DEVICE_ID"
 
 if [ -n "${GITHUB_TOKEN:-}" ]; then
     :
@@ -123,6 +147,28 @@ fetch_secret() {
     return 1
 }
 
+# Sets DEVICE_ID=<id> in an env file, replacing any existing DEVICE_ID line
+# (the name passed to this script always wins). Edits in place so an existing
+# file keeps its owner and mode; a missing file is created chmod 600, owned by
+# the invoking user.
+set_device_id() {
+    local file="$1" tmp="$TMP_DIR/env.tmp"
+    if [ -f "$file" ]; then
+        grep -v '^DEVICE_ID=' "$file" > "$tmp" || true
+        if [ -s "$tmp" ] && [ -n "$(tail -c1 "$tmp")" ]; then
+            echo >> "$tmp"
+        fi
+    else
+        : > "$tmp"
+    fi
+    echo "DEVICE_ID=$DEVICE_ID" >> "$tmp"
+    if [ -f "$file" ]; then
+        cat "$tmp" > "$file"
+    else
+        install -o "${SUDO_USER:-root}" -m 600 "$tmp" "$file"
+    fi
+}
+
 echo
 echo "== countdown =="
 if [ "$COUNTDOWN_VERSION" = "latest" ]; then
@@ -138,6 +184,8 @@ if fetch_secret countdown.env "$COUNTDOWN_APP_DIR/.env"; then
 else
     echo "No secrets/countdown.env.age in pi-setup yet -- countdown will start with defaults."
 fi
+
+set_device_id "$COUNTDOWN_APP_DIR/.env"
 
 # countdown's install.sh isn't a release asset -- it's a file in the repo,
 # fetched at the resolved tag's raw content.
@@ -176,6 +224,11 @@ gh release download "$TELEMETRY_TAG" --repo "$TELEMETRY_REPO" --pattern "$TELEME
 chmod +x "$TMP_DIR/$TELEMETRY_ASSET"
 
 (cd "$TMP_DIR/telemetry-src" && bash install.sh "$TMP_DIR/$TELEMETRY_ASSET")
+
+# After its installer, so the env file exists whichever way it got there
+# (decrypted secret, an existing one kept, or its own seeded placeholder).
+# The timer-triggered service re-reads it on its next run.
+set_device_id "$TELEMETRY_ENV_FILE"
 
 echo
 echo "Done. countdown and pi-telemetry are both installed."

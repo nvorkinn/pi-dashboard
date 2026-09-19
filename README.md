@@ -37,8 +37,10 @@ export GITHUB_TOKEN=github_pat_...
 curl -fsSL -H "Authorization: Bearer $GITHUB_TOKEN" \
     https://raw.githubusercontent.com/nvorkinn/pi-setup/v1.0.0/install.sh \
     | sudo -E env GITHUB_TOKEN="$GITHUB_TOKEN" bash -s -- \
-        v1.0.0 [countdown_version] [pi_telemetry_version]
+        v1.0.0 <device name> [countdown_version] [pi_telemetry_version]
 ```
+
+`<device name>` is required -- see [Device name](#device-name) below.
 
 `countdown_version`/`pi_telemetry_version` are release tags too (e.g.
 `v0.3.1`), but *those* don't need a manual lookup -- both default to
@@ -51,6 +53,25 @@ prompt. Both the GitHub token and the age key are cached under
 update doesn't ask again -- except `GITHUB_TOKEN` still needs to be in your
 environment for that first `curl`, since it happens before this script (and
 its cache) exists.
+
+## Device name
+
+Each Pi needs a name that identifies it in Home Assistant -- pick something
+that says whose it is, e.g. `sister-hat`. It's the second argument to
+`install.sh`. The name is sanitized (trimmed, lowercased, anything outside
+`[a-z0-9_-]` becomes `-`, same rules as pi-telemetry's `device_id.rs`) and
+written as `DEVICE_ID=<id>` into both apps' env files
+(`/opt/countdown/.env` and `/etc/pi-telemetry/env`), replacing any
+`DEVICE_ID` already there. It's also saved to `/etc/pi-setup/device-id`.
+
+Both apps use it in their MQTT client ID and topics, and pi-telemetry in its
+HA device, so their data lands under the same device in Home Assistant.
+Don't put `DEVICE_ID` in the encrypted secrets -- they're shared by every
+Pi, and `install.sh` overwrites it anyway.
+
+Re-running with a different name changes the ID, and HA will treat it as a
+new device (the old one's entities are orphaned), so `install.sh` warns
+when that happens. Re-run with the same name to keep it.
 
 ## How secrets work
 
