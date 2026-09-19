@@ -2,7 +2,10 @@ import asyncio
 import json
 from unittest.mock import MagicMock
 
+import pytest
+import requests
 import responses
+from pydantic import ValidationError
 
 from countdown.broker_client import CREDENTIALS_FILE, BrokerClient
 from countdown.config_manager import AppConfig
@@ -207,27 +210,41 @@ def test_fetch_app_config_uses_real_broker_response(isolated_cwd):
 
 
 @responses.activate
-def test_fetch_app_config_falls_back_to_empty_when_broker_unreachable(isolated_cwd):
+def test_fetch_app_config_raises_when_broker_unreachable(isolated_cwd):
+    """No empty fallback: with no config there's nothing sensible to run, so the caller
+    (app.wait_for_config) shows a splash and retries."""
     _seed_credentials("test-device", "test-secret")
     client = _initialised_client()
     # /config deliberately left unmocked -- responses raises ConnectionError for it.
 
-    config, pairing_code_panel = client.fetch_app_config()
-
-    assert config.tfl.stop_ids == []
-    assert config.interval == 15
-    assert pairing_code_panel.pairing_code is None
-    assert pairing_code_panel.device_id == "test-device"
-    assert pairing_code_panel.has_changed is False  # nothing was fetched, so nothing to repaint
+    with pytest.raises(requests.exceptions.ConnectionError):
+        client.fetch_app_config()
 
 
 @responses.activate
-def test_fetch_app_config_falls_back_to_empty_when_response_is_invalid(isolated_cwd):
+def test_fetch_app_config_raises_when_response_is_invalid(isolated_cwd):
     _seed_credentials("test-device", "test-secret")
     client = _initialised_client()
     responses.add(responses.GET, f"{BROKER_URL}/api/devices/test-device/config", json={"interval": "soon"})
 
-    config, pairing_code_panel = client.fetch_app_config()
+    with pytest.raises(ValidationError):
+        client.fetch_app_config()
 
-    assert config.interval == 15
-    assert pairing_code_panel.pairing_code is None
+
+@responses.activate
+def test_a_failed_fetch_does_not_mark_the_pairing_code_as_seen(isolated_cwd):
+    """The first *successful* fetch is still the one that reports has_changed."""
+    _seed_credentials("test-device", "test-secret")
+    client = _initialised_client()
+    with pytest.raises(requests.exceptions.ConnectionError):
+        client.fetch_app_config()
+    responses.add(
+        responses.GET,
+        f"{BROKER_URL}/api/devices/test-device/config",
+        json=_app_config("ABC123").model_dump(),
+    )
+
+    _, pairing_code_panel = client.fetch_app_config()
+
+    assert pairing_code_panel.pairing_code == "ABC123"
+    assert pairing_code_panel.has_changed is True

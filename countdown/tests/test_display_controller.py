@@ -349,3 +349,30 @@ def test_with_nothing_to_show_it_says_so_instead_of_a_blank_screen(no_preview, c
     epd.calls.clear()
     controller.display_screen({})  # and it doesn't keep repainting it
     assert epd.calls == []
+
+
+def test_the_splash_is_one_full_paint_without_a_clear_and_resets_what_is_remembered(no_preview, clock):
+    from display.splash_panel import SplashPanel
+
+    epd = FakeEpd(answers=True)
+    controller = controller_with(epd)
+    controller.display_screen(frame())
+    epd.calls.clear()
+
+    controller.display_splash(SplashPanel())
+    assert epd.calls == ["init", "display", "sleep"]
+
+    epd.calls.clear()
+    controller.display_screen(frame())  # same picture as before, but the panel now shows the splash
+    assert epd.calls == ["init", "display", "sleep"]
+
+
+def test_the_splash_on_a_pi_with_no_panel_is_skipped_quietly(no_preview, clock):
+    from display.splash_panel import SplashPanel
+
+    epd = FakeEpd(answers=False)
+
+    img = controller_with(epd).display_splash(SplashPanel())
+
+    assert isinstance(img, Image.Image)
+    assert epd.calls == ["init"]

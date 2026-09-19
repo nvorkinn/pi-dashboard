@@ -51,6 +51,7 @@ from display.combined_arrival_panel import CombinedArrivalPanel
 from display.display import DisplayController
 from display.energy_panel import EnergyPanel
 from display.panel import Panel
+from display.splash_panel import SplashPanel
 from display.spotify_panel import SpotifyPanel
 from display.tube_arrival_panel import TubeArrivalPanel
 from display.weather_panel import WeatherPanel
@@ -211,6 +212,23 @@ def test_screen_without_energy_panel(snapshot):
     empty and the weather panel takes over the full height."""
     img = _CONTROLLER.display_screen(_panels(_bus_only_arrivals(), energy=None))
     snapshot.assert_matches("screen_no_energy", img)
+
+
+def test_splash_screen_when_the_broker_cannot_be_reached(snapshot):
+    img = SplashPanel().render(display.display.TOTAL_WIDTH, display.display.TOTAL_HEIGHT)
+    # A text-only screen with large glyphs: Ubuntu (CI) lays the same text out a pixel or so
+    # differently from macOS, which put the mean difference at ~0.011 -- over the default
+    # 0.005 -- with the same words in the same places. Measured from CI's failure artifact.
+    snapshot.assert_matches("screen_splash", img, threshold=0.02)
+
+
+def test_splash_text_stays_clear_of_the_screen_edges():
+    """The text is big; a longer line or a bigger font must not run off the panel."""
+    img = SplashPanel().render(display.display.TOTAL_WIDTH, display.display.TOTAL_HEIGHT).convert("L")
+    width, height = img.size
+
+    for edge in [(0, 0, 20, height), (width - 20, 0, width, height)]:
+        assert img.crop(edge).getextrema() == (255, 255)  # nothing but white
 
 
 def test_screen_with_no_panels_at_all_says_there_is_nothing_to_show(snapshot):

@@ -30,6 +30,7 @@ from types import SimpleNamespace
 
 import pytest
 import responses
+from config_factory import make_config
 from PIL import Image
 
 from countdown import display_loop
@@ -143,7 +144,7 @@ def _mock_tfl_and_glowmarkt(stop_json_by_id: dict, arrivals_json_by_id: dict) ->
 
 
 def _make_config() -> AppConfig:
-    config = AppConfig()
+    config = make_config()
     config.interval = 1  # the fake sleep in _run_cycles() means this never actually waits
     # Real (dummy) credentials, since these tests mock Glowmarkt's endpoints and
     # exercise that path -- GlowClient stays disabled when they're empty (the common
@@ -236,7 +237,7 @@ def test_full_render_cycle_skips_glowmarkt_when_credentials_empty(isolated_cwd, 
     broker. Deliberately doesn't mock any glowmarkt.com endpoint -- if the client
     ever attempted a call, `responses` would raise ConnectionError for it, and the
     call count below would catch it."""
-    config = AppConfig()
+    config = make_config()
     config.interval = 1
     config.tfl.stop_ids = ["490000123W"]
     assert config.glowmarkt.username is None and config.glowmarkt.password is None
@@ -374,7 +375,7 @@ def test_run_shows_pairing_screen_and_skips_normal_display_while_unpaired(isolat
     normal screen. A device that's still unpaired has an empty config (nothing set up
     on the broker yet), so no client has any reason to make a request either -- and
     none are mocked here, so one that did would raise ConnectionError."""
-    loop = _build_loop(AppConfig(), monkeypatch, pairing_code="ABC123")
+    loop = _build_loop(make_config(), monkeypatch, pairing_code="ABC123")
     shown = _spy_on_display_screen(loop, monkeypatch)
     pairing_screens = []
     monkeypatch.setattr(
@@ -404,7 +405,7 @@ def test_run_only_repaints_pairing_screen_when_code_changes(isolated_cwd, monkey
         f"{TEST_BROKER_URL}/api/devices/test-device/config",
         json=_app_config_json(pairing_code="ABC123"),
     )
-    loop = _build_loop(AppConfig(), monkeypatch, pairing_code="ABC123")
+    loop = _build_loop(make_config(), monkeypatch, pairing_code="ABC123")
     screens_shown = []
     monkeypatch.setattr(loop.display, "display_pairing_screen", lambda panel: screens_shown.append(panel.pairing_code))
 
@@ -422,7 +423,7 @@ def test_refresh_broker_config_applies_the_new_interval_and_pairing_state(isolat
         f"{TEST_BROKER_URL}/api/devices/test-device/config",
         json=_app_config_json(pairing_code=None, interval=42),
     )
-    loop = _build_loop(AppConfig(), monkeypatch, pairing_code="ABC123")
+    loop = _build_loop(make_config(), monkeypatch, pairing_code="ABC123")
 
     asyncio.run(loop.refresh_broker_config())
 
@@ -440,7 +441,7 @@ def test_config_changes_from_the_broker_reach_the_screen_on_the_next_cycle(isola
     new_config = _app_config_json()
     new_config["tfl"]["stop_ids"] = ["490000123W"]
     responses.add(responses.GET, f"{TEST_BROKER_URL}/api/devices/test-device/config", json=new_config)
-    loop = _build_loop(AppConfig(), monkeypatch)
+    loop = _build_loop(make_config(), monkeypatch)
     shown = _spy_on_display_screen(loop, monkeypatch)
 
     _run_cycles(loop, monkeypatch, cycles=2)
@@ -456,7 +457,7 @@ def test_the_first_cycle_reports_how_long_startup_took_once(isolated_cwd, monkey
         f"{TEST_BROKER_URL}/api/devices/test-device/config",
         json=_app_config_json(pairing_code="ABC123"),
     )
-    loop = _build_loop(AppConfig(), monkeypatch, pairing_code="ABC123")
+    loop = _build_loop(make_config(), monkeypatch, pairing_code="ABC123")
     monkeypatch.setattr(loop.display, "display_pairing_screen", lambda panel: None)
 
     _run_cycles(loop, monkeypatch, cycles=2)

@@ -2,9 +2,6 @@ import json
 import secrets
 from pathlib import Path
 
-import pydantic
-import requests
-
 from countdown.abstract_client import AbstractClient
 from countdown.config_manager import AppConfig
 from countdown.http import DEFAULT_TIMEOUT
@@ -78,24 +75,10 @@ class BrokerClient(AbstractClient):
         pass
 
     def fetch_app_config(self) -> tuple[AppConfig, PairingCodePanel]:
-        """Tries once to get real config (and current pairing status) before
-        DisplayLoop is constructed, so it never has to build a TflClient/
-        WeatherClient/GlowClient from a config it already knows is empty. Falls back
-        to AppConfig()'s empty defaults and a no-code PairingCodePanel if the
-        broker's unreachable at boot (e.g. network not up yet) -- the same
-        graceful-degrade safe_fetch provides everywhere else, not a retry loop that
-        would block startup indefinitely. No code in that fallback means "proceed
-        as normal", not "definitely paired" -- if we can't reach the broker we
-        don't actually know either way, and showing a stale/unverifiable code would
-        be worse than just falling through to the ordinary (empty) display. This
-        one case bypasses BrokerClient's own cache entirely (via has_changed=False
-        directly, not get_pairing_code_panel()) since there's nothing to compare
-        against yet -- no fetch happened at all."""
-        try:
-            config = self.get_config()
-            return config, self.get_pairing_code_panel(config)
-        except requests.exceptions.RequestException as e:
-            print(f"Exception with API call to the broker: {e}")
-        except pydantic.ValidationError as e:
-            print(f"Pydantic validation error: {e}")
-        return AppConfig(), PairingCodePanel(None, self.device_id, has_changed=False)
+        """The device's config and current pairing status in one go, for the app's boot.
+        Raises -- requests.exceptions.RequestException if the broker can't be reached,
+        pydantic.ValidationError if it answers with something that isn't a complete config --
+        rather than falling back to anything: with no valid config there's nothing sensible
+        to run, so app.wait_for_config() shows a splash and retries."""
+        config = self.get_config()
+        return config, self.get_pairing_code_panel(config)
