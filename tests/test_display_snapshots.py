@@ -29,19 +29,29 @@ import pytest
 import responses
 from PIL import Image
 
+# `countdown` must be imported before any display.* module: countdown/__init__.py
+# imports the whole app, which imports display.display, which imports back into
+# countdown.* -- so importing a display.* module first re-enters it mid-initialisation
+# and raises ImportError. Every other test file avoids this by happening to import
+# something from countdown first.
+import countdown  # noqa: F401, I001
 import display.display
 import display.energy_panel
-
-# countdown.models must be imported before any display.* module: display.abstract_arrival_panel
-# imports countdown.models, and countdown/__init__.py transitively imports back into
-# display.abstract_arrival_panel (via tfl_client.py) -- importing a display.* module first
-# re-enters it mid-initialization and raises ImportError. Every other test file avoids this
-# by happening to import something from countdown first.
-from countdown.models import BusArrival, MetroStopPoint, SingleStopPoint, TubeArrival, Weather
+from countdown.api_registry import ClientClasses
+from countdown.models import (
+    BusArrival,
+    MetroStopPoint,
+    SingleStopPoint,
+    SpotifyPlayingRightNow,
+    TubeArrival,
+    Weather,
+)
 from display.bus_arrival_panel import BusArrivalPanel
 from display.combined_arrival_panel import CombinedArrivalPanel
 from display.display import DisplayController
 from display.energy_panel import EnergyPanel
+from display.panel import Panel
+from display.spotify_panel import SpotifyPanel
 from display.tube_arrival_panel import TubeArrivalPanel
 from display.weather_panel import WeatherPanel
 
@@ -108,26 +118,27 @@ TUBE_ARRIVALS = [
     ),
 ]
 
-ENERGY = EnergyPanel([
-    {
-        'kwh': 0.15,
-        'start': '2026-09-19T01:12:36.711383'
-    }
-], 0)
+ENERGY = EnergyPanel(
+    [
+        {"start": (_FROZEN_NOW - dt.timedelta(hours=23 - hour)).isoformat(), "kwh": 0.4 + (hour % 6) * 0.25}
+        for hour in range(24)
+    ],
+    0,
+)
 
 
 WEATHER = WeatherPanel(
     Weather(temperature=14.2, weather_code=3, is_day=True, high=18.4, low=9.1, precipitation_probability=40)
 )
 
-SPOTIFY_TRACK_PLAYING = {
-    "song": "Around The World",
-    "artist": "Daft Punk",
-    "album": "Homework",
-    "album_image": "https://example.com/album.jpg",
-    "is_playing": True,
-}
-SPOTIFY_TRACK_PAUSED = {**SPOTIFY_TRACK_PLAYING, "is_playing": False}
+SPOTIFY_TRACK_PLAYING = SpotifyPlayingRightNow(
+    song="Around The World",
+    artist="Daft Punk",
+    album="Homework",
+    album_image="https://example.com/album.jpg",
+    is_playing=True,
+)
+SPOTIFY_TRACK_PAUSED = SPOTIFY_TRACK_PLAYING.model_copy(update={"is_playing": False})
 
 
 def _album_art_bytes() -> bytes:
@@ -157,41 +168,70 @@ def _no_arrivals() -> CombinedArrivalPanel:
     return CombinedArrivalPanel([])
 
 
+def _panels(
+    arrivals: CombinedArrivalPanel | None,
+    energy: EnergyPanel | None = ENERGY,
+    weather: WeatherPanel | None = WEATHER,
+    track: SpotifyPlayingRightNow | None = None,
+) -> dict[str, Panel | None]:
+    """What ApiRegistry.update_all() hands DisplayController.display_screen(): one
+    entry per client, None (or absent) meaning that client has nothing to show."""
+    return {
+        ClientClasses.TFL.api_name: arrivals,
+        ClientClasses.GLOWMARKT.api_name: energy,
+        ClientClasses.WEATHER.api_name: weather,
+        ClientClasses.SPOTIFY.api_name: SpotifyPanel(track) if track else None,
+    }
+
+
 def test_screen_with_no_stops_configured(snapshot):
-    img = _CONTROLLER.display_screen(_no_arrivals(), ENERGY, None, WEATHER)
+    img = _CONTROLLER.display_screen(_panels(_no_arrivals()))
     snapshot.assert_matches("screen_no_stops", img)
 
 
 def test_screen_with_single_bus_stop(snapshot):
-    img = _CONTROLLER.display_screen(_bus_only_arrivals(), ENERGY, None, WEATHER)
+    img = _CONTROLLER.display_screen(_panels(_bus_only_arrivals()))
     snapshot.assert_matches("screen_single_bus_stop", img)
 
 
 def test_screen_with_mixed_bus_and_tube(snapshot):
-    img = _CONTROLLER.display_screen(_bus_and_tube_arrivals(), ENERGY, None, WEATHER)
+    img = _CONTROLLER.display_screen(_panels(_bus_and_tube_arrivals()))
     snapshot.assert_matches("screen_mixed_bus_and_tube", img)
 
 
 def test_screen_without_weather_data_yet(snapshot):
     """Covers the case where the very first weather fetch hasn't completed yet --
-    display_screen must not crash when weather_panel is still None."""
-    img = _CONTROLLER.display_screen(_bus_only_arrivals(), ENERGY, None, None)
+    display_screen must not crash when there's no weather panel yet."""
+    img = _CONTROLLER.display_screen(_panels(_bus_only_arrivals(), weather=None))
     snapshot.assert_matches("screen_no_weather", img)
+
+
+def test_screen_without_energy_panel(snapshot):
+    """Glowmarkt not set up (the common case for a gifted device): the slot is left
+    empty and the weather panel takes over the full height."""
+    img = _CONTROLLER.display_screen(_panels(_bus_only_arrivals(), energy=None))
+    snapshot.assert_matches("screen_no_energy", img)
+
+
+def test_screen_with_no_panels_at_all_still_renders():
+    """First cycle after boot, or every API failing: a blank-ish screen, not a crash."""
+    img = _CONTROLLER.display_screen({})
+    assert img.size == (display.display.TOTAL_WIDTH, display.display.TOTAL_HEIGHT)
 
 
 @responses.activate
 def test_screen_with_spotify_playing(snapshot):
     responses.add(
-        responses.GET, SPOTIFY_TRACK_PLAYING["album_image"], body=_album_art_bytes(), content_type="image/png"
+        responses.GET, SPOTIFY_TRACK_PLAYING.album_image, body=_album_art_bytes(), content_type="image/png"
     )
-    img = _CONTROLLER.display_screen(_bus_only_arrivals(), ENERGY, SPOTIFY_TRACK_PLAYING, WEATHER)
+    img = _CONTROLLER.display_screen(_panels(_bus_only_arrivals(), track=SPOTIFY_TRACK_PLAYING))
     snapshot.assert_matches("screen_spotify_playing", img)
 
 
 @responses.activate
 def test_screen_with_spotify_paused(snapshot):
-    responses.add(responses.GET, SPOTIFY_TRACK_PAUSED["album_image"], body=_album_art_bytes(), content_type="image/png")
-    img = _CONTROLLER.display_screen(_bus_only_arrivals(), ENERGY, SPOTIFY_TRACK_PAUSED, WEATHER)
+    responses.add(responses.GET, SPOTIFY_TRACK_PAUSED.album_image, body=_album_art_bytes(), content_type="image/png")
+    img = _CONTROLLER.display_screen(_panels(_bus_only_arrivals(), track=SPOTIFY_TRACK_PAUSED))
     snapshot.assert_matches("screen_spotify_paused", img)
 
 
