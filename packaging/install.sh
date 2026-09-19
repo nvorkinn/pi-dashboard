@@ -134,7 +134,11 @@ if [ "$NEED_REBOOT" -eq 1 ]; then
     echo "  systemctl status countdown"
     echo "  $LOG_CMD"
 else
-    systemctl enable --now countdown.service
+    # restart, not `enable --now`: starting a service that's already running is a
+    # no-op, so on a re-run (an update) the old code and the old contents of
+    # /etc/pi-telemetry/env would stay in effect until the next reboot.
+    systemctl enable countdown.service
+    systemctl restart countdown.service
     echo "Done. countdown.service is running -- check it with:"
     echo "  systemctl status countdown"
     echo "  $LOG_CMD"
