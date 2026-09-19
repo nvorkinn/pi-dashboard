@@ -1,3 +1,4 @@
+import asyncio
 import os
 import signal
 import sys
@@ -6,7 +7,14 @@ from countdown.broker_client import BrokerClient
 from countdown.display_loop import DisplayLoop
 
 
-async def main() -> None:
+def main() -> None:
+    """The `countdown` console script's entry point (pyproject.toml). It has to be a plain
+    function: the generated wrapper just calls it, so an `async def` here would build a
+    coroutine, never run it, and exit 1 -- a crash loop under systemd."""
+    asyncio.run(run())
+
+
+async def run() -> None:
     # The only thing that can't come from the broker -- it's how this device finds
     # the broker in the first place. Set via the systemd unit's Environment= line
     # (see packaging/systemd/countdown.service). No default: if it's missing, the
