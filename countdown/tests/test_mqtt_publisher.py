@@ -1,5 +1,6 @@
 import asyncio
 import json
+from datetime import UTC, datetime
 from types import SimpleNamespace
 
 import paho.mqtt.client as mqtt
@@ -9,6 +10,7 @@ from paho.mqtt.reasoncodes import ReasonCode
 
 from countdown import mqtt_publisher
 from countdown.abstract_client import AbstractClient, ClientStatus
+from countdown.device_status import STAGES, DeviceStatus
 from countdown.mqtt_publisher import (
     MqttPublisher,
     build_discovery_payload,
@@ -18,6 +20,7 @@ from countdown.mqtt_publisher import (
 )
 
 API_NAMES = ["glowmarkt", "tfl"]
+DEVICE_DEFAULTS = {"stage": "waiting_for_broker", "display_connected": False, "last_broker_sync": None}
 
 
 class FakeMqttClient:
@@ -128,7 +131,7 @@ def test_discovery_joins_pi_telemetrys_ha_device():
 def test_discovery_has_a_status_sensor_per_api_and_a_problem_binary_sensor():
     components = json.loads(build_discovery_payload("sister-hat", API_NAMES))["components"]
 
-    assert set(components) == {"glowmarkt", "tfl", "problem"}
+    assert set(components) == {"glowmarkt", "tfl", "problem", "stage", "display_connected", "last_broker_sync"}
     assert components["tfl"]["platform"] == "sensor"
     assert components["tfl"]["device_class"] == "enum"
     assert components["tfl"]["options"] == [s.value for s in ClientStatus]
@@ -161,7 +164,12 @@ def test_unique_ids_are_distinct_per_host_and_metric():
 def test_state_payload_reports_each_clients_status():
     pub = publisher({"glowmarkt": StubClient(ClientStatus.CONNECTED), "tfl": StubClient(ClientStatus.UNINITIALISED)})
 
-    assert json.loads(pub.build_state_payload()) == {"glowmarkt": "connected", "tfl": "uninitialised", "problem": False}
+    assert json.loads(pub.build_state_payload()) == {
+        "glowmarkt": "connected",
+        "tfl": "uninitialised",
+        "problem": False,
+        **DEVICE_DEFAULTS,
+    }
 
 
 def test_an_api_with_no_client_reads_as_disabled():
@@ -213,7 +221,7 @@ def test_update_publishes_the_health_state_not_retained_and_returns_no_panel():
     state = FakeMqttClient.instances[0].published[-1]
     assert state["topic"] == "pi-telemetry/sister-hat/countdown/state"
     assert (state["qos"], state["retain"]) == (1, False)
-    assert state["payload"] == {"glowmarkt": "disabled", "tfl": "error", "problem": True}
+    assert state["payload"] == {"glowmarkt": "disabled", "tfl": "error", "problem": True, **DEVICE_DEFAULTS}
 
 
 def test_a_refused_connection_marks_the_publisher_errored_and_raises():
@@ -322,3 +330,40 @@ def test_it_stays_quiet_about_being_off_when_a_host_is_set(monkeypatch, capsys):
     MqttPublisher.from_env({}, API_NAMES)
 
     assert "not set" not in capsys.readouterr().out
+
+
+def test_discovery_describes_the_stage_display_and_sync_sensors():
+    components = json.loads(build_discovery_payload("sister-hat", API_NAMES))["components"]
+
+    stage = components["stage"]
+    assert (stage["platform"], stage["device_class"], stage["options"]) == ("sensor", "enum", list(STAGES))
+    assert stage["value_template"] == "{{ value_json.stage }}"
+    display = components["display_connected"]
+    assert (display["platform"], display["device_class"]) == ("binary_sensor", "connectivity")
+    sync = components["last_broker_sync"]
+    assert (sync["platform"], sync["device_class"]) == ("sensor", "timestamp")
+    # Unavailable until the first sync, instead of a template error on a null timestamp.
+    assert sync["availability_topic"] == sync["state_topic"]
+    assert "online" in sync["availability_template"]
+
+
+def test_the_state_payload_carries_the_devices_stage_display_and_last_sync():
+    synced = datetime(2026, 9, 20, 10, 30, tzinfo=UTC)
+    status = DeviceStatus(stage="setup", last_broker_sync=synced, display=SimpleNamespace(panel_connected=True))
+
+    payload = json.loads(publisher(status=status).build_state_payload())
+
+    assert payload["stage"] == "setup"
+    assert payload["display_connected"] is True
+    assert payload["last_broker_sync"] == "2026-09-20T10:30:00+00:00"
+
+
+@pytest.mark.parametrize("panel_connected", [None, False])
+def test_a_display_that_is_unknown_or_absent_is_not_reported_as_connected(panel_connected):
+    status = DeviceStatus(display=SimpleNamespace(panel_connected=panel_connected))
+
+    assert json.loads(publisher(status=status).build_state_payload())["display_connected"] is False
+
+
+def test_with_no_display_at_all_it_is_not_connected():
+    assert DeviceStatus().display_connected is False

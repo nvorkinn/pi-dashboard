@@ -1,5 +1,6 @@
 import asyncio
 from importlib.metadata import entry_points
+from types import SimpleNamespace
 
 import pytest
 import requests
@@ -85,7 +86,7 @@ class FakeDisplay:
         self.splashes.append(type(panel).__name__)
 
 
-def wait(broker, display=None):
+def wait(broker, display=None, on_retry=None):
     display = display or FakeDisplay()
     delays: list[float] = []
 
@@ -93,7 +94,7 @@ def wait(broker, display=None):
         delays.append(seconds)
         assert len(delays) < 50, "wait_for_config is retrying forever"
 
-    result = asyncio.run(app.wait_for_config(broker, display, sleep=sleep))
+    result = asyncio.run(app.wait_for_config(broker, display, sleep=sleep, on_retry=on_retry))
     return result, display, delays
 
 
@@ -160,3 +161,57 @@ def test_a_real_bug_still_crashes_loudly_instead_of_being_retried_forever():
 
     with pytest.raises(TypeError):
         wait(broker)
+
+
+def test_the_wait_reports_each_failed_attempt_through_on_retry():
+    broker = FakeBroker(fetch_failures=[requests.exceptions.ConnectionError("down")] * 3)
+    reported = []
+
+    async def on_retry():
+        reported.append(1)
+
+    wait(broker, on_retry=on_retry)
+
+    assert len(reported) == 3
+
+
+def test_a_broker_that_answers_straight_away_reports_nothing():
+    reported = []
+
+    async def on_retry():
+        reported.append(1)
+
+    wait(FakeBroker(), on_retry=on_retry)
+
+    assert reported == []
+
+
+def test_run_wires_one_device_status_through_the_registry_the_boot_wait_and_the_loop(monkeypatch):
+    monkeypatch.setenv("BROKER_URL", "https://broker.example.com")
+    seen = {}
+
+    class FakeLoop:
+        def __init__(self, broker, config, pairing_code_panel, display, registry):
+            seen.update(display=display, registry=registry)
+
+        async def run(self):
+            pass
+
+    async def fake_wait(broker, display, on_retry=None):
+        seen["on_retry"] = on_retry
+        return make_config(), "the pairing panel"
+
+    fake_display = SimpleNamespace(panel_connected=True, shutdown=lambda: None)
+    monkeypatch.setattr(app, "BrokerClient", lambda url: object())
+    monkeypatch.setattr(app, "DisplayController", lambda: fake_display)
+    monkeypatch.setattr(app, "DisplayLoop", FakeLoop)
+    monkeypatch.setattr(app, "wait_for_config", fake_wait)
+    monkeypatch.setattr(app.signal, "signal", lambda *args: None)
+
+    asyncio.run(app.run())
+
+    registry = seen["registry"]
+    assert seen["display"] is fake_display
+    assert registry.status.display is fake_display
+    assert seen["on_retry"] == registry.publish_health
+    assert registry.status.last_broker_sync is not None

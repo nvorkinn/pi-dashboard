@@ -3,12 +3,15 @@ import os
 import signal
 import sys
 from collections.abc import Awaitable, Callable
+from datetime import UTC, datetime
 
 import requests
 
 from countdown.abstract_client import ClientStatus
+from countdown.api_registry import ApiRegistry
 from countdown.broker_client import BrokerClient
 from countdown.config_manager import AppConfig
+from countdown.device_status import DeviceStatus
 from countdown.display_loop import DisplayLoop
 from display.display import DisplayController
 from display.pairing_code_panel import PairingCodePanel
@@ -32,6 +35,7 @@ async def wait_for_config(
     broker: BrokerClient,
     display: DisplayController,
     sleep: Callable[[float], Awaitable[None]] = asyncio.sleep,
+    on_retry: Callable[[], Awaitable[None]] | None = None,
 ) -> tuple[AppConfig, PairingCodePanel]:
     """Blocks until the broker has given this device a valid config, and returns it (with the
     pairing status that came with it). Everything the app does depends on that config, so
@@ -53,6 +57,8 @@ async def wait_for_config(
             if not splash_shown:
                 display.display_splash(SplashPanel())
                 splash_shown = True
+            if on_retry:
+                await on_retry()
             await sleep(delay)
             delay = min(delay * 2, MAX_RETRY_S)
 
@@ -77,6 +83,11 @@ async def run() -> None:
     signal.signal(signal.SIGINT, handle_shutdown)
     signal.signal(signal.SIGTERM, handle_shutdown)
 
+    # Created before the config exists, so the wait for it can be reported to Home Assistant too.
+    status = DeviceStatus(display=display)
+    registry = ApiRegistry(status)
+
     broker = BrokerClient(broker_url)
-    config, pairing_code_panel = await wait_for_config(broker, display)
-    await DisplayLoop(broker, config, pairing_code_panel, display).run()
+    config, pairing_code_panel = await wait_for_config(broker, display, on_retry=registry.publish_health)
+    status.last_broker_sync = datetime.now(UTC)
+    await DisplayLoop(broker, config, pairing_code_panel, display, registry).run()

@@ -206,21 +206,34 @@ def test_update_all_omits_a_client_that_has_never_succeeded():
     assert asyncio.run(registry.update_all()) == {"weather": "sunny"}
 
 
-def test_update_all_publishes_health_after_polling_the_clients():
-    tfl = FakeClient("arrivals")
-    registry = registry_with(tfl=tfl)
+def test_update_all_leaves_publishing_health_to_the_loop():
+    registry = registry_with(tfl=FakeClient("arrivals"))
     registry.pub = health = FakeClient(None)
 
     asyncio.run(registry.update_all())
 
-    assert (tfl.updates, health.updates) == (1, 1)
+    assert health.updates == 0
 
 
-def test_update_all_still_returns_the_panels_when_publishing_health_fails():
-    registry = registry_with(weather=FakeClient("sunny"))
+def test_publish_health_runs_the_publisher_at_most_once_a_minute_unless_forced():
+    registry = registry_with()
+    registry.pub = health = FakeClient(None, None)
+
+    asyncio.run(registry.publish_health())
+    asyncio.run(registry.publish_health())
+    assert health.updates == 1
+
+    asyncio.run(registry.publish_health(force=True))
+    assert health.updates == 2
+
+
+def test_a_failing_publisher_is_logged_and_never_raised(capsys):
+    registry = registry_with()
     registry.pub = FakeClient(ConnectionError("mqtt down"))
 
-    assert asyncio.run(registry.update_all()) == {"weather": "sunny"}
+    asyncio.run(registry.publish_health())
+
+    assert "Error publishing health over MQTT" in capsys.readouterr().out
 
 
 def test_the_publisher_reads_the_registrys_own_client_dict():
