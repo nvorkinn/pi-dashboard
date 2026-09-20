@@ -1,7 +1,19 @@
-from PIL import Image, ImageDraw
+from PIL import Image, ImageDraw, ImageFont
 
 from display.panel import Panel
-from display.utils import HELVETICA, UBUNTU_MEDIUM
+from display.utils import FONTS_DIR
+
+# Letters are white on black squares; if thin white strokes fill in on the real panel,
+# switch this to "Ubuntu-Medium.ttf".
+LETTER_FONT = "Ubuntu-Regular.ttf"
+
+TITLE = ImageFont.truetype(str(FONTS_DIR / "Ubuntu-Medium.ttf"), 64)
+BODY = ImageFont.truetype(str(FONTS_DIR / "Ubuntu-Medium.ttf"), 36)
+SMALL = ImageFont.truetype(str(FONTS_DIR / "Ubuntu-Medium.ttf"), 30)
+
+MARGIN = 40
+MAX_SIDE = 104
+GAP = 12
 
 
 class PairingCodePanel(Panel):
@@ -23,15 +35,23 @@ class PairingCodePanel(Panel):
         draw = ImageDraw.Draw(img)
         center_x, center_y = image_width / 2, image_height / 2
 
-        draw.text((center_x, center_y - 90), "Set up this display", anchor="mm", font=HELVETICA, fill="black")
-        draw.text(
-            (center_x, center_y - 60),
-            "Go to nikolaivorkinn.com and enter this code:",
-            anchor="mm",
-            font=HELVETICA,
-            fill="black",
-        )
-        draw.text((center_x, center_y), self.pairing_code or "", anchor="mm", font=UBUNTU_MEDIUM, fill="black")
-        draw.text((center_x, center_y + 60), f"Device: {self.device_id}", anchor="mm", font=HELVETICA, fill="black")
+        draw.text((center_x, center_y - 178), "Set up this display", anchor="mm", font=TITLE, fill="black")
+        draw.text((center_x, center_y - 98), "Go to nikolaivorkinn.com", anchor="mm", font=BODY, fill="black")
+        draw.text((center_x, center_y - 54), "and enter this code:", anchor="mm", font=BODY, fill="black")
+        self._draw_code(draw, image_width, center_y - 4)
+        draw.text((center_x, center_y + 168), f"Device: {self.device_id}", anchor="mm", font=SMALL, fill="black")
 
         return img
+
+    def _draw_code(self, draw: ImageDraw.ImageDraw, image_width: int, top: float) -> None:
+        code = self.pairing_code or ""
+        if not code:
+            return
+        # Shrinks the squares for a code too long to fit at full size.
+        side = min(MAX_SIDE, (image_width - 2 * MARGIN - GAP * (len(code) - 1)) // len(code))
+        font = ImageFont.truetype(str(FONTS_DIR / LETTER_FONT), round(78 * side / MAX_SIDE))
+        x = (image_width - (len(code) * side + (len(code) - 1) * GAP)) / 2
+        for char in code:
+            draw.rectangle((x, top, x + side - 1, top + side - 1), fill="black")
+            draw.text((x + side / 2, top + side / 2 + 2), char, anchor="mm", font=font, fill="white")
+            x += side + GAP
