@@ -8,6 +8,7 @@ from collections.abc import Mapping, Sequence
 import paho.mqtt.client as mqtt
 
 from countdown.abstract_client import AbstractClient, ClientStatus
+from countdown.device_status import STAGES, DeviceStatus
 from display.panel import Panel
 
 # Topic, discovery and payload conventions follow pi-telemetry
@@ -60,8 +61,9 @@ def discovery_topic(device_id: str) -> str:
 
 
 def build_discovery_payload(device_id: str, api_names: Sequence[str]) -> str:
-    """Device-based discovery message: one enum sensor per API (its ClientStatus) and a
-    single "problem" binary sensor that's ON while any API is in ERROR or FATAL."""
+    """Device-based discovery message: one enum sensor per API (its ClientStatus), a "problem"
+    binary sensor that's ON while any API is in ERROR or FATAL, and the device's stage,
+    display connection and last broker sync."""
 
     def component(platform: str, key: str, name: str, template: str, **extra: object) -> dict:
         return {
@@ -92,6 +94,33 @@ def build_discovery_payload(device_id: str, api_names: Sequence[str]) -> str:
         "API problem",
         "{{ 'ON' if value_json.problem else 'OFF' }}",
         device_class="problem",
+    )
+    components["stage"] = component(
+        "sensor",
+        "stage",
+        "Stage",
+        "{{ value_json.stage }}",
+        device_class="enum",
+        options=list(STAGES),
+        entity_category="diagnostic",
+    )
+    components["display_connected"] = component(
+        "binary_sensor",
+        "display_connected",
+        "Display connected",
+        "{{ 'ON' if value_json.display_connected else 'OFF' }}",
+        device_class="connectivity",
+        entity_category="diagnostic",
+    )
+    components["last_broker_sync"] = component(
+        "sensor",
+        "last_broker_sync",
+        "Last broker sync",
+        "{{ value_json.last_broker_sync }}",
+        device_class="timestamp",
+        entity_category="diagnostic",
+        availability_topic=state_topic(device_id),
+        availability_template="{{ 'online' if value_json.last_broker_sync else 'offline' }}",
     )
     return json.dumps(
         {
@@ -125,9 +154,11 @@ class MqttPublisher(AbstractClient):
         port: int = 1883,
         username: str | None = None,
         password: str | None = None,
+        status: DeviceStatus | None = None,
     ):
         super().__init__()
         self.clients = clients
+        self.device_status = status or DeviceStatus()
         self.api_names = list(api_names)
         self.device_id = device_id
         self.broker_host = broker_host
@@ -140,7 +171,9 @@ class MqttPublisher(AbstractClient):
             self.status = ClientStatus.DISABLED
 
     @classmethod
-    def from_env(cls, clients: Mapping[str, AbstractClient], api_names: Sequence[str]) -> MqttPublisher:
+    def from_env(
+        cls, clients: Mapping[str, AbstractClient], api_names: Sequence[str], status: DeviceStatus | None = None
+    ) -> MqttPublisher:
         """Same variables as pi-telemetry, so both can share one systemd env file. Unlike
         pi-telemetry there's no localhost default for the host: unset means disabled."""
         try:
@@ -161,6 +194,7 @@ class MqttPublisher(AbstractClient):
             port=port,
             username=os.environ.get("MQTT_BROKER_USERNAME"),
             password=os.environ.get("MQTT_BROKER_PASSWORD"),
+            status=status,
         )
 
     def _initialise(self) -> None:
@@ -212,7 +246,16 @@ class MqttPublisher(AbstractClient):
             name: self.clients[name].status if name in self.clients else ClientStatus.DISABLED
             for name in self.api_names
         }
-        return json.dumps({**statuses, "problem": any(s in UNHEALTHY for s in statuses.values())})
+        device = self.device_status
+        return json.dumps(
+            {
+                **statuses,
+                "problem": any(s in UNHEALTHY for s in statuses.values()),
+                "stage": device.stage,
+                "display_connected": device.display_connected,
+                "last_broker_sync": device.last_broker_sync.isoformat() if device.last_broker_sync else None,
+            }
+        )
 
     def _update(self) -> Panel | None:
         """Raises if the connection has dropped, flagging ERROR so the next update()

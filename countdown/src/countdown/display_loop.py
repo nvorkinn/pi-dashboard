@@ -1,5 +1,6 @@
 import asyncio
 import time
+from datetime import UTC, datetime
 
 import pydantic
 import requests
@@ -44,14 +45,16 @@ class DisplayLoop:
         config: AppConfig,
         pairing_code_panel: PairingCodePanel,
         display: DisplayController | None = None,
+        api_reg: ApiRegistry | None = None,
     ):
         self.broker = broker
         self.config = config
         self.pairing_code_panel = pairing_code_panel
         self.interval = config.interval
         self.display = display if display is not None else DisplayController()
-        self.api_reg = ApiRegistry()
+        self.api_reg = api_reg if api_reg is not None else ApiRegistry()
         self._setup_shown: list[str] | None = None
+        self._published_stage: str | None = None
         # Unlike tfl/weather, resolving a Glowmarkt resource id means actually
         # authenticating against Glowmarkt's own API, not just reading a value out
         # of config -- deferred to run(), retried lazily each full-refresh cycle via
@@ -66,6 +69,7 @@ class DisplayLoop:
         while True:
             try:
                 if self.pairing_code_panel.pairing_code:
+                    self.api_reg.status.stage = "pairing"
                     self._setup_shown = None
                     # Only repaint when the code actually changes (BrokerClient's own
                     # cache decides that, see get_pairing_code_panel) -- this is a full
@@ -75,10 +79,12 @@ class DisplayLoop:
                     if self.pairing_code_panel.has_changed:
                         self.display.display_pairing_screen(self.pairing_code_panel)
                 elif self.config.setup_missing:
+                    self.api_reg.status.stage = "setup"
                     if self.config.setup_missing != self._setup_shown:
                         self.display.display_setup_screen(SetupPanel(self.config.setup_missing))
                         self._setup_shown = list(self.config.setup_missing)
                 else:
+                    self.api_reg.status.stage = "running"
                     self._setup_shown = None
                     panels = await self.api_reg.update_all()
                     self.display.display_screen(panels)
@@ -86,6 +92,10 @@ class DisplayLoop:
                 print(f"Network error encountered: {e}")
             except Exception as e:
                 print(f"Unexpected error: {e}")
+
+            stage = self.api_reg.status.stage
+            await self.api_reg.publish_health(force=stage != self._published_stage)
+            self._published_stage = stage
 
             if not first_cycle_done:
                 # Once, not every cycle: how long the device took to get its first screen up
@@ -111,6 +121,7 @@ class DisplayLoop:
             return
 
         self.pairing_code_panel = self.broker.get_pairing_code_panel(fetched)
+        self.api_reg.status.last_broker_sync = datetime.now(UTC)
         self.config = fetched
         self.interval = fetched.interval
         await self.api_reg.on_config_update(fetched)

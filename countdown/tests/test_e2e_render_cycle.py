@@ -532,3 +532,61 @@ def test_the_setup_checklist_is_repainted_when_the_list_changes(isolated_cwd, mo
     _run_cycles(loop, monkeypatch, cycles=2)
 
     assert setup_screens == [MISSING_BOTH, ["a bus or tube stop"]]
+
+
+@responses.activate
+@pytest.mark.parametrize(
+    ("pairing_code", "setup_missing", "stage"),
+    [("ABC123", MISSING_BOTH, "pairing"), (None, MISSING_BOTH, "setup"), (None, [], "running")],
+    ids=["pairing", "setup", "dashboard"],
+)
+def test_run_reports_the_stage_it_is_in(isolated_cwd, monkeypatch, pairing_code, setup_missing, stage):
+    _mock_config(pairing_code=pairing_code, setup_missing=setup_missing)
+    loop = _build_loop(make_config(setup_missing=setup_missing), monkeypatch, pairing_code=pairing_code)
+
+    _run_cycles(loop, monkeypatch)
+
+    assert loop.api_reg.status.stage == stage
+
+
+def _record_publishes(loop: DisplayLoop, monkeypatch) -> list[bool]:
+    forced: list[bool] = []
+
+    async def publish_health(force: bool = False) -> None:
+        forced.append(force)
+
+    monkeypatch.setattr(loop.api_reg, "publish_health", publish_health)
+    return forced
+
+
+@responses.activate
+def test_run_publishes_health_every_cycle_and_forces_it_only_when_the_stage_changes(isolated_cwd, monkeypatch):
+    _mock_config(pairing_code="ABC123")
+    loop = _build_loop(make_config(), monkeypatch, pairing_code="ABC123")
+    forced = _record_publishes(loop, monkeypatch)
+
+    _run_cycles(loop, monkeypatch, cycles=2)
+
+    assert forced == [True, False]  # waiting_for_broker -> pairing, then no change
+
+
+@responses.activate
+def test_run_forces_a_publish_when_setup_completes(isolated_cwd, monkeypatch):
+    _mock_config(setup_missing=[])
+    loop = _build_loop(make_config(setup_missing=MISSING_BOTH), monkeypatch)
+    forced = _record_publishes(loop, monkeypatch)
+
+    _run_cycles(loop, monkeypatch, cycles=2)
+
+    assert forced == [True, True]  # -> setup, then -> running
+
+
+@responses.activate
+def test_refreshing_the_config_records_when_the_broker_last_answered(isolated_cwd, monkeypatch):
+    _mock_config()
+    loop = _build_loop(make_config(), monkeypatch)
+    assert loop.api_reg.status.last_broker_sync is None
+
+    _run_cycles(loop, monkeypatch, cycles=2)
+
+    assert loop.api_reg.status.last_broker_sync is not None
