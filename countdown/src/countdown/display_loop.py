@@ -82,6 +82,7 @@ class DisplayLoop:
                     self._setup_shown = None
                     panels = await self.api_reg.update_all()
                     self.display.display_screen(panels)
+                self.display.repaint_pending()
             except requests.exceptions.RequestException as e:
                 print(f"Network error encountered: {e}")
             except Exception as e:

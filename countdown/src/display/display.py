@@ -53,6 +53,8 @@ class DisplayController:
         # None whenever that isn't known -- nothing painted yet, or the last paint failed.
         self._shown: Image.Image | None = None
         self._last_full_refresh = 0.0
+        # A whole-screen picture (pairing code, checklist, splash) the panel couldn't take yet.
+        self._pending: Image.Image | None = None
 
     def _wake_panel(self, init=None) -> bool:
         """Initialises the panel (`init` defaults to the full-refresh init), or returns
@@ -145,6 +147,7 @@ class DisplayController:
         if self._shown is not None and changed is None:
             return  # this exact picture is already on the panel
 
+        self._pending = None  # the dashboard supersedes any screen still waiting for the panel
         region = self._partial_region(changed, arrivals_box)
         now = time.monotonic()
         try:
@@ -197,11 +200,19 @@ class DisplayController:
         # Whatever was on the panel is about to be replaced, so the next normal screen has
         # to be painted in full even if it matches one shown before.
         self._shown = None
+        self._pending = img
         if not self._wake_panel():
             return False
         self.epd.display(self.epd.getbuffer(img))
         self.epd.sleep()
+        self._pending = None
         return True
+
+    def repaint_pending(self) -> None:
+        """Retries a whole-screen picture that couldn't be painted (no panel yet, or the paint
+        failed), so it appears once the panel does instead of waiting for its state to change."""
+        if self._pending is not None and self.display_enabled and self.epd:
+            self._paint_whole_screen(self._pending)
 
     def display_pairing_screen(self, panel: PairingCodePanel) -> Image.Image:
         img = panel.render(TOTAL_WIDTH, TOTAL_HEIGHT)

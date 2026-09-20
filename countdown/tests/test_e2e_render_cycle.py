@@ -532,3 +532,22 @@ def test_the_setup_checklist_is_repainted_when_the_list_changes(isolated_cwd, mo
     _run_cycles(loop, monkeypatch, cycles=2)
 
     assert setup_screens == [MISSING_BOTH, ["a bus or tube stop"]]
+
+
+@responses.activate
+@pytest.mark.parametrize(
+    ("pairing_code", "setup_missing"),
+    [("ABC123", MISSING_BOTH), (None, MISSING_BOTH), (None, [])],
+    ids=["pairing", "setup", "dashboard"],
+)
+def test_run_retries_a_screen_the_panel_could_not_take_every_cycle(
+    isolated_cwd, monkeypatch, pairing_code, setup_missing
+):
+    _mock_config(pairing_code=pairing_code, setup_missing=setup_missing)
+    loop = _build_loop(make_config(setup_missing=setup_missing), monkeypatch, pairing_code=pairing_code)
+    retries = []
+    monkeypatch.setattr(loop.display, "repaint_pending", lambda: retries.append(1))
+
+    _run_cycles(loop, monkeypatch, cycles=2)
+
+    assert len(retries) == 2
