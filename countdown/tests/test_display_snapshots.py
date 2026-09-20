@@ -51,6 +51,7 @@ from display.combined_arrival_panel import CombinedArrivalPanel
 from display.display import DisplayController
 from display.empty_panel import EmptyPanel
 from display.energy_panel import EnergyPanel
+from display.pairing_code_panel import PairingCodePanel
 from display.panel import Panel
 from display.setup_panel import SetupPanel
 from display.splash_panel import SplashPanel
@@ -295,3 +296,31 @@ def test_weather_panel_rainy_night(snapshot):
     # that differ between macOS and Linux weigh more here than in a full-screen
     # snapshot (CI measured 0.0059 against the default 0.005, all on the glyph edges).
     snapshot.assert_matches("weather_rainy_night", panel.render(528, 170), threshold=0.01)
+
+
+def test_pairing_code_screen(snapshot):
+    img = PairingCodePanel("C4FFEZ", "7218485b654f", has_changed=True).render(
+        display.display.TOTAL_WIDTH, display.display.TOTAL_HEIGHT
+    )
+    snapshot.assert_matches("screen_pairing_code", img, threshold=0.02)
+
+
+@pytest.mark.parametrize("code", ["C4FFEZ", "ABCDEFGH", "ABCDEFGHJKLM"])
+def test_pairing_code_stays_on_the_screen_whatever_its_length(code):
+    img = (
+        PairingCodePanel(code, "7218485b654f", has_changed=True)
+        .render(display.display.TOTAL_WIDTH, display.display.TOTAL_HEIGHT)
+        .convert("L")
+    )
+    width, height = img.size
+
+    for edge in [(0, 0, 30, height), (width - 30, 0, width, height)]:
+        assert img.crop(edge).getextrema() == (255, 255)
+
+
+def test_pairing_screen_without_a_code_draws_no_boxes():
+    img = PairingCodePanel(None, "7218485b654f", has_changed=True).render(
+        display.display.TOTAL_WIDTH, display.display.TOTAL_HEIGHT
+    )
+
+    assert img.convert("L").crop((0, 232, 800, 342)).getextrema() == (255, 255)
