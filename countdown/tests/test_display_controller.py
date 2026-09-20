@@ -402,3 +402,73 @@ def test_the_setup_checklist_goes_to_the_log_when_there_is_no_panel(no_preview, 
     controller.display_setup_screen(SetupPanel(["a weather location", "a bus or tube stop"]))
 
     assert "a weather location, a bus or tube stop" in capsys.readouterr().out
+
+
+def _pairing_panel():
+    from display.pairing_code_panel import PairingCodePanel
+
+    return PairingCodePanel("ABC123", "device-1", has_changed=True)
+
+
+def test_a_whole_screen_that_found_no_panel_is_painted_once_the_panel_appears(no_preview, clock):
+    epd = FakeEpd(answers=False)
+    controller = controller_with(epd)
+    controller.display_pairing_screen(_pairing_panel())
+
+    epd.answers = True
+    controller._next_probe = 0.0
+    epd.calls.clear()
+    controller.repaint_pending()
+    assert epd.calls == ["init", "display", "sleep"]
+
+    epd.calls.clear()
+    controller.repaint_pending()
+    assert epd.calls == []
+
+
+def test_repaint_pending_does_not_pester_a_panel_that_is_still_absent(no_preview, clock):
+    epd = FakeEpd(answers=False)
+    controller = controller_with(epd)
+    controller.display_pairing_screen(_pairing_panel())
+
+    controller.repaint_pending()
+    controller.repaint_pending()
+
+    assert epd.calls == ["init"]
+
+
+def test_a_whole_screen_paint_that_failed_midway_is_retried(no_preview, clock):
+    from display.splash_panel import SplashPanel
+
+    epd = FakeEpd(answers=True)
+    controller = controller_with(epd)
+    epd.fail_display = True
+    with pytest.raises(RuntimeError):
+        controller.display_splash(SplashPanel())
+
+    epd.fail_display = False
+    epd.calls.clear()
+    controller.repaint_pending()
+
+    assert epd.calls == ["init", "display", "sleep"]
+
+
+def test_the_dashboard_supersedes_a_screen_still_waiting_for_the_panel(no_preview, clock):
+    epd = FakeEpd(answers=False)
+    controller = controller_with(epd)
+    controller.display_pairing_screen(_pairing_panel())
+
+    epd.answers = True
+    controller._next_probe = 0.0
+    controller.display_screen(frame())
+    epd.calls.clear()
+    controller.repaint_pending()
+
+    assert epd.calls == []
+
+
+def test_nothing_is_pending_without_a_driver(no_preview):
+    controller = DisplayController()
+    controller.display_enabled = False
+
+    controller.repaint_pending()  # must not raise or touch anything
