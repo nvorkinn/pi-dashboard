@@ -1,7 +1,8 @@
 import asyncio
+from datetime import timedelta
 from enum import Enum
 
-from countdown.abstract_client import AbstractClient
+from countdown.abstract_client import AbstractClient, ClientStatus
 from countdown.config_manager import ApiConfig, AppConfig
 from countdown.glow_client import GlowClient
 from countdown.mqtt_publisher import MqttPublisher
@@ -20,6 +21,24 @@ class ClientClasses(Enum):
     @property
     def api_name(self) -> str:
         return self.value[0]
+
+
+class FailedClient(AbstractClient):
+    """Stands in for a client whose constructor raised, so the failure shows as an error status
+    (and in HA) instead of the client silently being missing. Rebuilt when its config changes."""
+
+    poll_interval = timedelta(hours=1)
+
+    def __init__(self, config: ApiConfig, error: Exception):
+        super().__init__(config)
+        self.error = error
+        self.status = ClientStatus.ERROR
+
+    def _initialise(self) -> None:
+        raise self.error
+
+    def _update(self) -> Panel | None:
+        raise self.error
 
 
 class ApiRegistry:
@@ -52,6 +71,7 @@ class ApiRegistry:
                     to_initialise[name] = self.clients[name] = clazz(client_config)
                 except Exception as e:
                     print(f"Error building {name} client: {e}")
+                    self.clients[name] = FailedClient(client_config, e)
 
         outcomes = await asyncio.gather(*[c.initialise() for c in to_initialise.values()], return_exceptions=True)
         for name, outcome in zip(to_initialise, outcomes, strict=True):
