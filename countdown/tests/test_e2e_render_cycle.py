@@ -524,17 +524,6 @@ def test_a_pairing_code_takes_precedence_over_the_setup_checklist(isolated_cwd, 
 
 
 @responses.activate
-def test_the_setup_checklist_is_repainted_when_the_list_changes(isolated_cwd, monkeypatch):
-    _mock_config(setup_missing=["a bus or tube stop"])
-    loop = _build_loop(make_config(setup_missing=MISSING_BOTH), monkeypatch)
-    setup_screens = _spy_on_setup_screen(loop, monkeypatch)
-
-    _run_cycles(loop, monkeypatch, cycles=2)
-
-    assert setup_screens == [MISSING_BOTH, ["a bus or tube stop"]]
-
-
-@responses.activate
 @pytest.mark.parametrize(
     ("pairing_code", "setup_missing", "stage"),
     [("ABC123", MISSING_BOTH, "pairing"), (None, MISSING_BOTH, "setup"), (None, [], "running")],
@@ -590,3 +579,14 @@ def test_refreshing_the_config_records_when_the_broker_last_answered(isolated_cw
     _run_cycles(loop, monkeypatch, cycles=2)
 
     assert loop.api_reg.status.last_broker_sync is not None
+
+
+@responses.activate
+def test_the_setup_checklist_is_repainted_when_the_list_changes(isolated_cwd, monkeypatch):
+    _mock_config(setup_missing=["a bus or tube stop"])
+    loop = _build_loop(make_config(setup_missing=MISSING_BOTH), monkeypatch)
+    setup_screens = _spy_on_setup_screen(loop, monkeypatch)
+
+    _run_cycles(loop, monkeypatch, cycles=2)
+
+    assert setup_screens == [MISSING_BOTH, ["a bus or tube stop"]]
