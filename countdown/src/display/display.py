@@ -55,6 +55,8 @@ class DisplayController:
         self._last_full_refresh = 0.0
         # A whole-screen picture (pairing code, checklist, splash) the panel couldn't take yet.
         self._pending: Image.Image | None = None
+        # Whether the panel is initialised and its SPI open; the driver's sleep() closes it.
+        self._awake = False
 
     def _wake_panel(self, init=None) -> bool:
         """Initialises the panel (`init` defaults to the full-refresh init), or returns
@@ -76,6 +78,7 @@ class DisplayController:
         if self.panel_connected is False:
             print("E-paper panel detected")
         self.panel_connected = True
+        self._awake = True
         return True
 
     def display_screen(self, panels: dict[str, Panel | None]) -> Image.Image:
@@ -180,7 +183,7 @@ class DisplayController:
         if not self._wake_panel():
             return False
         self.epd.display(self.epd.getbuffer(img))
-        self.epd.sleep()
+        self._sleep_panel()
         return True
 
     def _refresh_partial(self, img: Image.Image, region: tuple[int, int, int, int]) -> bool:
@@ -191,7 +194,7 @@ class DisplayController:
         for i in range(len(buf)):
             buf[i] ^= 0xFF
         self.epd.display_Partial(buf, x0, y0, x1, y1)
-        self.epd.sleep()
+        self._sleep_panel()
         return True
 
     def _paint_whole_screen(self, img: Image.Image) -> bool:
@@ -204,7 +207,7 @@ class DisplayController:
         if not self._wake_panel():
             return False
         self.epd.display(self.epd.getbuffer(img))
-        self.epd.sleep()
+        self._sleep_panel()
         self._pending = None
         return True
 
@@ -253,11 +256,15 @@ class DisplayController:
 
         return img
 
+    def _sleep_panel(self) -> None:
+        self.epd.sleep()
+        self._awake = False
+
     def shutdown(self) -> None:
-        # Only a panel known to be awake needs putting to sleep; asking one that never
-        # answered would just wait out the busy timeout.
-        if self.epd and self.panel_connected:
+        # Every paint ends with the panel asleep and its SPI closed, so this only has work to
+        # do if a paint was interrupted. It runs inside the SIGTERM handler, so it can't raise.
+        if self.epd and self._awake:
             try:
-                self.epd.sleep()
-            except RuntimeError as e:
+                self._sleep_panel()
+            except Exception as e:
                 print(f"Could not put the e-paper panel to sleep: {e}")

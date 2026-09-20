@@ -139,24 +139,56 @@ def test_the_absence_is_logged_once_not_every_probe(no_preview, capsys):
     assert capsys.readouterr().out.count("No e-paper panel responding") == 1
 
 
-def test_shutdown_only_puts_a_known_awake_panel_to_sleep():
-    absent, unprobed, present = FakeEpd(False), FakeEpd(True), FakeEpd(True)
-    a, u, p = controller_with(absent), controller_with(unprobed), controller_with(present)
-    a.panel_connected, u.panel_connected, p.panel_connected = False, None, True
-
-    for controller in (a, u, p):
-        controller.shutdown()
-
-    assert (absent.calls, unprobed.calls, present.calls) == ([], [], ["sleep"])
-
-
-def test_shutdown_survives_a_panel_that_stops_answering():
-    epd = FakeEpd(True)
-    epd.sleep = lambda: (_ for _ in ()).throw(RuntimeError("still busy"))
+def test_shutdown_leaves_a_panel_that_is_already_asleep_alone(no_preview, clock):
+    """Every paint ends with sleep(), which closes the SPI; sleeping it again fails."""
+    epd = FakeEpd(answers=True)
     controller = controller_with(epd)
-    controller.panel_connected = True
+    controller.display_screen(frame())
+    epd.calls.clear()
 
-    controller.shutdown()  # must not raise: it runs inside the SIGTERM handler
+    controller.shutdown()
+
+    assert epd.calls == []
+
+
+def test_shutdown_puts_a_panel_left_awake_by_an_interrupted_paint_to_sleep(no_preview, clock):
+    epd = FakeEpd(answers=True)
+    controller = controller_with(epd)
+    epd.fail_display = True
+    with pytest.raises(RuntimeError):
+        controller.display_screen(frame())
+    epd.calls.clear()
+
+    controller.shutdown()
+
+    assert epd.calls == ["sleep"]
+
+
+def test_shutdown_never_touches_a_panel_that_was_absent_or_never_woken(no_preview, clock):
+    absent = FakeEpd(answers=False)
+    unprobed = FakeEpd(answers=True)
+    controller_with(unprobed).shutdown()
+    absent_controller = controller_with(absent)
+    absent_controller.display_screen(frame())
+    absent.calls.clear()
+
+    absent_controller.shutdown()
+
+    assert (absent.calls, unprobed.calls) == ([], [])
+
+
+def test_shutdown_survives_the_closed_spi_seen_on_the_pi(no_preview, clock, capsys):
+    """Sleeping an already-asleep panel raised OSError (Bad file descriptor) inside the SIGTERM
+    handler, so the service exited with status 1."""
+    epd = FakeEpd(answers=True)
+    controller = controller_with(epd)
+    controller.display_screen(frame())
+    controller._awake = True
+    epd.sleep = lambda: (_ for _ in ()).throw(OSError(9, "Bad file descriptor"))
+
+    controller.shutdown()  # must not raise
+
+    assert "Could not put the e-paper panel to sleep" in capsys.readouterr().out
 
 
 def test_the_pairing_code_goes_to_the_log_when_there_is_no_panel_to_show_it(no_preview, capsys):
