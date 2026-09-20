@@ -1,10 +1,11 @@
 import asyncio
+import json
 
 import pytest
 from config_factory import make_config
 
-from countdown.abstract_client import AbstractClient
-from countdown.api_registry import ApiRegistry, ClientClasses
+from countdown.abstract_client import AbstractClient, ClientStatus
+from countdown.api_registry import ApiRegistry, ClientClasses, FailedClient
 from countdown.glow_client import GlowClient
 from countdown.spotify_client import SpotifyClient
 from countdown.tfl_client import TflClient
@@ -96,7 +97,7 @@ def test_on_config_update_survives_a_client_that_cannot_be_built(monkeypatch):
 
     asyncio.run(registry.on_config_update(config))
 
-    assert "spotify" not in registry.clients
+    assert registry.clients["spotify"].status == ClientStatus.ERROR
     assert "tfl" in registry.clients
 
 
@@ -234,3 +235,39 @@ def test_update_all_never_lets_one_clients_failure_escape(bad):
     registry = registry_with(a=FakeClient(bad), b=FakeClient("fine"))
 
     assert asyncio.run(registry.update_all())["b"] == "fine"
+
+
+def test_a_client_that_could_not_be_built_shows_as_an_error_in_the_health_payload():
+    config = make_config()
+    config.spotify.enabled = True  # BROKER_URL is unset in tests, so building it raises
+    registry = ApiRegistry()
+
+    asyncio.run(registry.on_config_update(config))
+
+    payload = json.loads(registry.pub.build_state_payload())
+    assert payload["spotify"] == "error"
+    assert payload["problem"] is True
+
+
+def test_a_client_that_could_not_be_built_is_reported_again_by_update_all_without_raising(capsys):
+    config = make_config()
+    config.spotify.enabled = True
+    registry = ApiRegistry()
+    asyncio.run(registry.on_config_update(config))
+    capsys.readouterr()
+
+    panels = asyncio.run(registry.update_all())
+
+    assert "spotify" not in panels
+    assert "Error updating spotify" in capsys.readouterr().out
+
+
+def test_a_failed_client_is_rebuilt_when_its_config_changes_and_dropped_when_switched_off():
+    failed = FailedClient(make_config().spotify, KeyError("BROKER_URL"))
+
+    assert failed.needs_refresh(make_config(spotify={"enabled": True}).spotify)
+
+    registry = registry_with(spotify=failed)
+    registry.panels["spotify"] = "old panel"
+    asyncio.run(registry.on_config_update(make_config()))  # spotify is disabled in the new config
+    assert "spotify" not in registry.clients
