@@ -15,7 +15,7 @@ class TubeArrivalPanel(AbstractArrivalPanel):
     def add_header(self, img: Image.Image, draw: ImageDraw.ImageDraw) -> None:
         img.paste(ROUNDEL, (5, 2), ROUNDEL)
         station = self.stop.common_name.removesuffix(" Underground Station")
-        draw.text((10 + ROUNDEL.size[0], 10), station, "white", anchor="lm")
+        draw.text((10 + ROUNDEL.size[0], 10), station, "white", font_size=15, anchor="lm")
 
     def _create_panel_for_arrivals(self, arrivals: list[TubeArrival], max_x: int, max_y: int) -> Image.Image:
         img = Image.new("RGBA", (max_x, max_y), (255, 255, 255, 0))

@@ -10,7 +10,7 @@ class BusArrivalPanel(AbstractArrivalPanel):
         self.stop = stop
 
     def add_header(self, img: Image.Image, draw: ImageDraw.ImageDraw) -> None:
-        draw.text((7, 10), self.stop.common_name, "white", anchor="lm")
+        draw.text((7, 10), self.stop.common_name, "white", font_size=15, anchor="lm")
         draw.text((img.size[0] - 9, 10), self.stop.stop_letter, "white", anchor="rm", stroke_width=0.2)
 
     def _create_panel_for_arrivals(self, arrivals: list[BusArrival], max_x: int, max_y: int) -> Image.Image:
