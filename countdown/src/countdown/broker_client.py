@@ -1,14 +1,28 @@
 import json
+import os
 import secrets
+import socket
 from pathlib import Path
 
 from countdown.abstract_client import AbstractClient
 from countdown.config_manager import AppConfig
+from countdown.device_id import resolve_device_id
 from countdown.http import DEFAULT_TIMEOUT
 from display.pairing_code_panel import PairingCodePanel
 from display.panel import Panel
 
 CREDENTIALS_FILE = Path(".auth_broker_device")
+
+
+def _device_name_header() -> dict[str, str]:
+    """X-Device-Name is purely cosmetic on the broker side (see auth-broker's
+    devices_api._update_device_name): sent on every call so a rename takes effect on
+    its next poll, and never allowed to fail a request just because a hostname
+    couldn't be resolved on some dev box with DEVICE_ID unset."""
+    try:
+        return {"X-Device-Name": resolve_device_id(os.environ.get("DEVICE_ID"), socket.gethostname())}
+    except ValueError:
+        return {}
 
 
 class BrokerClient(AbstractClient):
@@ -51,7 +65,7 @@ class BrokerClient(AbstractClient):
         return
 
     def _request(self, method: str, path: str, **kwargs):
-        headers = {"Authorization": f"Bearer {self.device_secret}"}
+        headers = {"Authorization": f"Bearer {self.device_secret}", **_device_name_header()}
         response = self.session.request(
             method, f"{self.base_url}{path}", headers=headers, timeout=DEFAULT_TIMEOUT, **kwargs
         )

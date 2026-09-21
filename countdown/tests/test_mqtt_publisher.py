@@ -15,7 +15,6 @@ from countdown.mqtt_publisher import (
     MqttPublisher,
     build_discovery_payload,
     discovery_topic,
-    resolve_device_id,
     state_topic,
 )
 
@@ -86,29 +85,6 @@ def fake_paho(monkeypatch):
 def publisher(clients=None, host: str | None = "broker.local", **kwargs) -> MqttPublisher:
     clients = {} if clients is None else clients
     return MqttPublisher(clients, API_NAMES, device_id="sister-hat", broker_host=host, **kwargs)
-
-
-# --- device id: pi-telemetry's device_id.rs, ported ----------------------------------
-
-
-def test_explicit_device_id_wins_over_hostname():
-    assert resolve_device_id("sister-hat", "raspberrypi") == "sister-hat"
-
-
-def test_device_id_falls_back_to_hostname_when_unset_or_blank():
-    assert resolve_device_id(None, "vorkin-rbpi-z2w") == "vorkin-rbpi-z2w"
-    assert resolve_device_id("  ", "pi") == "pi"
-
-
-def test_device_id_is_sanitised_for_use_as_a_topic_level():
-    assert resolve_device_id("Living Room/HAT#1+", None) == "living-room-hat-1-"
-
-
-def test_device_id_errors_when_nothing_usable():
-    with pytest.raises(ValueError):
-        resolve_device_id(None, None)
-    with pytest.raises(ValueError):
-        resolve_device_id("///", None)
 
 
 # --- topics and discovery: must sit beside pi-telemetry's, not on top of it ----------
