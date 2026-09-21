@@ -15,6 +15,7 @@ class WeatherPanel(Panel):
     def render(self, image_width: int, image_height: int) -> Image.Image:
         img = Image.new("RGBA", (image_width, image_height), (255, 255, 255, 0))
         draw = ImageDraw.Draw(img)
+        draw.fontmode = "1"
         weather = self.weather
 
         # Icon on the left, as big as the space allows; text stacked to its right.
