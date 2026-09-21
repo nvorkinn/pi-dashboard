@@ -1,8 +1,5 @@
 name: Release
 
-# One tag releases everything: the countdown wheel and unit file, the
-# pi-telemetry binary, and the encrypted secrets bundle. install.sh installs
-# exactly the tag it was fetched from, so the apps are always deployed together.
 on:
   push:
     tags:
@@ -14,75 +11,92 @@ env:
   TARGET: aarch64-unknown-linux-gnu
 
 jobs:
+  verify-tag:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - name: Verify tag is on main
+        run: |
+          git fetch origin main
+          if ! git merge-base --is-ancestor "$GITHUB_SHA" origin/main; then
+            echo "Tag $GITHUB_REF_NAME does not point at a commit on main." >&2
+            exit 1
+          fi
+
+  build-python:
+    needs: verify-tag
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: astral-sh/setup-uv@v5
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Stamp version
+        run: |
+          version="${GITHUB_REF_NAME#v}"
+          (cd countdown && uv version --frozen "$version")
+      - name: Install lgpio build dependencies
+        run: sudo apt-get update && sudo apt-get install -y --no-install-recommends swig liblgpio-dev
+      - name: Build countdown wheel
+        working-directory: countdown
+        run: |
+          uv sync --frozen
+          uv build --wheel
+      - uses: actions/upload-artifact@v4
+        with:
+          name: countdown-wheel
+          path: countdown/dist/*.whl
+
+  build-rust:
+    needs: verify-tag
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - name: Stamp version
+        run: |
+          version="${GITHUB_REF_NAME#v}"
+          sed -i -E '0,/^version = ".*"/s//version = "'"$version"'"/' pi-telemetry/Cargo.toml
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ env.TARGET }}
+      - uses: taiki-e/install-action@v2
+        with:
+          tool: cross
+      - name: Build pi-telemetry
+        working-directory: pi-telemetry
+        run: |
+          cross build --release --target ${{ env.TARGET }}
+          cp target/${{ env.TARGET }}/release/${{ env.BIN_NAME }} ../${{ env.BIN_NAME }}-${{ env.TARGET }}
+      - uses: actions/upload-artifact@v4
+        with:
+          name: pi-telemetry-binary
+          path: ${{ env.BIN_NAME }}-${{ env.TARGET }}
+
   release:
+    needs: [build-python, build-rust]
     runs-on: ubuntu-latest
     permissions:
       contents: write
-
     steps:
-    - name: Checkout repository
-      uses: actions/checkout@v4
-
-    - name: Verify tag is on main
-      run: |
-        git fetch origin main
-        if ! git merge-base --is-ancestor "$GITHUB_SHA" origin/main; then
-          echo "Tag $GITHUB_REF_NAME does not point at a commit on main." >&2
-          exit 1
-        fi
-
-    - name: Set up uv
-      uses: astral-sh/setup-uv@v5
-
-    - name: Set up Python
-      uses: actions/setup-python@v5
-      with:
-        python-version: "3.12"
-
-    # Both apps are versioned by the release tag; the versions committed in
-    # pyproject.toml and Cargo.toml are only placeholders and are overwritten
-    # here, in the build workspace only.
-    - name: Stamp the tag's version into both apps
-      run: |
-        version="${GITHUB_REF_NAME#v}"
-        (cd countdown && uv version --frozen "$version")
-        sed -i -E '0,/^version = ".*"/s//version = "'"$version"'"/' pi-telemetry/Cargo.toml
-        grep -m1 '^version' pi-telemetry/Cargo.toml
-
-    - name: Install lgpio build dependencies
-      run: sudo apt-get update && sudo apt-get install -y --no-install-recommends swig liblgpio-dev
-
-    - name: Build countdown wheel
-      working-directory: countdown
-      run: |
-        uv sync --frozen
-        uv build --wheel
-
-    - uses: dtolnay/rust-toolchain@stable
-      with:
-        targets: ${{ env.TARGET }}
-
-    - uses: taiki-e/install-action@v2
-      with:
-        tool: cross
-
-    - name: Build pi-telemetry
-      working-directory: pi-telemetry
-      run: |
-        cross build --release --target ${{ env.TARGET }}
-        cp target/${{ env.TARGET }}/release/${{ env.BIN_NAME }} ../${{ env.BIN_NAME }}-${{ env.TARGET }}
-
-    - name: Bundle encrypted secrets
-      run: zip -r secrets.zip secrets
-
-    - name: Create GitHub release and upload assets
-      env:
-        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-      run: |
-        gh release create "$GITHUB_REF_NAME" \
-          countdown/dist/*.whl \
-          countdown/packaging/systemd/countdown.service \
-          "${{ env.BIN_NAME }}-${{ env.TARGET }}" \
-          secrets.zip \
-          install.sh \
-          --title "$GITHUB_REF_NAME" --generate-notes
+      - uses: actions/checkout@v7
+      - uses: actions/download-artifact@v4
+        with:
+          name: countdown-wheel
+          path: countdown/dist
+      - uses: actions/download-artifact@v4
+        with:
+          name: pi-telemetry-binary
+      - name: Bundle encrypted secrets
+        run: zip -r secrets.zip secrets
+      - name: Create GitHub release and upload assets
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh release create "$GITHUB_REF_NAME" \
+            countdown/dist/*.whl \
+            countdown/packaging/systemd/countdown.service \
+            "${{ env.BIN_NAME }}-${{ env.TARGET }}" \
+            secrets.zip \
+            install.sh \
+            --title "$GITHUB_REF_NAME" --generate-notes
