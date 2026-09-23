@@ -7,7 +7,6 @@ requires-python = ">=3.14"
 dependencies = [
     "gpiozero>=2.0.1.post3",
     "lgpio>=0.2.2.0; sys_platform == 'linux'",
-    "matplotlib>=3.11.2",
     "np>=1.0.2",
     "numpy>=2.5.3",
     "paho-mqtt>=2.1.0",
@@ -32,6 +31,7 @@ module-name = ["countdown", "display"]
 [dependency-groups]
 dev = [
     "pyinstrument>=5.1.3",
+    "pyproject-runner>=0.3.0",
     "pytest>=8.4.2",
     "pytest-cov>=7.1.0",
     "pytest-mock>=3.15.1",
@@ -52,3 +52,6 @@ extend-exclude = ["src/display/lib"]  # vendored Waveshare driver
 
 [tool.ruff.lint]
 select = ["E4", "E7", "E9", "F", "I", "UP", "B", "SIM"]
+
+[tool.pyproject-runner.tasks]
+
