@@ -13,8 +13,10 @@ from PIL import Image
 # the same effect from its own imports).
 import countdown.api_registry  # noqa: F401
 import display.display as display_module
+import display.targets as targets_module
 from display.display import FULL_REFRESH_INTERVAL_S, DisplayController
 from display.panel import Panel
+from display.targets import EpdTarget, PreviewTarget
 
 
 class FakeEpd:
@@ -65,10 +67,7 @@ def no_preview(monkeypatch):
 
 
 def controller_with(epd: FakeEpd) -> DisplayController:
-    controller = DisplayController()
-    controller.display_enabled = True
-    controller.epd = epd
-    return controller
+    return DisplayController(EpdTarget(epd))
 
 
 def test_a_panel_that_answers_is_painted(no_preview):
@@ -111,7 +110,7 @@ def test_an_absent_panel_is_not_asked_again_until_the_retry_interval_passes(no_p
     controller.display_screen({})
     assert epd.calls == ["init"]
 
-    controller._next_probe = 0.0  # the retry interval has passed
+    controller.target._next_probe = 0.0  # the retry interval has passed
     controller.display_screen({})
     assert epd.calls == ["init", "init"]
 
@@ -123,7 +122,7 @@ def test_a_panel_plugged_in_later_is_picked_up_and_painted(no_preview, caplog):
     controller.display_screen({})
 
     epd.answers = True
-    controller._next_probe = 0.0
+    controller.target._next_probe = 0.0
     controller.display_screen({})
 
     assert controller.panel_connected is True
@@ -137,7 +136,7 @@ def test_the_absence_is_logged_once_not_every_probe(no_preview, caplog):
 
     for _ in range(3):
         controller.display_screen({})
-        controller._next_probe = 0.0
+        controller.target._next_probe = 0.0
 
     assert caplog.text.count("No e-paper panel responding") == 1
 
@@ -187,7 +186,7 @@ def test_shutdown_survives_the_closed_spi_seen_on_the_pi(no_preview, clock, capl
     epd = FakeEpd(answers=True)
     controller = controller_with(epd)
     controller.display_screen(frame())
-    controller._awake = True
+    controller.target._awake = True
     epd.sleep = lambda: (_ for _ in ()).throw(OSError(9, "Bad file descriptor"))
 
     controller.shutdown()  # must not raise
@@ -237,7 +236,9 @@ def frame(arrivals: str = "black", weather: str = "gray", arrivals_width: int = 
 @pytest.fixture
 def clock(monkeypatch):
     now = SimpleNamespace(value=1000.0)
-    monkeypatch.setattr(display_module, "time", SimpleNamespace(monotonic=lambda: now.value))
+    fake_time = SimpleNamespace(monotonic=lambda: now.value)
+    monkeypatch.setattr(display_module, "time", fake_time)
+    monkeypatch.setattr(targets_module, "time", fake_time)
     return now
 
 
@@ -352,7 +353,7 @@ def test_a_frame_that_never_reached_a_missing_panel_is_painted_once_one_appears(
     controller.display_screen(frame())
 
     epd.answers = True
-    controller._next_probe = 0.0
+    controller.target._next_probe = 0.0
     epd.calls.clear()
     controller.display_screen(frame())
 
@@ -455,7 +456,7 @@ def test_a_whole_screen_that_found_no_panel_is_painted_once_the_panel_appears(no
     controller.display_pairing_screen(_pairing_panel())
 
     epd.answers = True
-    controller._next_probe = 0.0
+    controller.target._next_probe = 0.0
     epd.calls.clear()
     controller.repaint_pending()
     assert epd.calls == ["init", "display", "sleep"]
@@ -498,7 +499,7 @@ def test_the_dashboard_supersedes_a_screen_still_waiting_for_the_panel(no_previe
     controller.display_pairing_screen(_pairing_panel())
 
     epd.answers = True
-    controller._next_probe = 0.0
+    controller.target._next_probe = 0.0
     controller.display_screen(frame())
     epd.calls.clear()
     controller.repaint_pending()
@@ -507,7 +508,6 @@ def test_the_dashboard_supersedes_a_screen_still_waiting_for_the_panel(no_previe
 
 
 def test_nothing_is_pending_without_a_driver(no_preview):
-    controller = DisplayController()
-    controller.display_enabled = False
+    controller = DisplayController(PreviewTarget())
 
     controller.repaint_pending()  # must not raise or touch anything

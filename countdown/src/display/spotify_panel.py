@@ -1,20 +1,64 @@
 import io
+from dataclasses import dataclass
 
 import requests
 from PIL import Image, ImageDraw, ImageFont
+from pydantic import HttpUrl
 
-from countdown.models import SpotifyPlayingRightNow
+from countdown.models import NowPlaying, Queue
+from display import utils
 from display.panel import Panel
-from display.utils import HELVETICA
+from display.utils import UBUNTU_BOLD_X, UBUNTU_MEDIUM
+
+
+@dataclass(frozen=True)
+class PanelConfig:
+    url_template: HttpUrl
+    config_field: None
+
+
+@dataclass(frozen=True)
+class PageConfig:
+    now_playing: PanelConfig
+    config_class: type
 
 
 class SpotifyPanel(Panel):
-    def __init__(self, playingRightNow: SpotifyPlayingRightNow) -> None:
-        self.playingRightNow = playingRightNow
+    def __init__(self, now_playing: NowPlaying, queue: Queue) -> None:
+        self.now_playing = now_playing
+        self.queue = queue
 
     def render(self, image_width: int, image_height: int) -> Image.Image:
         # Height is dictated by the album art, not the caller.
-        return build_spotify_panel(self.playingRightNow.model_dump(), image_width)
+        album_image_panel = _create_album_image_panel(str(self.now_playing.item.album.images[1].url), image_height)
+        img = Image.new("RGBA", (image_width, album_image_panel.size[1]), (255, 255, 255, 0))
+        draw = ImageDraw.Draw(img)
+        draw.font = ImageFont.truetype(str(utils.FONTS_DIR / "Ubuntu-Medium.ttf"), 20)
+        draw.fill = "black"
+        draw.fontmode = "1"
+
+        img.paste(album_image_panel, (0, 0), album_image_panel)
+        space_remaining = img.size[0] - album_image_panel.size[0] - 5
+        draw.text(
+            (album_image_panel.size[0] + 5, image_height - 25),
+            _truncate_to_fit(self.now_playing.item.album.name, UBUNTU_MEDIUM, space_remaining),
+            fill="black",
+            anchor="ld",
+        )
+        draw.text(
+            (album_image_panel.size[0] + 5, image_height - 50),
+            _truncate_to_fit(self.now_playing.item.artists[0], UBUNTU_MEDIUM, space_remaining),
+            "black",
+            font=UBUNTU_BOLD_X,
+            anchor="ld",
+        )
+        draw.text(
+            (album_image_panel.size[0] + 5, image_height - 80),
+            _truncate_to_fit(self.now_playing.item.name, UBUNTU_MEDIUM, space_remaining),
+            "black",
+            anchor="ld",
+        )
+        return img
 
 
 def _truncate_to_fit(text: str, font: ImageFont.BaseImageFont, max_width: int) -> str:
@@ -29,24 +73,10 @@ def _truncate_to_fit(text: str, font: ImageFont.BaseImageFont, max_width: int) -
     return text + "…"
 
 
-def _create_album_image_panel(url: str) -> Image.Image:
+def _create_album_image_panel(url: str, height: int) -> Image.Image:
     """Downloads an image from a URL and returns a Pillow Image object."""
     response = requests.get(url, timeout=10)
     response.raise_for_status()
-    return Image.open(io.BytesIO(response.content))
-
-
-def build_spotify_panel(track: dict[str, str], width: int) -> Image.Image:
-    album_image_panel = _create_album_image_panel(track["album_image"])
-    img = Image.new("L", (width, album_image_panel.size[1]), "white")
-    draw = ImageDraw.Draw(img)
-    draw.font = HELVETICA
-
-    img.paste(album_image_panel, (0, 0))
-
-    space_remaining = img.size[0] - album_image_panel.size[0] - 5
-    draw.text((album_image_panel.size[0] + 5, 0), "Currently playing on Spotify:", "gray")
-    draw.text((album_image_panel.size[0] + 5, 15), _truncate_to_fit(track["song"], HELVETICA, space_remaining))
-    draw.text((album_image_panel.size[0] + 5, 30), _truncate_to_fit(track["artist"], HELVETICA, space_remaining))
-    draw.text((album_image_panel.size[0] + 5, 45), _truncate_to_fit(track["album"], HELVETICA, space_remaining))
-    return img
+    converted = Image.open(io.BytesIO(response.content)).convert("RGBA")
+    converted.thumbnail((height, height))
+    return converted

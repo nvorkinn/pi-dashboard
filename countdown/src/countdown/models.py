@@ -1,8 +1,9 @@
 from abc import ABC
+from datetime import datetime, timedelta
 from enum import StrEnum
 from typing import Annotated, Literal
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, BeforeValidator, Field, HttpUrl, field_validator
 
 
 class Mode(StrEnum):
@@ -30,6 +31,11 @@ class TubeArrival(Arrival):
 class BusArrival(Arrival):
     mode_name: Literal[Mode.BUS] = Field(alias="modeName")
     destination: str = Field(alias="destinationName")
+
+    @field_validator("destination")
+    @classmethod
+    def sanitize_destination(cls, value: str) -> str:
+        return value.split(",")[0].strip()
 
 
 ArrivalUnion = Annotated[BusArrival | TubeArrival, Field(discriminator="mode_name")]
@@ -148,9 +154,45 @@ class Weather(BaseModel):
     precipitation_probability: int | None = None
 
 
+MillisecondTimedelta = Annotated[
+    timedelta, BeforeValidator(lambda v: timedelta(milliseconds=v) if isinstance(v, (int, float)) else v)
+]
+Artist = Annotated[list[str], BeforeValidator(lambda v: [el.get("name") for el in v])]
+
+
 class SpotifyPlayingRightNow(BaseModel):
     album: str
     album_image: str
     artist: str
     is_playing: bool
     song: str
+
+
+class Image(BaseModel):
+    width: int
+    height: int
+    url: HttpUrl
+
+
+class Album(BaseModel):
+    images: list[Image]
+    name: str
+    # release_date: date
+
+
+class Track(BaseModel):
+    album: Album
+    artists: Artist
+    name: str
+    duration_ms: MillisecondTimedelta
+
+
+class NowPlaying(BaseModel):
+    is_playing: bool
+    item: Track
+    progress_ms: MillisecondTimedelta
+    timestamp: datetime
+
+
+class Queue(BaseModel):
+    queue: list[Track]

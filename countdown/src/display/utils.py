@@ -1,3 +1,4 @@
+from enum import StrEnum, auto
 from pathlib import Path
 
 from PIL import Image, ImageDraw, ImageFont
@@ -25,20 +26,33 @@ JOSEFIN_MEDIUM = ImageFont.truetype(str(FONTS_DIR / "JosefinSans-Medium.ttf"), 5
 UBUNTU_REGULAR = ImageFont.truetype(str(FONTS_DIR / "Ubuntu-Regular.ttf"))
 UBUNTU_MEDIUM = ImageFont.truetype(str(FONTS_DIR / "Ubuntu-Medium.ttf"), 14)
 UBUNTU_BOLD = ImageFont.truetype(str(FONTS_DIR / "Ubuntu-Bold.ttf"), 14)
+UBUNTU_BOLD_X = ImageFont.truetype(str(FONTS_DIR / "Ubuntu-Bold.ttf"), 20)
 GOOGLE_REGULAR = ImageFont.truetype(str(FONTS_DIR / "GoogleSans-Regular.ttf"), 14)
 GOOGLE_MEDIUM = ImageFont.truetype(str(FONTS_DIR / "GoogleSans-Medium.ttf"), 14)
 GOOGLE_SEMI = ImageFont.truetype(str(FONTS_DIR / "GoogleSans-SemiBold.ttf"), 14)
 GOOGLE_BOLD = ImageFont.truetype(str(FONTS_DIR / "GoogleSans-Bold.ttf"), 14)
 
 
-def add_border(img: Image.Image) -> None:
+class Border(StrEnum):
+    TOP = auto()
+    LEFT = auto()
+    BOTTOM = auto()
+    RIGHT = auto()
+
+
+def add_border(img: Image.Image, *borders: Border) -> None:
     draw = ImageDraw.Draw(img)
     width = img.size[0]
     height = img.size[1]
-    draw.line((0, 0, width, 0), fill="black")
-    draw.line((0, 0, 0, height), fill="black")
-    draw.line((width - 1, height - 1, width - 1, 0), fill="black")
-    draw.line((width - 1, height - 1, 0, height - 1), fill="black")
+
+    if not borders or Border.TOP in borders:
+        draw.line((0, 0, width, 0), fill="black")
+    if not borders or Border.LEFT in borders:
+        draw.line((0, 0, 0, height), fill="black")
+    if not borders or Border.RIGHT in borders:
+        draw.line((width - 1, height - 1, width - 1, 0), fill="black")
+    if not borders or Border.BOTTOM in borders:
+        draw.line((width - 1, height - 1, 0, height - 1), fill="black")
 
 
 def load_tfl_roundel() -> Image.Image:

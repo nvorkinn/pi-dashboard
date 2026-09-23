@@ -54,6 +54,7 @@ class DisplayLoop:
         self.config = config
         self.pairing_code_panel = pairing_code_panel
         self.interval = config.interval
+        # self.interval = 60 # config.interval
         self.display = display if display is not None else DisplayController()
         self.api_reg = api_reg if api_reg is not None else ApiRegistry()
         self._setup_shown: list[str] | None = None
