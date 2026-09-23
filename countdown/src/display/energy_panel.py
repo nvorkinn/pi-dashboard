@@ -1,42 +1,21 @@
 from datetime import datetime
 from math import ceil
 
-import matplotlib
-
-matplotlib.use("Agg")  # headless - no X server / display needed on the Pi
-
-import matplotlib.pyplot as plt
-from PIL import Image
+from PIL import Image, ImageDraw
 
 from display.panel import Panel
-from display.utils import TOTAL_WIDTH
+from display.utils import GOOGLE_REGULAR, GOOGLE_SEMI
 
-width = ceil(TOTAL_WIDTH / 3)
-height = 200
-margin_left = 40
-margin_right = 30
-margin_top = 40
-margin_bottom = 20
+TITLE_FONT = GOOGLE_SEMI.font_variant(size=16)
+LABEL_FONT = GOOGLE_REGULAR.font_variant(size=12)
+NO_DATA_FONT = GOOGLE_REGULAR.font_variant(size=16)
 
-DPI = 100  # figsize (inches) * DPI must equal the pixel dimensions above
-
-BLACK = 0
-WHITE = 255
-
-# Pure black/white threshold applied to the final render. Anything darker
-# than this (0-255) becomes black, everything else becomes white - no
-# dithering, so bars and text stay crisp rather than speckled.
-BW_THRESHOLD = 200
-
-MARGIN = 16
-LABEL_FONT_SIZE = 16
-TITLE_FONT_SIZE = 22
-
-BAR_COLOR = "black"
-MAX_VISIBLE_LABELS = 10  # thin x-axis labels so they don't overlap
-
-# CHART_WIDTH = DISPLAY_WIDTH - 2 * MARGIN
-# CHART_HEIGHT = DISPLAY_HEIGHT - 2 * MARGIN
+PADDING = 4  # blank border round the whole panel
+TITLE_GAP = 8  # between the title and the tallest bar
+LABEL_GAP = 4  # between the baseline and the x-axis labels
+MIN_LABEL_SPACING = 8  # horizontal gap kept between neighbouring x-axis labels
+BASELINE_WIDTH = 2
+BAR_FILL = 0.8  # fraction of each slot the bar covers; the rest is the gap between bars
 
 PAGES = [
     {
@@ -62,58 +41,65 @@ class EnergyPanel(Panel):
 
     def render(self, image_width: int, image_height: int) -> Image.Image:
         """
-        Build a single full-screen page.
+        A bar chart of one page's readings, filling the given size.
 
         page_index: 0 = last 24h, 1 = last 31 days, 2 = this year
-        usage: the usage_deltas() output for that page's time range - a list
-               of {"start": iso-string, "kwh": float} dicts
+        readings: the usage_deltas() output for that page's time range - a list
+                  of {"start": iso-string, "kwh": float} dicts
 
-        Returns a Pillow Image (mode "1", pure black/white) ready for your
-        Waveshare driver (epd.display(...) or epd.displayPartial(...),
-        depending on refresh mode).
+        Drawn straight onto pixels with bars on whole-pixel edges and text in 1-bit
+        font mode, so there's nothing grey to threshold or dither for the e-paper.
         """
+        img = Image.new("RGBA", (image_width, image_height), (255, 255, 255, 0))
+        draw = ImageDraw.Draw(img)
+        draw.fontmode = "1"
         page = PAGES[self.page_index]
-        values = self.readings
+
+        draw.text((PADDING, PADDING), page["title"], "black", font=TITLE_FONT)
+
+        if not self.readings:
+            draw.text((image_width / 2, image_height / 2), "No data", "black", font=NO_DATA_FONT, anchor="mm")
+            return img
+
         labels = [page["label_fn"](row["start"]) for row in self.readings]
+        values = [row["kwh"] for row in self.readings]
 
-        fig = plt.figure(figsize=(image_width / DPI, image_height / DPI), dpi=DPI)
-        ax = fig.add_subplot(111)
+        label_height = LABEL_FONT.getbbox("0123456789:")[3]
+        chart_left = PADDING
+        chart_right = image_width - PADDING
+        chart_top = PADDING + TITLE_FONT.getbbox(page["title"])[3] + TITLE_GAP
+        baseline = image_height - PADDING - label_height - LABEL_GAP - BASELINE_WIDTH
+        slot_width = (chart_right - chart_left) / len(values)
 
-        if not values:
-            ax.text(0.5, 0.5, "No data", ha="center", va="center", transform=ax.transAxes, fontsize=14)
-            ax.axis("off")
-        else:
-            x = range(len(values))
-            extracted = [reading["kwh"] for reading in values]
-            ax.bar(x, extracted, color=BAR_COLOR, width=0.8)
+        self._draw_bars(draw, values, chart_left, chart_top, baseline, slot_width)
+        draw.rectangle((chart_left, baseline, chart_right - 1, baseline + BASELINE_WIDTH - 1), fill="black")
+        self._draw_labels(draw, labels, chart_left, baseline + BASELINE_WIDTH + LABEL_GAP, slot_width, image_width)
+        return img
 
-            # Thin the labels so they don't overlap, same idea as the
-            # label_stride logic in the original Pillow version.
-            stride = max(1, len(values) // MAX_VISIBLE_LABELS)
-            ax.set_xticks(list(x)[::stride])
-            ax.set_xticklabels(labels[::stride], rotation=0, fontsize=9)
+    @staticmethod
+    def _draw_bars(draw, values, chart_left, chart_top, baseline, slot_width):
+        # Scale to the tallest bar; negative/zero readings just draw nothing.
+        peak = max(values) if max(values) > 0 else 1.0
+        gap = max(1, round(slot_width * (1 - BAR_FILL) / 2))
+        for i, value in enumerate(values):
+            # Round each slot's edges, not the bar width, so bars stay evenly spread
+            # rather than the rounding error piling up at the right-hand end.
+            x0 = chart_left + round(i * slot_width) + gap
+            x1 = chart_left + round((i + 1) * slot_width) - gap - 1
+            top = baseline - round(max(value, 0) / peak * (baseline - chart_top))
+            if top < baseline and x1 >= x0:
+                draw.rectangle((x0, top, x1, baseline - 1), fill="black")
 
-            ax.spines["top"].set_visible(False)
-            ax.spines["right"].set_visible(False)
-            ax.spines["left"].set_visible(False)
-            ax.set_yticks([])
-            ax.margins(x=0.01)
-
-        ax.set_title(page["title"], fontsize=14, loc="left")
-        fig.tight_layout(pad=1.2)
-
-        image = self._figure_to_bw_image(fig)
-        plt.close(fig)
-        return image
-
-    def _figure_to_bw_image(self, fig):
-        """Render a matplotlib figure straight to a pure black/white Pillow Image."""
-        canvas = fig.canvas
-        canvas.draw()
-        width, height = canvas.get_width_height()
-        rgba = canvas.buffer_rgba()
-        image = Image.frombuffer("RGBA", (width, height), rgba, "raw", "RGBA", 0, 1)
-        image = image.convert("L")
-        # Threshold to pure black/white, no dithering - crisp edges for e-paper.
-        image = image.point(lambda p: 255 if p > BW_THRESHOLD else 0, mode="L")
-        return image.convert("1")
+    @staticmethod
+    def _draw_labels(draw, labels, chart_left, y, slot_width, image_width):
+        # Label every nth bar, n being just enough that the widest label fits
+        # between neighbours without overlapping.
+        widest = max(LABEL_FONT.getlength(label) for label in labels)
+        stride = max(1, ceil((widest + MIN_LABEL_SPACING) / slot_width))
+        for i in range(0, len(labels), stride):
+            centre = chart_left + (i + 0.5) * slot_width
+            half = LABEL_FONT.getlength(labels[i]) / 2
+            # Skip a label hanging off the panel edge rather than nudging it in,
+            # which would crowd its neighbour and break the even spacing.
+            if centre - half >= 0 and centre + half <= image_width:
+                draw.text((centre, y), labels[i], "black", font=LABEL_FONT, anchor="ma")
