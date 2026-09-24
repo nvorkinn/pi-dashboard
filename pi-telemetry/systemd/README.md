@@ -56,3 +56,18 @@ journalctl -u pi-telemetry.service -f
 After copying a new binary to `/opt/pi-telemetry/pi-telemetry`, no service
 restart is needed — the next timer tick picks it up automatically, since
 each run starts a fresh process.
+
+## Multiple hosts
+
+Each host publishes to `pi-telemetry/<DEVICE_ID>/state` and announces itself
+to Home Assistant via a retained MQTT discovery message on
+`homeassistant/device/<DEVICE_ID>/config`. HA groups all of a host's sensors
+under one device named after its `DEVICE_ID`, so `DEVICE_ID` must be unique
+per host (two hosts sharing one would also fight over the same MQTT client
+id). If it's unset the hostname is used. Sensors go `unavailable` in HA if a
+host stops reporting for 3 minutes.
+
+`countdown`'s own MQTT health reporting (`mqtt_publisher.py`) resolves
+`DEVICE_ID` the same way and reports under the same HA device, so both apps'
+entities land on one device per host — see the repo root's `README.md` for
+how `install.sh` sets `DEVICE_ID` once for both.

@@ -1,13 +1,18 @@
+mod countdown_liveness;
+mod device_id;
+mod homeassistant;
 mod system_value_retriever;
 mod telemetry;
-mod countdown_liveness;
 
-use std::thread;
-use rumqttc::{AsyncClient, MqttOptions, QoS};
-use std::time::Duration;
-use system_value_retriever::{get_system, read_telemetry};
-use telemetry::build_payload;
 use crate::countdown_liveness::CountdownLiveness;
+use crate::device_id::resolve_device_id;
+use crate::homeassistant::{build_discovery_payload, discovery_topic};
+use rumqttc::{AsyncClient, MqttOptions, QoS};
+use std::thread;
+use std::time::Duration;
+use sysinfo::System;
+use system_value_retriever::{get_system, read_telemetry};
+use telemetry::{build_payload, state_topic};
 
 #[tokio::main]
 async fn main() {
@@ -23,13 +28,20 @@ async fn main() {
     println!("Global CPU usage: {}", telemetry.global_cpu_usage);
     println!("Is countdown alive: {}", is_alive);
 
+    let device_id = resolve_device_id(std::env::var("DEVICE_ID").ok(), System::host_name())
+        .unwrap_or_else(|e| {
+            eprintln!("{e}");
+            std::process::exit(1);
+        });
+    println!("Device id: {device_id}");
+
     let host = std::env::var("MQTT_BROKER_HOST").unwrap_or_else(|_| "localhost".to_string());
     let port: u16 = std::env::var("MQTT_BROKER_PORT")
         .ok()
         .and_then(|p| p.parse().ok())
         .unwrap_or(1883);
 
-    let mut mqtt_options = MqttOptions::new("pi-telemetry", host, port);
+    let mut mqtt_options = MqttOptions::new(format!("pi-telemetry-{device_id}"), host, port);
     mqtt_options.set_keep_alive(Duration::from_secs(5));
 
     if let (Ok(username), Ok(password)) = (
@@ -52,14 +64,31 @@ async fn main() {
         }
     });
 
-    let payload = build_payload(&telemetry, is_alive);
+    let state_topic = state_topic(&device_id);
+
+    // Discovery is retained so HA picks the device up after a restart, and is
+    // re-sent on every run so it self-heals if the broker's store is wiped.
+    client
+        .publish(
+            discovery_topic(&device_id),
+            QoS::AtLeastOnce,
+            true,
+            build_discovery_payload(&device_id, &state_topic),
+        )
+        .await
+        .expect("failed to publish discovery config");
 
     client
-        .publish("pi-telemetry/host", QoS::AtLeastOnce, false, payload)
+        .publish(
+            &state_topic,
+            QoS::AtLeastOnce,
+            false,
+            build_payload(&telemetry, is_alive),
+        )
         .await
         .expect("failed to publish telemetry");
 
-    println!("Published telemetry to pi-telemetry/host");
+    println!("Published telemetry to {state_topic}");
 
     // Give the event loop task a moment to actually flush the publish over
     // the socket before the process exits.
