@@ -1,4 +1,5 @@
 import asyncio
+import logging
 import time
 from datetime import UTC, datetime
 
@@ -14,15 +15,17 @@ from display.display import DisplayController
 from display.pairing_code_panel import PairingCodePanel
 from display.setup_panel import SetupPanel
 
+logger = logging.getLogger(__name__)
+
 
 def safe_fetch(func, fallback):
     try:
         return func()
     except requests.exceptions.RequestException as e:
-        print(f"Exception with API call to Glowmarkt: {e}")
+        logger.exception(f"Exception with API call to Glowmarkt: {e}")
         return fallback
     except pydantic.ValidationError as e:
-        print(f"Pydantic validation error: {e}")
+        logger.exception(f"Pydantic validation error: {e}")
         return fallback
 
 
@@ -90,9 +93,9 @@ class DisplayLoop:
                     self.display.display_screen(panels)
                 self.display.repaint_pending()
             except requests.exceptions.RequestException as e:
-                print(f"Network error encountered: {e}")
+                logger.exception(f"Network error encountered: {e}")
             except Exception as e:
-                print(f"Unexpected error: {e}")
+                logger.exception(f"Unexpected error: {e}")
 
             stage = self.api_reg.status.stage
             await self.api_reg.publish_health(force=stage != self._published_stage)
@@ -101,7 +104,7 @@ class DisplayLoop:
             if not first_cycle_done:
                 # Once, not every cycle: how long the device took to get its first screen up
                 # (client set-up included), to spot a slow start without spamming the journal.
-                print(f"First cycle finished {time.monotonic() - started:.1f}s after start")
+                logger.info(f"First cycle finished {time.monotonic() - started:.1f}s after start")
                 first_cycle_done = True
 
             # Not time.sleep(): that would freeze the event loop for the whole interval.

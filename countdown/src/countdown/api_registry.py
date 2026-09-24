@@ -1,4 +1,5 @@
 import asyncio
+import logging
 from datetime import timedelta
 from enum import Enum
 
@@ -11,6 +12,8 @@ from countdown.spotify_client import SpotifyClient
 from countdown.tfl_client import TflClient
 from countdown.weather_client import WeatherClient
 from display.panel import Panel
+
+logger = logging.getLogger(__name__)
 
 
 class ClientClasses(Enum):
@@ -72,13 +75,13 @@ class ApiRegistry:
                 try:
                     to_initialise[name] = self.clients[name] = clazz(client_config)
                 except Exception as e:
-                    print(f"Error building {name} client: {e}")
+                    logger.exception(f"Error building {name} client: {e}")
                     self.clients[name] = FailedClient(client_config, e)
 
         outcomes = await asyncio.gather(*[c.initialise() for c in to_initialise.values()], return_exceptions=True)
         for name, outcome in zip(to_initialise, outcomes, strict=True):
             if isinstance(outcome, Exception):
-                print(f"Error initialising {name}: {outcome}")
+                logger.error(f"Error initialising {name}: {outcome}", exc_info=outcome)
 
     def _drop(self, name: str) -> None:
         self.clients.pop(name, None)
@@ -96,7 +99,7 @@ class ApiRegistry:
 
         for (api_name, _), outcome in zip(due, outcomes, strict=True):
             if isinstance(outcome, Exception):
-                print(f"Error updating {api_name}: {outcome}")
+                logger.error(f"Error updating {api_name}: {outcome}", exc_info=outcome)
             else:
                 self.panels[api_name] = outcome
         return dict(self.panels)
@@ -110,4 +113,4 @@ class ApiRegistry:
         try:
             await self.pub.update()
         except Exception as e:
-            print(f"Error publishing health over MQTT: {e}")
+            logger.exception(f"Error publishing health over MQTT: {e}")

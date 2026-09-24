@@ -1,4 +1,5 @@
 import asyncio
+import logging
 from importlib.metadata import entry_points
 from types import SimpleNamespace
 
@@ -44,10 +45,31 @@ def test_the_console_script_entry_point_actually_runs_the_app(monkeypatch):
         ran.append(True)
 
     monkeypatch.setattr(app, "run", fake_run)
+    # Keep the test run's own logging set-up as it is.
+    monkeypatch.setattr(app, "configure_logging", lambda: None)
     (entry_point,) = entry_points(group="console_scripts", name="countdown")
 
     assert entry_point.load()() is None
     assert ran == [True]
+
+
+@pytest.mark.parametrize(
+    ("env", "expected"), [(None, logging.INFO), ("debug", logging.DEBUG), ("nonsense", logging.INFO)]
+)
+def test_logging_defaults_to_info_and_honours_log_level(monkeypatch, env, expected):
+    calls = []
+    monkeypatch.setattr(app.logging, "basicConfig", lambda **kwargs: calls.append(kwargs))
+    if env is None:
+        monkeypatch.delenv("LOG_LEVEL", raising=False)
+    else:
+        monkeypatch.setenv("LOG_LEVEL", env)
+
+    app.configure_logging()
+
+    (kwargs,) = calls
+    assert kwargs["level"] == expected
+    assert "%(filename)s:%(lineno)d" in kwargs["format"]
+    assert "asctime" not in kwargs["format"]  # journald timestamps each line itself
 
 
 # --- waiting for a config at boot ----------------------------------------------------

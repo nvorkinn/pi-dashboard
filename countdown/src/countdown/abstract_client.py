@@ -1,4 +1,5 @@
 import asyncio
+import logging
 import time
 from abc import ABC, abstractmethod
 from datetime import datetime, timedelta
@@ -7,6 +8,8 @@ from enum import StrEnum, auto
 from countdown.config_manager import ApiConfig
 from countdown.http import build_retrying_session
 from display.panel import Panel
+
+logger = logging.getLogger(__name__)
 
 # A client call slower than this is logged, so a slow API shows up in the journal by name
 # instead of just making the whole cycle late.
@@ -76,7 +79,7 @@ class AbstractClient(ABC):
     def _log_if_slow(self, what: str, started: float) -> None:
         elapsed = time.monotonic() - started
         if elapsed >= SLOW_CALL_S:
-            print(f"{type(self).__name__}: {what} took {elapsed:.1f}s")
+            logger.warning(f"{type(self).__name__}: {what} took {elapsed:.1f}s")
 
     def needs_refresh(self, new_config: ApiConfig) -> bool:
         """Whether `new_config` differs from the one this client was built with in a way
