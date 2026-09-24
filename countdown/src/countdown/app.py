@@ -1,4 +1,5 @@
 import asyncio
+import logging
 import os
 import signal
 import sys
@@ -17,6 +18,8 @@ from display.display import DisplayController
 from display.pairing_code_panel import PairingCodePanel
 from display.splash_panel import SplashPanel
 
+logger = logging.getLogger(__name__)
+
 # How long to wait between attempts to get a config at boot: the first retry comes after
 # INITIAL_RETRY_S, doubling up to MAX_RETRY_S, so a device whose Wi-Fi is still coming up
 # tries again quickly, and one whose broker is down for hours isn't hammering it.
@@ -28,7 +31,18 @@ def main() -> None:
     """The `countdown` console script's entry point (pyproject.toml). It has to be a plain
     function: the generated wrapper just calls it, so an `async def` here would build a
     coroutine, never run it, and exit 1 -- a crash loop under systemd."""
+    configure_logging()
     asyncio.run(run())
+
+
+def configure_logging() -> None:
+    """No timestamp: journald adds its own. LOG_LEVEL (e.g. DEBUG) overrides the default INFO;
+    an unrecognised value falls back to INFO rather than crashing the service at boot."""
+    level = logging.getLevelNamesMapping().get(os.environ.get("LOG_LEVEL", "").upper(), logging.INFO)
+    logging.basicConfig(
+        level=level,
+        format="%(levelname)s %(name)s %(filename)s:%(lineno)d %(message)s",
+    )
 
 
 async def wait_for_config(
@@ -53,7 +67,7 @@ async def wait_for_config(
             return await asyncio.to_thread(broker.fetch_app_config)
         except (requests.exceptions.RequestException, ValueError, KeyError) as e:
             reason = f"{type(e).__name__}: {e}".splitlines()[0]
-            print(f"Can't get a valid config from the broker yet ({reason}) -- retrying in {delay}s")
+            logger.warning(f"Can't get a valid config from the broker yet ({reason}) -- retrying in {delay}s")
             if not splash_shown:
                 display.display_splash(SplashPanel())
                 splash_shown = True
@@ -75,7 +89,7 @@ async def run() -> None:
 
     # Set up before the (possibly long) wait for a config, so a stop request works then too.
     def handle_shutdown(_signum, _frame):
-        print("\nShutting down gracefully...")
+        logger.info("Shutting down gracefully...")
         # Put your epaper display to sleep to prevent burn-in
         display.shutdown()
         sys.exit(0)

@@ -1,10 +1,13 @@
 import datetime as dt
+import logging
 
 from countdown.abstract_client import AbstractClient
 from countdown.config_manager import WeatherConfig
 from countdown.http import DEFAULT_TIMEOUT
 from countdown.models import ForecastResponse, GeocodingResponse, Weather
 from display.weather_panel import WeatherPanel
+
+logger = logging.getLogger(__name__)
 
 GEOCODING_URL = "https://geocoding-api.open-meteo.com/v1/search"
 FORECAST_URL = "https://api.open-meteo.com/v1/forecast"
@@ -44,7 +47,7 @@ class WeatherClient(AbstractClient):
 
         coordinates = self._geocode()
         if coordinates is None:
-            print(f"Could not find a location matching {self.location!r} on Open-Meteo")
+            logger.warning(f"Could not find a location matching {self.location!r} on Open-Meteo")
             self._panel = None
         else:
             self._panel = WeatherPanel(self._fetch_forecast(*coordinates))

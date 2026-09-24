@@ -1,4 +1,5 @@
 import asyncio
+import logging
 import threading
 from datetime import datetime, timedelta
 
@@ -187,13 +188,14 @@ def test_an_exception_in_a_hook_still_reaches_the_caller_from_its_thread():
         asyncio.run(FakeClient(initialise_failures=1).initialise())
 
 
-def test_a_slow_call_is_logged_by_client_name_and_a_fast_one_is_not(monkeypatch, capsys):
+def test_a_slow_call_is_logged_by_client_name_and_a_fast_one_is_not(monkeypatch, caplog):
+    caplog.set_level(logging.INFO)
     client = FakeClient()
 
     monkeypatch.setattr(abstract_client, "SLOW_CALL_S", 60)
     asyncio.run(client.update())
-    assert capsys.readouterr().out == ""
+    assert caplog.text == ""
 
     monkeypatch.setattr(abstract_client, "SLOW_CALL_S", 0)
     asyncio.run(client.update())
-    assert "FakeClient: update took" in capsys.readouterr().out
+    assert "FakeClient: update took" in caplog.text

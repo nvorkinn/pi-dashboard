@@ -2,6 +2,7 @@
 wait on the panel forever (see test_epd_busy_wait.py); now it asks once, runs without a
 display if nothing answers, and asks again now and then in case one's been plugged in."""
 
+import logging
 from types import SimpleNamespace
 
 import pytest
@@ -115,7 +116,8 @@ def test_an_absent_panel_is_not_asked_again_until_the_retry_interval_passes(no_p
     assert epd.calls == ["init", "init"]
 
 
-def test_a_panel_plugged_in_later_is_picked_up_and_painted(no_preview, capsys):
+def test_a_panel_plugged_in_later_is_picked_up_and_painted(no_preview, caplog):
+    caplog.set_level(logging.INFO)
     epd = FakeEpd(answers=False)
     controller = controller_with(epd)
     controller.display_screen({})
@@ -126,17 +128,18 @@ def test_a_panel_plugged_in_later_is_picked_up_and_painted(no_preview, capsys):
 
     assert controller.panel_connected is True
     assert epd.calls[-2:] == ["display", "sleep"]
-    assert "panel detected" in capsys.readouterr().out
+    assert "panel detected" in caplog.text
 
 
-def test_the_absence_is_logged_once_not_every_probe(no_preview, capsys):
+def test_the_absence_is_logged_once_not_every_probe(no_preview, caplog):
+    caplog.set_level(logging.INFO)
     controller = controller_with(FakeEpd(answers=False))
 
     for _ in range(3):
         controller.display_screen({})
         controller._next_probe = 0.0
 
-    assert capsys.readouterr().out.count("No e-paper panel responding") == 1
+    assert caplog.text.count("No e-paper panel responding") == 1
 
 
 def test_shutdown_leaves_a_panel_that_is_already_asleep_alone(no_preview, clock):
@@ -177,9 +180,10 @@ def test_shutdown_never_touches_a_panel_that_was_absent_or_never_woken(no_previe
     assert (absent.calls, unprobed.calls) == ([], [])
 
 
-def test_shutdown_survives_the_closed_spi_seen_on_the_pi(no_preview, clock, capsys):
+def test_shutdown_survives_the_closed_spi_seen_on_the_pi(no_preview, clock, caplog):
     """Sleeping an already-asleep panel raised OSError (Bad file descriptor) inside the SIGTERM
     handler, so the service exited with status 1."""
+    caplog.set_level(logging.INFO)
     epd = FakeEpd(answers=True)
     controller = controller_with(epd)
     controller.display_screen(frame())
@@ -188,27 +192,29 @@ def test_shutdown_survives_the_closed_spi_seen_on_the_pi(no_preview, clock, caps
 
     controller.shutdown()  # must not raise
 
-    assert "Could not put the e-paper panel to sleep" in capsys.readouterr().out
+    assert "Could not put the e-paper panel to sleep" in caplog.text
 
 
-def test_the_pairing_code_goes_to_the_log_when_there_is_no_panel_to_show_it(no_preview, capsys):
+def test_the_pairing_code_goes_to_the_log_when_there_is_no_panel_to_show_it(no_preview, caplog):
+    caplog.set_level(logging.INFO)
     from display.pairing_code_panel import PairingCodePanel
 
     controller = controller_with(FakeEpd(answers=False))
 
     controller.display_pairing_screen(PairingCodePanel("ABC123", "device-1", has_changed=True))
 
-    assert "ABC123" in capsys.readouterr().out
+    assert "ABC123" in caplog.text
 
 
-def test_the_pairing_code_is_not_logged_when_the_panel_shows_it(no_preview, capsys):
+def test_the_pairing_code_is_not_logged_when_the_panel_shows_it(no_preview, caplog):
+    caplog.set_level(logging.INFO)
     from display.pairing_code_panel import PairingCodePanel
 
     controller = controller_with(FakeEpd(answers=True))
 
     controller.display_pairing_screen(PairingCodePanel("ABC123", "device-1", has_changed=True))
 
-    assert "ABC123" not in capsys.readouterr().out
+    assert "ABC123" not in caplog.text
 
 
 # --- what gets sent to the panel: skip / partial / full --------------------------------
@@ -426,14 +432,15 @@ def test_the_setup_screen_is_one_full_paint_and_resets_what_is_remembered(no_pre
     assert epd.calls == ["init", "display", "sleep"]
 
 
-def test_the_setup_checklist_goes_to_the_log_when_there_is_no_panel(no_preview, clock, capsys):
+def test_the_setup_checklist_goes_to_the_log_when_there_is_no_panel(no_preview, clock, caplog):
+    caplog.set_level(logging.INFO)
     from display.setup_panel import SetupPanel
 
     controller = controller_with(FakeEpd(answers=False))
 
     controller.display_setup_screen(SetupPanel(["a weather location", "a bus or tube stop"]))
 
-    assert "a weather location, a bus or tube stop" in capsys.readouterr().out
+    assert "a weather location, a bus or tube stop" in caplog.text
 
 
 def _pairing_panel():

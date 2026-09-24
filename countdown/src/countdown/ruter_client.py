@@ -10,6 +10,7 @@ handle bus, tram, metro, rail, and ferry departures.
 
 from __future__ import annotations
 
+import logging
 from datetime import UTC, datetime
 from enum import StrEnum
 from math import ceil
@@ -17,6 +18,8 @@ from typing import Any
 
 import requests
 from pydantic import BaseModel, Field
+
+logger = logging.getLogger(__name__)
 
 
 class TransportMode(StrEnum):
@@ -210,9 +213,9 @@ class RuterClient:
                 if info:
                     self.stops.append(info)
                 else:
-                    print(f"Warning: Stop ID {stop_id} could not be resolved from Entur API")
+                    logger.warning(f"Stop ID {stop_id} could not be resolved from Entur API")
             except Exception as e:
-                print(f"Warning: Error fetching stop ID {stop_id}: {e}")
+                logger.warning(f"Error fetching stop ID {stop_id}: {e}", exc_info=True)
 
     def _execute_graphql(self, query: str, variables: dict[str, Any]) -> dict[str, Any]:
         """Send a GraphQL POST request to Entur JourneyPlanner."""
@@ -400,7 +403,7 @@ class RuterClient:
                 departures = self.get_departures(stop.id, limit=limit_per_stop)
                 results.append((stop, departures))
             except Exception as e:
-                print(f"Error fetching departures for Ruter stop {stop.id}: {e}")
+                logger.exception(f"Error fetching departures for Ruter stop {stop.id}: {e}")
 
         return results
 

@@ -1,5 +1,6 @@
 import asyncio
 import json
+import logging
 from datetime import UTC, datetime
 from types import SimpleNamespace
 
@@ -284,28 +285,31 @@ def test_from_env_never_needs_a_device_id_while_disabled(monkeypatch):
         MqttPublisher.from_env({}, API_NAMES)
 
 
-def test_it_says_so_when_it_is_switched_off(capsys):
+def test_it_says_so_when_it_is_switched_off(caplog):
+    caplog.set_level(logging.INFO)
     MqttPublisher.from_env({}, API_NAMES)
 
-    assert "MQTT_BROKER_HOST is not set" in capsys.readouterr().out
+    assert "MQTT_BROKER_HOST is not set" in caplog.text
 
 
-def test_it_logs_where_it_connected_and_when_the_connection_drops(capsys):
+def test_it_logs_where_it_connected_and_when_the_connection_drops(caplog):
+    caplog.set_level(logging.INFO)
     pub = publisher(port=1884)
 
     asyncio.run(pub.initialise())
-    assert "MQTT: connected to broker.local:1884 as countdown-sister-hat" in capsys.readouterr().out
+    assert "MQTT: connected to broker.local:1884 as countdown-sister-hat" in caplog.text
 
     FakeMqttClient.instances[0].drop_connection()
-    assert "MQTT: disconnected from broker.local:1884" in capsys.readouterr().out
+    assert "MQTT: disconnected from broker.local:1884" in caplog.text
 
 
-def test_it_stays_quiet_about_being_off_when_a_host_is_set(monkeypatch, capsys):
+def test_it_stays_quiet_about_being_off_when_a_host_is_set(monkeypatch, caplog):
+    caplog.set_level(logging.INFO)
     monkeypatch.setenv("MQTT_BROKER_HOST", "broker.local")
 
     MqttPublisher.from_env({}, API_NAMES)
 
-    assert "not set" not in capsys.readouterr().out
+    assert "not set" not in caplog.text
 
 
 def test_discovery_describes_the_stage_display_and_sync_sensors():

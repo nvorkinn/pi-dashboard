@@ -25,6 +25,7 @@ import asyncio
 import datetime
 import io
 import json
+import logging
 from pathlib import Path
 from types import SimpleNamespace
 
@@ -454,7 +455,8 @@ def test_config_changes_from_the_broker_reach_the_screen_on_the_next_cycle(isola
 
 
 @responses.activate
-def test_the_first_cycle_reports_how_long_startup_took_once(isolated_cwd, monkeypatch, capsys):
+def test_the_first_cycle_reports_how_long_startup_took_once(isolated_cwd, monkeypatch, caplog):
+    caplog.set_level(logging.INFO)
     responses.add(
         responses.GET,
         f"{TEST_BROKER_URL}/api/devices/test-device/config",
@@ -465,7 +467,7 @@ def test_the_first_cycle_reports_how_long_startup_took_once(isolated_cwd, monkey
 
     _run_cycles(loop, monkeypatch, cycles=2)
 
-    assert capsys.readouterr().out.count("First cycle finished") == 1
+    assert caplog.text.count("First cycle finished") == 1
 
 
 MISSING_BOTH = ["a weather location", "a bus or tube stop"]

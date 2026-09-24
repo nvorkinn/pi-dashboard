@@ -1,3 +1,5 @@
+import logging
+
 from pydantic import TypeAdapter
 
 from countdown.abstract_client import AbstractClient
@@ -13,6 +15,8 @@ from countdown.models import (
 from display.bus_arrival_panel import BusArrivalPanel
 from display.combined_arrival_panel import CombinedArrivalPanel
 from display.tube_arrival_panel import TubeArrivalPanel
+
+logger = logging.getLogger(__name__)
 
 
 def _find_stop_child(stop: StopPoint, naptan_id: str) -> SingleStopPoint | MetroStopPoint | None:
@@ -55,9 +59,9 @@ class TflClient(AbstractClient):
                 if info is not None:
                     stops.append(info)
                 else:
-                    print(f"Warning: Stop ID {stop_id} could not be resolved from TfL API")
+                    logger.warning(f"Stop ID {stop_id} could not be resolved from TfL API")
             except Exception as e:
-                print(f"Warning: Error fetching stop ID {stop_id}: {e}")
+                logger.warning(f"Error fetching stop ID {stop_id}: {e}", exc_info=True)
         return stops
 
     def _get_stop_info(self, stop_id: str) -> SingleStopPoint | MetroStopPoint | None:
@@ -100,5 +104,5 @@ class TflClient(AbstractClient):
                 elif isinstance(stop, MetroStopPoint):
                     stop_and_arrivals.append(TubeArrivalPanel(stop, sortd))
             except Exception as e:
-                print(f"Error fetching arrivals for stop {stop.naptan_id}: {e}")
+                logger.exception(f"Error fetching arrivals for stop {stop.naptan_id}: {e}")
         return CombinedArrivalPanel(stop_and_arrivals)

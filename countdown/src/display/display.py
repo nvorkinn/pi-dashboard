@@ -1,3 +1,4 @@
+import logging
 import sys
 import time
 from datetime import datetime
@@ -12,6 +13,8 @@ from display.pairing_code_panel import PairingCodePanel
 from display.panel import Panel
 from display.setup_panel import SetupPanel
 from display.utils import TOTAL_HEIGHT, TOTAL_WIDTH
+
+logger = logging.getLogger(__name__)
 
 LIB_DIR = str(Path(__file__).resolve().parent / "lib")
 
@@ -40,7 +43,7 @@ class DisplayController:
             self.display_enabled = True
             self.epd = epd7in5_V2.EPD()
         except (ImportError, RuntimeError) as e:
-            print(f"Error importing epd7in5_V2: {e}")
+            logger.warning(f"Error importing epd7in5_V2: {e}", exc_info=True)
             self.display_enabled = False
             self.epd = None
         # None until the panel's first been asked (or if there's no driver at all); then
@@ -71,12 +74,14 @@ class DisplayController:
             (init or self.epd.init)()
         except RuntimeError as e:
             if self.panel_connected is not False:
-                print(f"No e-paper panel responding ({e}) -- running without a display, re-checking every 5 minutes")
+                logger.warning(
+                    f"No e-paper panel responding ({e}) -- running without a display, re-checking every 5 minutes"
+                )
             self.panel_connected = False
             self._next_probe = time.monotonic() + PANEL_RETRY_INTERVAL_S
             return False
         if self.panel_connected is False:
-            print("E-paper panel detected")
+            logger.info("E-paper panel detected")
         self.panel_connected = True
         self._awake = True
         return True
@@ -225,7 +230,7 @@ class DisplayController:
                 # Called only when the code changes, so this is once per code. Without it a
                 # Pi with no screen can't be paired at all: nothing else is published or
                 # polled while a code is pending.
-                print(
+                logger.warning(
                     f"No display to show the pairing code on -- it is {panel.pairing_code} (device {panel.device_id})"
                 )
         else:
@@ -238,7 +243,7 @@ class DisplayController:
 
         if self.display_enabled and self.epd:
             if not self._paint_whole_screen(img):
-                print(f"No display to show the setup checklist on -- still needed: {', '.join(panel.missing)}")
+                logger.warning(f"No display to show the setup checklist on -- still needed: {', '.join(panel.missing)}")
         else:
             img.show()
 
@@ -267,4 +272,4 @@ class DisplayController:
             try:
                 self._sleep_panel()
             except Exception as e:
-                print(f"Could not put the e-paper panel to sleep: {e}")
+                logger.warning(f"Could not put the e-paper panel to sleep: {e}", exc_info=True)

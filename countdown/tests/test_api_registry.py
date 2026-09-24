@@ -1,5 +1,6 @@
 import asyncio
 import json
+import logging
 
 import pytest
 from config_factory import make_config
@@ -190,6 +191,19 @@ def test_update_all_keeps_the_last_good_panel_when_a_client_raises():
     assert panels == {"weather": "sunny"}
 
 
+def test_a_client_that_raises_during_update_is_logged_with_its_traceback(caplog):
+    """So the journal shows where it went wrong, not just the exception's message."""
+    registry = registry_with(weather=FakeClient(ConnectionError("down")))
+
+    asyncio.run(registry.update_all())
+
+    (record,) = [r for r in caplog.records if "Error updating weather" in r.getMessage()]
+    assert record.levelno == logging.ERROR
+    assert isinstance(record.exc_info[1], ConnectionError)
+    assert "Traceback" in caplog.text
+    assert "_update" in caplog.text
+
+
 def test_update_all_replaces_the_last_panel_when_a_client_has_nothing_to_show():
     """None is a real answer (nothing playing, no location set), unlike an error."""
     spotify = FakeClient("now playing", None)
@@ -227,13 +241,14 @@ def test_publish_health_runs_the_publisher_at_most_once_a_minute_unless_forced()
     assert health.updates == 2
 
 
-def test_a_failing_publisher_is_logged_and_never_raised(capsys):
+def test_a_failing_publisher_is_logged_and_never_raised(caplog):
+    caplog.set_level(logging.INFO)
     registry = registry_with()
     registry.pub = FakeClient(ConnectionError("mqtt down"))
 
     asyncio.run(registry.publish_health())
 
-    assert "Error publishing health over MQTT" in capsys.readouterr().out
+    assert "Error publishing health over MQTT" in caplog.text
 
 
 def test_the_publisher_reads_the_registrys_own_client_dict():
@@ -262,17 +277,18 @@ def test_a_client_that_could_not_be_built_shows_as_an_error_in_the_health_payloa
     assert payload["problem"] is True
 
 
-def test_a_client_that_could_not_be_built_is_reported_again_by_update_all_without_raising(capsys):
+def test_a_client_that_could_not_be_built_is_reported_again_by_update_all_without_raising(caplog):
+    caplog.set_level(logging.INFO)
     config = make_config()
     config.spotify.enabled = True
     registry = ApiRegistry()
     asyncio.run(registry.on_config_update(config))
-    capsys.readouterr()
+    caplog.clear()
 
     panels = asyncio.run(registry.update_all())
 
     assert "spotify" not in panels
-    assert "Error updating spotify" in capsys.readouterr().out
+    assert "Error updating spotify" in caplog.text
 
 
 def test_a_failed_client_is_rebuilt_when_its_config_changes_and_dropped_when_switched_off():
