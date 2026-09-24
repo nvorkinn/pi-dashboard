@@ -7,6 +7,7 @@ import requests
 import responses
 from pydantic import ValidationError
 
+from countdown import broker_client as broker_client_module
 from countdown.broker_client import CREDENTIALS_FILE, BrokerClient
 from countdown.config_manager import AppConfig
 from countdown.http import DEFAULT_TIMEOUT
@@ -94,6 +95,44 @@ def test_request_sends_bearer_auth_header(isolated_cwd):
     assert result == {"ok": True}
     assert request_mock.call_args.kwargs["headers"]["Authorization"] == "Bearer shh"
     assert request_mock.call_args.kwargs["timeout"] == DEFAULT_TIMEOUT
+
+
+def test_request_sends_device_name_header_from_device_id_env(isolated_cwd, monkeypatch):
+    monkeypatch.setenv("DEVICE_ID", "Sister HAT")
+    _seed_credentials()
+    client = _initialised_client()
+    request_mock = MagicMock(return_value=_response({}))
+    client.session.request = request_mock
+
+    client._request("GET", "/some/path")
+
+    assert request_mock.call_args.kwargs["headers"]["X-Device-Name"] == "sister-hat"
+
+
+def test_request_sends_device_name_header_from_hostname_when_device_id_unset(isolated_cwd, monkeypatch):
+    monkeypatch.setattr(broker_client_module.socket, "gethostname", lambda: "vorkin-rbpi-z2w")
+    _seed_credentials()
+    client = _initialised_client()
+    request_mock = MagicMock(return_value=_response({}))
+    client.session.request = request_mock
+
+    client._request("GET", "/some/path")
+
+    assert request_mock.call_args.kwargs["headers"]["X-Device-Name"] == "vorkin-rbpi-z2w"
+
+
+def test_request_omits_device_name_header_when_unresolvable(isolated_cwd, monkeypatch):
+    """Never allowed to fail the request itself -- a dev box with an unresolvable
+    hostname and no DEVICE_ID just doesn't send the (purely cosmetic) header."""
+    monkeypatch.setattr(broker_client_module.socket, "gethostname", lambda: "")
+    _seed_credentials()
+    client = _initialised_client()
+    request_mock = MagicMock(return_value=_response({}))
+    client.session.request = request_mock
+
+    client._request("GET", "/some/path")
+
+    assert "X-Device-Name" not in request_mock.call_args.kwargs["headers"]
 
 
 def test_get_config_parses_response(isolated_cwd):
