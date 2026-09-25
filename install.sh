@@ -113,7 +113,7 @@ fetch_secret() {
     return 1
 }
 
-# Sets DEVICE_ID in an env file, replacing any existing line. Edits in place so an
+# Sets DEVICE_ID in pi-telemetry's env file, which countdown's unit also reads, replacing any existing line. Edits in place so an
 # existing file keeps its owner and mode.
 set_device_id() {
     local file="$1" tmp="$TMP_DIR/env.tmp"
@@ -142,8 +142,6 @@ if fetch_secret countdown.env "$COUNTDOWN_APP_DIR/.env"; then
 else
     echo "No secrets/countdown.env.age in this release -- countdown will start with defaults."
 fi
-
-set_device_id "$COUNTDOWN_APP_DIR/.env"
 
 GITHUB_TOKEN="$GITHUB_TOKEN" bash "$TMP_DIR/src/countdown/packaging/install.sh" "$TAG"
 

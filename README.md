@@ -75,9 +75,8 @@ Each Pi needs a name that identifies it in Home Assistant -- pick something
 that says whose it is, e.g. `sister-hat`. It's the second argument to
 `install.sh`. The name is sanitized (trimmed, lowercased, anything outside
 `[a-z0-9_-]` becomes `-`, same rules as pi-telemetry's `device_id.rs`) and
-written as `DEVICE_ID=<id>` into both apps' env files
-(`/opt/countdown/.env` and `/etc/pi-telemetry/env`), replacing any
-`DEVICE_ID` already there. It's also saved to `/etc/pi-setup/device-id`.
+written as `DEVICE_ID=<id>` into `/etc/pi-telemetry/env`, which both apps'
+systemd units load, replacing any `DEVICE_ID` already there. It's also saved to `/etc/pi-setup/device-id`.
 
 Both apps use it in their MQTT client ID and topics, and pi-telemetry in its
 HA device, so their data lands under the same device in Home Assistant.
