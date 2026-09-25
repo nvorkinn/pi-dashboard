@@ -5,6 +5,7 @@ from PIL import Image, ImageChops
 
 from countdown.api_registry import ClientClasses
 from countdown.display_composers import DEFAULT_COMPOSER, choose_composer
+from countdown.display_composers.abstract_display_composer import AbstractDisplayComposer
 from display.empty_panel import EmptyPanel
 from display.message_panel import MessagePanel
 from display.pairing_code_panel import PairingCodePanel
@@ -42,14 +43,16 @@ class DisplayController:
         whether the panel answered."""
         return self.target.connected
 
-    def use_layout(self, available: frozenset[ClientClasses]) -> None:
+    def use_layout(self, available: frozenset[ClientClasses]) -> AbstractDisplayComposer:
         """Picks the layout for a device that can show `available` (see
-        ApiRegistry.available), called whenever the config changes. A new layout moves
-        panels outside the arrivals, so the next screen is a full refresh on its own."""
+        ApiRegistry.available), called whenever the config changes, and returns it (the
+        caller tells the TfL client how many stops it shows). A new layout moves panels
+        outside the arrivals, so the next screen is a full refresh on its own."""
         composer = choose_composer(available)
         if type(composer) is not type(self._composer):
             logger.info(f"Changing layout from: {type(self._composer).__name__} to {type(composer).__name__}")
         self._composer = composer
+        return composer
 
     def display_screen(self, panels: dict[str, Panel]) -> Image.Image:
         """Composes the registry's panels, one per API, and puts it on the panel only if it

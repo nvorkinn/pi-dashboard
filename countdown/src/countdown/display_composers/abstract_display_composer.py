@@ -5,12 +5,11 @@ from PIL import Image
 from countdown.api_registry import ClientClasses
 from display.combined_arrival_panel import CombinedArrivalPanel
 from display.panel import Panel
-from display.utils import TOTAL_WIDTH, add_border
+from display.utils import TOTAL_WIDTH
 
 # Where every layout puts the arrivals panel, the part of the screen that changes every
 # minute and so the only part worth a partial refresh.
 ARRIVALS_ORIGIN = (5, 5)
-ARRIVALS_HEIGHT = 185
 # The arrivals panel is as wide as its stops; a message in its place gets one stop's width.
 ARRIVALS_MESSAGE_WIDTH = 262
 GAP = 5  # between panels, and between them and the screen's edge
@@ -23,6 +22,12 @@ class AbstractDisplayComposer(ABC):
     changes (see choose_composer), from the APIs that can actually be shown, then hands it
     every cycle's panels to arrange."""
 
+    ARRIVALS_HEIGHT = 185
+
+    # How many stops this layout has room for. Fixed per layout: the TfL client fetches
+    # this many each update and pages through the rest of the configured stops.
+    stops_shown: int = 2
+
     @abstractmethod
     def can_compose(self, available: frozenset[ClientClasses]) -> bool:
         """Whether this layout suits a device that can show `available` (see
@@ -32,12 +37,10 @@ class AbstractDisplayComposer(ABC):
     def compose(self, panels: dict[str, Panel]) -> tuple[Image.Image, Box]:
         """The screen without its footer, and the box the arrivals panel occupies."""
 
-    @staticmethod
-    def _place(img: Image.Image, panel: Panel, x: int, y: int, width: int, height: int) -> Image.Image:
+    def _place(self, img: Image.Image, panel: Panel, x: int, y: int, width: int, height: int) -> Image.Image:
         """Renders `panel` at that size, borders it and pastes it at (x, y). Returns what
         was rendered, since some panels (the arrivals) choose their own size."""
         rendered = panel.render(width, height)
-        add_border(rendered)
         img.paste(rendered, (x, y), rendered)
         return rendered
 
@@ -48,7 +51,7 @@ class AbstractDisplayComposer(ABC):
         arrival_panel = panels[ClientClasses.TFL.api_name]
         arrivals_width = TOTAL_WIDTH if isinstance(arrival_panel, CombinedArrivalPanel) else ARRIVALS_MESSAGE_WIDTH
         x, y = ARRIVALS_ORIGIN
-        arrivals = self._place(img, arrival_panel, x, y, arrivals_width, ARRIVALS_HEIGHT)
+        arrivals = self._place(img, arrival_panel, x, y, arrivals_width, self.ARRIVALS_HEIGHT)
         arrivals_box = (x, y, x + arrivals.size[0], y + arrivals.size[1])
 
         weather_x = arrivals_box[2] + GAP

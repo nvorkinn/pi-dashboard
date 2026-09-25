@@ -68,7 +68,7 @@ class DisplayLoop:
     async def run(self) -> None:
         started = time.monotonic()
         await self.api_reg.on_config_update(self.config)
-        self.display.use_layout(self.api_reg.available())
+        self._apply_layout()
         first_cycle_done = False
         while True:
             try:
@@ -130,4 +130,10 @@ class DisplayLoop:
         self.config = fetched
         self.interval = fetched.interval
         await self.api_reg.on_config_update(fetched)
-        self.display.use_layout(self.api_reg.available())
+        self._apply_layout()
+
+    def _apply_layout(self) -> None:
+        """The config decides the layout (from which APIs are available), and the layout
+        decides how many stops are on screen at once."""
+        layout = self.display.use_layout(self.api_reg.available())
+        self.api_reg.show_stops(layout.stops_shown)

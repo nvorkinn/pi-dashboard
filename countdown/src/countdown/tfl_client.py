@@ -1,4 +1,6 @@
 import logging
+from collections.abc import Callable
+from typing import TypeVar
 
 from pydantic import TypeAdapter
 
@@ -7,10 +9,12 @@ from countdown.config_manager import TflConfig
 from countdown.http import DEFAULT_TIMEOUT
 from countdown.models import (
     ArrivalUnion,
+    BusArrival,
     MetroStopPoint,
     SingleStopPoint,
     StopPoint,
     StopPointUnion,
+    TubeArrival,
 )
 from display.bus_arrival_panel import BusArrivalPanel
 from display.combined_arrival_panel import CombinedArrivalPanel
@@ -30,6 +34,20 @@ def _find_stop_child(stop: StopPoint, naptan_id: str) -> SingleStopPoint | Metro
     return None
 
 
+def _unique_list_by_route(arrivals: list[T], key_builder: Callable[[T], str]):
+    seen = set()
+    unique_list = []
+    for arrival in arrivals:
+        key = key_builder(arrival)
+        if key not in seen:
+            seen.add(key)
+            unique_list.append(arrival)
+    return unique_list
+
+
+T = TypeVar("T", BusArrival, TubeArrival)
+
+
 class TflClient(AbstractClient):
     panel_title = "Arrivals"
 
@@ -41,6 +59,9 @@ class TflClient(AbstractClient):
         self.stops: list[SingleStopPoint | MetroStopPoint] = []
         self.current_stop = 0
         self.params = {"app_key": config.app_key} if config.app_key else {}
+        # How many stops are on screen at once: set by the layout (see
+        # ApiRegistry.show_stops), 2 until then.
+        self.stops_per_update = 2
 
     def _initialise(self) -> None:
         """Resolve self.config.stop_ids into self.stops if not already done. Fails (so
@@ -89,9 +110,13 @@ class TflClient(AbstractClient):
         if not self.stops:
             return self.message_panel("No stops set")
         stop_and_arrivals = []
-        count_to_fetch = min(2, len(self.stops))
-        for _ in range(count_to_fetch):
-            stop = self._get_next_stop()
+        # All of them, in order, when they fit; otherwise the next page of them.
+        if len(self.stops) <= self.stops_per_update:
+            to_fetch = list(self.stops)
+        else:
+            to_fetch = [self._get_next_stop() for _ in range(self.stops_per_update)]
+        count_to_fetch = len(to_fetch)
+        for stop in to_fetch:
             try:
                 response = self.session.get(
                     f"https://api.tfl.gov.uk/StopPoint/{stop.naptan_id}/Arrivals",
@@ -103,9 +128,11 @@ class TflClient(AbstractClient):
                 arrivals = TypeAdapter(list[ArrivalUnion]).validate_python(json)
                 sortd = sorted(arrivals, key=lambda x: x.time_to_station)
                 if isinstance(stop, SingleStopPoint):
-                    stop_and_arrivals.append(BusArrivalPanel(stop, sortd))
+                    unique = _unique_list_by_route(sortd, lambda a: a.line)
+                    stop_and_arrivals.append(BusArrivalPanel(stop, unique))
                 elif isinstance(stop, MetroStopPoint):
-                    stop_and_arrivals.append(TubeArrivalPanel(stop, sortd))
+                    unique = _unique_list_by_route(sortd, lambda a: f"{a.line}-{a.towards}")
+                    stop_and_arrivals.append(TubeArrivalPanel(stop, unique))
             except Exception as e:
                 logger.exception(f"Error fetching arrivals for stop {stop.naptan_id}: {e}")
         if not stop_and_arrivals:
