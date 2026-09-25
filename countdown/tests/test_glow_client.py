@@ -74,9 +74,30 @@ def test_without_full_credentials_client_is_disabled_and_makes_no_requests(glowm
     assert len(glowmarkt_api.calls) == 0
 
 
-def test_get_utc_offset_for_utc():
-    now = datetime(2026, 1, 1, tzinfo=UTC)
-    assert _get_utc_offset(now) == "0"
+@pytest.mark.parametrize(
+    ("utc_offset", "expected"),
+    [
+        (timedelta(0), "0"),
+        (timedelta(hours=1), "-60"),
+        (timedelta(hours=-5), "300"),
+        (timedelta(hours=5, minutes=30), "-330"),
+        (timedelta(hours=-3, minutes=-30), "210"),
+    ],
+)
+def test_get_utc_offset_is_minutes_from_local_to_utc(utc_offset, expected):
+    now = datetime(2026, 1, 1, tzinfo=timezone(utc_offset))
+    assert _get_utc_offset(now) == expected
+
+
+def test_get_utc_offset_reads_a_naive_time_in_the_machine_zone(monkeypatch):
+    monkeypatch.setenv("TZ", "America/New_York")
+    time.tzset()
+    try:
+        assert _get_utc_offset(datetime(2026, 1, 1)) == "300"
+        assert _get_utc_offset(datetime(2026, 7, 1)) == "240"
+    finally:
+        monkeypatch.undo()
+        time.tzset()
 
 
 def test_authenticate_stores_token(monkeypatch):

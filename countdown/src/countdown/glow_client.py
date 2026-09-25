@@ -1,5 +1,4 @@
 from datetime import UTC, datetime, timedelta
-from math import floor
 
 from pydantic import TypeAdapter
 
@@ -11,13 +10,17 @@ from display.energy_panel import EnergyPanel
 
 
 def _get_utc_offset(now: datetime | None = None) -> str:
+    """Glow's offset param: minutes to add to local time to get UTC, so BST is "-60".
+    An aware `now` keeps its own zone; a naive or missing one is taken as local time."""
     # Evaluated per call, not as a default argument: that would freeze the offset at
     # import time, wrong for a long-running device after the clocks change.
-    utc_offset = (now or datetime.now()).astimezone().utcoffset()
+    now = now or datetime.now()
+    utc_offset = (now if now.tzinfo else now.astimezone()).utcoffset()
     if utc_offset is None:
         raise ValueError("Could not find a UTC offset")
-    offset_int: int = floor(utc_offset.seconds * -1 / 60)
-    return str(offset_int)
+    # total_seconds(), not .seconds: a negative timedelta keeps a positive .seconds
+    # (UTC-5 is -1 day + 68400s), which gave "-1140" instead of "300".
+    return str(round(-utc_offset.total_seconds() / 60))
 
 
 class GlowClient(AbstractClient):
@@ -215,7 +218,7 @@ class GlowClient(AbstractClient):
                 "from": dt_from.strftime("%Y-%m-%dT%H:%M:%S"),
                 "to": dt_to.strftime("%Y-%m-%dT%H:%M:%S"),
                 "period": period,
-                "offset": _get_utc_offset(),
+                "offset": _get_utc_offset(dt_from),
                 "function": "sum",
             },
         )
