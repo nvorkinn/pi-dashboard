@@ -1,28 +1,10 @@
 #!/usr/bin/env bash
 # Installs countdown from a GitHub release and sets it up as a systemd service.
+# See README.md for how to fetch and run it.
 #
-# The pi-dashboard repo (which countdown lives in) is private, so fetching
-# from it needs a token with read access, passed via GITHUB_TOKEN. Uses the
-# gh CLI (bootstrapped below if missing) to resolve releases and download
-# assets -- gh handles private-repo auth correctly on its own; a hand-rolled
-# curl approach needs the asset API plus an Accept header, since a private
-# repo's browser_download_url doesn't work with a bearer token. Nothing is
-# ever fetched from main -- see README.md for the full bootstrap snippet that
-# resolves a tag (specified, or latest via the releases API) before the first
-# curl fetches this script from that tag.
+# Usage: install.sh [version]   (a repo-wide release tag such as "v0.3.0"; defaults to latest)
 #
-# Usage (once TAG is resolved -- see README.md):
-#   curl -fsSL -H "Authorization: Bearer $GITHUB_TOKEN" \
-#       "https://raw.githubusercontent.com/nvorkinn/pi-dashboard/$TAG/countdown/packaging/install.sh" \
-#       | GITHUB_TOKEN="$GITHUB_TOKEN" sudo -E bash -s -- "$TAG"
-#
-# [version] is a release tag such as "v0.3.0". Defaults to the latest release.
-# Releases are shared with pi-telemetry (see the repo root README.md), so the
-# tag is the repo-wide one, not a countdown-specific version.
-#
-# Re-running this script (e.g. to update) reinstalls the wheel and restarts
-# the service, but never touches APP_DIR -- .auth_broker_device (the device's
-# auth-broker pairing credentials) survives untouched.
+# Re-running it (e.g. to update) never touches APP_DIR, so .auth_broker_device survives.
 set -euo pipefail
 
 REPO="nvorkinn/pi-dashboard"
@@ -36,9 +18,8 @@ fi
 [ -n "${GITHUB_TOKEN:-}" ] || { echo "GITHUB_TOKEN is required (pi-dashboard is a private repo)." >&2; exit 1; }
 export GITHUB_TOKEN
 
-# SPI only becomes usable after a reboot (it's a device-tree overlay applied
-# at boot), so when we have to flip it on here, defer starting the service
-# until then instead of racing a crash-loop against the reboot.
+# SPI only works after a reboot (it's a device-tree overlay), so if it's switched on
+# here, the service isn't started until then.
 NEED_REBOOT=0
 if command -v raspi-config >/dev/null 2>&1; then
     if ! raspi-config nonint get_spi; then
@@ -89,13 +70,10 @@ echo "Resolved release $TAG"
 echo "Downloading release assets..."
 gh release download "$TAG" --repo "$REPO" --dir "$TMP_DIR" --clobber \
     --pattern '*.whl' --pattern 'countdown.service'
-# uv tool install parses name/version from the wheel filename itself; gh
-# preserves the real name (e.g. countdown-0.3.1-py3-none-any.whl).
+# uv tool install parses name/version from the wheel filename, which gh preserves.
 WHEEL_PATH="$(ls "$TMP_DIR"/*.whl)"
-# gh creates these respecting the caller's umask -- when invoked from a
-# script that tightened its own umask (e.g. the repo-root install.sh, to
-# protect its token/key files), that leaks in here too and leaves the wheel
-# unreadable by TARGET_USER. Force it open regardless of what we inherited.
+# The repo-root install.sh runs with umask 077, which would leave these unreadable
+# by TARGET_USER.
 chmod 644 "$WHEEL_PATH" "$TMP_DIR/countdown.service"
 
 if ! run_as_target "command -v uv" >/dev/null 2>&1; then
@@ -124,9 +102,7 @@ sed \
 
 systemctl daemon-reload
 
-# journalctl's InvocationID filter scopes output to a single service start,
-# so re-running this script never leaves older runs mixed into the logs you
-# check afterwards.
+# Only this service start's logs, not earlier runs'.
 LOG_CMD='journalctl _SYSTEMD_INVOCATION_ID=$(systemctl show -p InvocationID --value countdown) -f'
 
 if [ "$NEED_REBOOT" -eq 1 ]; then
@@ -138,9 +114,7 @@ if [ "$NEED_REBOOT" -eq 1 ]; then
     echo "  systemctl status countdown"
     echo "  $LOG_CMD"
 else
-    # restart, not `enable --now`: starting a service that's already running is a
-    # no-op, so on a re-run (an update) the old code and the old contents of
-    # /etc/pi-telemetry/env would stay in effect until the next reboot.
+    # restart, not `enable --now`, which is a no-op for a running service (an update).
     systemctl enable countdown.service
     systemctl restart countdown.service
     echo "Done. countdown.service is running -- check it with:"
