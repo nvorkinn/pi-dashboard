@@ -40,7 +40,7 @@ class AbstractClient(ABC):
     concurrently -- a cycle takes as long as the slowest API, not all of them added up --
     and a slow API can't freeze the event loop. That means a hook must not touch
     anything that's only safe on the main thread: build the panel's data there and let
-    the display render it (matplotlib, SPI) later."""
+    the display render it (Pillow, SPI) later."""
 
     poll_interval: timedelta = timedelta(minutes=1)
 
