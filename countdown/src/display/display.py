@@ -48,7 +48,7 @@ class DisplayController:
         panels outside the arrivals, so the next screen is a full refresh on its own."""
         composer = choose_composer(available)
         if type(composer) is not type(self._composer):
-            logger.info(f"Layout: {type(composer).__name__}")
+            logger.info(f"Changing layout from: {type(self._composer).__name__} to {type(composer).__name__}")
         self._composer = composer
 
     def display_screen(self, panels: dict[str, Panel]) -> Image.Image:
