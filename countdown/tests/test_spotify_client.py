@@ -9,9 +9,12 @@ from pydantic import ValidationError
 from countdown.config_manager import SpotifyConfig
 from countdown.spotify_client import CREDENTIALS_FILE, SpotifyClient
 from display.spotify_panel import SpotifyPanel
+from display.spotify_top_panel import SpotifyTopPanel
 
 BROKER_URL = "https://broker.example.com"
 QUEUE_URL = f"{BROKER_URL}/api/devices/device-123/queue"
+TOP_TRACKS_URL = f"{BROKER_URL}/api/devices/device-123/top/tracks"
+TOP_ARTISTS_URL = f"{BROKER_URL}/api/devices/device-123/top/artists"
 
 
 def track(name: str) -> dict:
@@ -24,6 +27,12 @@ def track(name: str) -> dict:
 
 
 QUEUE = {"currently_playing": track("A Song"), "queue": [track("Next Song")]}
+NOTHING_PLAYING = {"currently_playing": None, "queue": [track("Next Song")]}
+
+
+def mock_top():
+    responses.add(responses.GET, TOP_TRACKS_URL, json={"items": [track("Top Song")]})
+    responses.add(responses.GET, TOP_ARTISTS_URL, json={"items": [{"name": "Top Artist"}]})
 
 
 @pytest.fixture
@@ -58,11 +67,28 @@ def test_update_sends_the_device_secret_as_a_bearer_token(client):
 
 
 @responses.activate
-def test_update_says_so_when_nothing_is_playing(client):
-    """Even with tracks still queued up: the panel is about what's playing."""
-    responses.add(responses.GET, QUEUE_URL, json={"currently_playing": None, "queue": [track("Next Song")]})
+def test_updates_rotate_between_the_player_and_the_top_tracks_and_artists(client):
+    responses.add(responses.GET, QUEUE_URL, json=QUEUE)
+    mock_top()
 
-    assert asyncio.run(client.update()).message == "Nothing playing on:"
+    panels = [asyncio.run(client.update()) for _ in range(5)]
+
+    assert [type(panel) for panel in panels] == [SpotifyPanel, SpotifyTopPanel] * 2 + [SpotifyPanel]
+    assert [panels[1].period, panels[3].period] == ["12 months", "4 weeks"]
+    time_ranges = [call.request.params for call in responses.calls if call.request.url.startswith(TOP_TRACKS_URL)]
+    assert time_ranges == [{"time_range": "long_term", "limit": "5"}, {"time_range": "short_term", "limit": "5"}]
+
+
+@responses.activate
+def test_nothing_playing_skips_straight_to_the_top_tracks_and_artists(client):
+    """Even with tracks still queued up: the player is about what's playing."""
+    responses.add(responses.GET, QUEUE_URL, json=NOTHING_PLAYING)
+    mock_top()
+
+    panel = asyncio.run(client.update())
+
+    assert isinstance(panel, SpotifyTopPanel)
+    assert panel.period == "12 months"
 
 
 @responses.activate

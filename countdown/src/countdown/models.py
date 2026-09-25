@@ -188,3 +188,7 @@ class Track(BaseModel):
 class Queue(BaseModel):
     currently_playing: Track | None
     queue: list[Track]
+
+
+class TopResponse[T: (Track, Artist)](BaseModel):
+    items: list[T]
