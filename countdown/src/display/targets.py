@@ -1,0 +1,188 @@
+"""Where DisplayController's frames actually end up. The controller decides what to paint
+and when (diffing, partial vs full refreshes, pending whole-screen pictures); a target
+only knows how to get one picture onto one kind of screen. Pick one with DISPLAY_TARGET
+(see target_from_env), or pass one to DisplayController directly."""
+
+import logging
+import os
+import subprocess
+import sys
+import time
+from abc import ABC, abstractmethod
+from pathlib import Path
+
+from PIL import Image
+
+logger = logging.getLogger(__name__)
+
+LIB_DIR = str(Path(__file__).resolve().parent / "lib")
+
+# How long to leave it before asking a panel that didn't answer whether it's there yet,
+# so plugging a screen in later just works, without a restart.
+PANEL_RETRY_INTERVAL_S = 300
+
+Region = tuple[int, int, int, int]
+
+
+class DisplayTarget(ABC):
+    # None until a target has something to say about whether its screen is there; the
+    # EpdTarget then says whether the panel answered. Surfaced as the controller's
+    # panel_connected, which goes into the device's health report.
+    connected: bool | None = None
+
+    @abstractmethod
+    def paint(self, img: Image.Image, region: Region | None = None) -> bool:
+        """Puts the full 800x480 `img` on the screen -- or with a (byte-aligned) region,
+        just that part of it, as a partial refresh. False if there's no screen to take it."""
+
+    def close(self) -> None:  # noqa: B027 -- optional hook: only a target holding hardware needs it
+        """Called at shutdown, from inside the SIGTERM handler, so it mustn't raise."""
+
+
+def panel_bytes(img: Image.Image, region: Region | None = None) -> bytearray:
+    """The picture (or the region of it) as the panel's raw 1-bit buffer. The bytes need
+    inverting: in the PIL world 0=black and 1=white, on the e-paper 0=white and 1=black."""
+    if region is not None:
+        img = img.crop(region)
+    buf = bytearray(img.convert("1").tobytes("raw"))
+    for i in range(len(buf)):
+        buf[i] ^= 0xFF
+    return buf
+
+
+class EpdTarget(DisplayTarget):
+    """The Waveshare 7.5" V2 panel over SPI, on the Pi itself."""
+
+    def __init__(self, epd):
+        self.epd = epd
+        self._next_probe = 0.0
+        # Whether the panel is initialised and its SPI open; the driver's sleep() closes it.
+        self._awake = False
+
+    def paint(self, img: Image.Image, region: Region | None = None) -> bool:
+        if region is None:
+            # No Clear() first: display() overwrites every pixel itself, so Clear() only added
+            # a whole extra black-and-white flash (it is a full refresh of its own).
+            if not self._wake_panel():
+                return False
+            self.epd.display(self.epd.getbuffer(img))
+        else:
+            if not self._wake_panel(self.epd.init_part):
+                return False
+            self.epd.display_Partial(panel_bytes(img, region), *region)
+        self._sleep_panel()
+        return True
+
+    def _wake_panel(self, init=None) -> bool:
+        """Initialises the panel (`init` defaults to the full-refresh init), or returns
+        False if it doesn't answer -- no screen connected (or powered), which init() finds
+        out via the POWER ON handshake, and which can't be told apart from a connected one
+        that's broken. Once a panel's known to be absent it isn't asked again until
+        PANEL_RETRY_INTERVAL_S has passed, so a Pi running without a display neither waits
+        on it every cycle nor spams the log; it's said once when the answer changes."""
+        if self.connected is False and time.monotonic() < self._next_probe:
+            return False
+        try:
+            (init or self.epd.init)()
+        except RuntimeError as e:
+            if self.connected is not False:
+                logger.warning(
+                    f"No e-paper panel responding ({e}) -- running without a display, re-checking every 5 minutes"
+                )
+            self.connected = False
+            self._next_probe = time.monotonic() + PANEL_RETRY_INTERVAL_S
+            return False
+        if self.connected is False:
+            logger.info("E-paper panel detected")
+        self.connected = True
+        self._awake = True
+        return True
+
+    def _sleep_panel(self) -> None:
+        self.epd.sleep()
+        self._awake = False
+
+    def close(self) -> None:
+        # Every paint ends with the panel asleep and its SPI closed, so this only has work to
+        # do if a paint was interrupted.
+        if self._awake:
+            try:
+                self._sleep_panel()
+            except Exception as e:
+                logger.warning(f"Could not put the e-paper panel to sleep: {e}", exc_info=True)
+
+
+class PreviewTarget(DisplayTarget):
+    """Opens each new frame in the local image viewer -- for a machine with no panel."""
+
+    def paint(self, img: Image.Image, region: Region | None = None) -> bool:
+        img.show()  # the whole picture even for a partial: a viewer has nothing to update in place
+        return True
+
+
+class RemotePiTarget(DisplayTarget):
+    """Dev only: rsyncs each frame to a Pi and has it run dev/pi_display.py on it, so the
+    app can run on the Mac while painting the real panel.
+
+    countdown.service must be stopped by hand on the Pi first (sudo systemctl stop
+    countdown), or it repaints over the frame; start it again when done."""
+
+    SSH = ["ssh", "-o", "ControlMaster=auto", "-o", "ControlPath=/tmp/pi-dev-%C", "-o", "ControlPersist=120"]
+
+    def __init__(self, host: str, pi_dir: str = "countdown-dev"):
+        if not host:
+            raise ValueError("RemotePiTarget needs a host (PI_HOST, e.g. nikolai@countdown.local)")
+        self.host = host
+        self.pi_dir = pi_dir
+        self.dev_dir = Path(__file__).resolve().parents[2] / "dev"
+
+    def paint(self, img: Image.Image, region: Region | None = None) -> bool:
+        frame = self.dev_dir / "out" / "frame.bin"
+        frame.parent.mkdir(exist_ok=True)
+        frame.write_bytes(bytes(panel_bytes(img, region)))
+        subprocess.run(
+            [
+                "rsync",
+                "-az",
+                "-e",
+                " ".join(self.SSH),
+                str(frame),
+                str(self.dev_dir / "pi_display.py"),
+                f"{self.host}:{self.pi_dir}/",
+            ],
+            check=True,
+        )
+        # The interpreter is the release venv's, which has the driver in display/lib.
+        region_args = f" {' '.join(map(str, region))}" if region else ""
+        remote = f'cd {self.pi_dir} && "$(uv tool dir)/countdown/bin/python" pi_display.py frame.bin{region_args}'
+        subprocess.run([*self.SSH, self.host, f"bash -lc '{remote}'"], check=True)
+        return True
+
+
+def _load_epd():
+    sys.path.insert(1, LIB_DIR)
+    import epd7in5_V2
+
+    return epd7in5_V2.EPD()
+
+
+def target_from_env() -> DisplayTarget:
+    """DISPLAY_TARGET picks where frames go:
+    - epd: the panel on this Pi (fails if the driver can't be loaded)
+    - preview: the local image viewer
+    - remote: a Pi over ssh (PI_HOST required, PI_DIR defaults to countdown-dev)
+    - auto, or unset: the panel if the driver loads, the image viewer if not"""
+    choice = os.environ.get("DISPLAY_TARGET", "auto").strip().lower()
+    if choice == "epd":
+        return EpdTarget(_load_epd())
+    if choice == "preview":
+        return PreviewTarget()
+    if choice == "remote":
+        return RemotePiTarget(os.environ.get("PI_HOST", ""), os.environ.get("PI_DIR", "countdown-dev"))
+    if choice != "auto":
+        raise ValueError(f"Unknown DISPLAY_TARGET {choice!r}: expected epd, preview, remote or auto")
+    try:
+        return EpdTarget(_load_epd())
+    except (ImportError, RuntimeError) as e:
+        logger.warning(f"Error importing epd7in5_V2: {e} -- previewing frames locally instead", exc_info=True)
+        return PreviewTarget()
