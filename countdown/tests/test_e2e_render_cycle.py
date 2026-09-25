@@ -37,6 +37,8 @@ from PIL import Image
 from countdown import display_loop
 from countdown.broker_client import BrokerClient
 from countdown.config_manager import AppConfig
+from countdown.display_composers.spotify_composer import SpotifyComposer
+from countdown.display_composers.spotify_glow_composer import SpotifyGlowComposer
 from countdown.display_loop import DisplayLoop
 from display.combined_arrival_panel import CombinedArrivalPanel
 from display.energy_panel import EnergyPanel
@@ -454,6 +456,27 @@ def test_config_changes_from_the_broker_reach_the_screen_on_the_next_cycle(isola
 
     assert shown[0]["tfl"].message == "No stops set"
     assert len(shown[1]["tfl"].arrival_panels) == 1
+
+
+@responses.activate
+def test_the_layout_follows_what_the_config_lets_the_device_show(isolated_cwd, monkeypatch):
+    """Boots with Glowmarkt set up (the full layout); the owner then removes its
+    credentials on the broker, and the next cycle drops the energy column."""
+    _mock_tfl_and_glowmarkt({}, {})
+    responses.add(responses.GET, f"{TEST_BROKER_URL}/api/devices/test-device/config", json=_app_config_json())
+    loop = _build_loop(_make_config(), monkeypatch)
+    layouts: list[type] = []
+    original = loop.display.display_screen
+
+    def spy(panels):
+        layouts.append(type(loop.display._composer))
+        return original(panels)
+
+    monkeypatch.setattr(loop.display, "display_screen", spy)
+
+    _run_cycles(loop, monkeypatch, cycles=2)
+
+    assert layouts == [SpotifyGlowComposer, SpotifyComposer]
 
 
 @responses.activate

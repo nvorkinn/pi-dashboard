@@ -68,6 +68,7 @@ class DisplayLoop:
     async def run(self) -> None:
         started = time.monotonic()
         await self.api_reg.on_config_update(self.config)
+        self.display.use_layout(self.api_reg.available())
         first_cycle_done = False
         while True:
             try:
@@ -129,3 +130,4 @@ class DisplayLoop:
         self.config = fetched
         self.interval = fetched.interval
         await self.api_reg.on_config_update(fetched)
+        self.display.use_layout(self.api_reg.available())

@@ -7,6 +7,7 @@ from config_factory import make_config
 
 from countdown.abstract_client import AbstractClient, ClientStatus
 from countdown.api_registry import ApiRegistry, ClientClasses, FailedClient
+from countdown.config_manager import WeatherConfig
 from countdown.glow_client import GlowClient
 from countdown.notice_board_client import NoticeBoardClient
 from countdown.spotify_client import SpotifyClient
@@ -338,3 +339,20 @@ def test_a_failed_client_is_rebuilt_when_its_config_changes_and_dropped_when_swi
     registry.panels["spotify"] = "old panel"
     asyncio.run(registry.on_config_update(make_config()))  # spotify is disabled in the new config
     assert "spotify" not in registry.clients
+
+
+def test_available_is_the_built_clients_that_are_not_disabled():
+    disabled = FakeClient()
+    disabled.status = ClientStatus.DISABLED
+    registry = registry_with(tfl=FakeClient(), glowmarkt=disabled, weather=FailedClient(WeatherConfig(), ValueError()))
+
+    # A failing client keeps its area (to say so); a disabled or missing one doesn't.
+    assert registry.available() == frozenset({ClientClasses.TFL, ClientClasses.WEATHER})
+
+
+def test_available_leaves_out_glowmarkt_without_credentials_and_spotify_when_off():
+    registry = ApiRegistry()
+
+    asyncio.run(registry.on_config_update(make_config()))
+
+    assert registry.available() == frozenset({ClientClasses.TFL, ClientClasses.WEATHER, ClientClasses.NOTICE_BOARD})
