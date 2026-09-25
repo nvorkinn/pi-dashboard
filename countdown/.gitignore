@@ -241,6 +241,3 @@ tests/images/_failures/
 
 # pyinstrument profiler output
 profile.html
-
-# RemotePiTarget writes each frame here before copying it to the Pi
-dev/out/
