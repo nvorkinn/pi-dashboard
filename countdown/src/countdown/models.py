@@ -1,5 +1,5 @@
 from abc import ABC
-from datetime import timedelta
+from datetime import datetime, timedelta
 from enum import StrEnum
 from typing import Annotated, Literal
 
@@ -64,6 +64,11 @@ class StopType(StrEnum):
     NAPTAN_METRO_PLATFORM = "NaptanMetroPlatform"
 
 
+class Identifier(BaseModel):
+    id: str
+    name: str
+
+
 class StopPoint(BaseModel):
     naptan_id: str = Field(alias="naptanId")
     common_name: str = Field(alias="commonName")
@@ -90,10 +95,12 @@ class OtherStopPoint(StopPoint):
 class SingleStopPoint(StopPoint):
     stop_type: Literal[StopType.NAPTAN_PUBLIC_BUS_COACH_TRAM] = Field(alias="stopType")
     stop_letter: str = Field(alias="stopLetter")
+    lines: list[Identifier] = []
 
 
 class MetroStopPoint(StopPoint):
     stop_type: Literal[StopType.NAPTAN_METRO_STATION] = Field(alias="stopType")
+    lines: list[Identifier] = []
 
 
 StopPointUnion = Annotated[OtherStopPoint | SingleStopPoint | MetroStopPoint, Field(discriminator="stop_type")]
@@ -110,6 +117,80 @@ class Resource(BaseModel):
 
 class Entity(BaseModel):
     resources: list[Resource]
+
+
+class ValidityPeriod(BaseModel):
+    from_date: datetime = Field(alias="fromDate")
+    to_date: datetime = Field(alias="toDate")
+
+
+class LineStatus(BaseModel):
+    status_severity: int = Field(alias="statusSeverity")
+    description: str = Field(alias="statusSeverityDescription")
+    # What's actually going on, e.g. "Victoria Line: Minor delays due to a track fault at
+    # Brixton." Missing for some statuses (and every Good Service).
+    reason: str | None = None
+    validity_periods: list[ValidityPeriod] = Field(alias="validityPeriods", default=[])
+
+
+class Line(BaseModel):
+    """One line from TfL's /Line/{ids}/Status."""
+
+    id: str
+    name: str
+    mode_name: str = Field(alias="modeName", default="")
+    line_statuses: list[LineStatus] = Field(alias="lineStatuses")
+
+
+class DisruptedPoint(BaseModel):
+    """One entry from TfL's /StopPoint/{ids}/Disruption: lifts out of order, closed
+    entrances, no step-free access and the like."""
+
+    common_name: str = Field(alias="commonName")
+    description: str
+    to_date: datetime | None = Field(alias="toDate", default=None)
+
+
+class RoadDisruption(BaseModel):
+    """One entry from TfL's /Road/all/Disruption."""
+
+    id: str
+    severity: str
+    category: str
+    comments: str = ""
+    # "[lon,lat]" as a string.
+    point: str | None = None
+    end_date_time: datetime | None = Field(alias="endDateTime", default=None)
+
+
+class FloodWarning(BaseModel):
+    """One item from the Environment Agency's /flood-monitoring/id/floods."""
+
+    description: str
+    severity: str
+    # 1 severe flood warning, 2 flood warning, 3 flood alert, 4 no longer in force.
+    severity_level: int = Field(alias="severityLevel")
+
+
+class FloodWarningsResponse(BaseModel):
+    items: list[FloodWarning] = []
+
+
+class Postcode(BaseModel):
+    """The parts of postcodes.io's /postcodes/{postcode} the notice board uses."""
+
+    postcode: str
+    latitude: float
+    longitude: float
+    country: str
+    # English region ("London", "South East", ...); null outside England.
+    region: str | None = None
+    # Local authority, e.g. "Southwark" or, in Scotland, the council area.
+    admin_district: str | None = None
+
+
+class PostcodeResponse(BaseModel):
+    result: Postcode
 
 
 class Readings(BaseModel):

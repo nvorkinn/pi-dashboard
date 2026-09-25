@@ -84,9 +84,17 @@ class DisplayController:
         spotify_panel = panels[ClientClasses.SPOTIFY.api_name]
         spotify_x = 5
         spotify_y = TOTAL_HEIGHT - 120 - 5
-        spotify_image = spotify_panel.render(536, TOTAL_HEIGHT - spotify_y)
+        spotify_image = spotify_panel.render(536, TOTAL_HEIGHT - spotify_y - 5)
         add_border(spotify_image)
         img.paste(spotify_image, (spotify_x, spotify_y), spotify_image)
+
+        # Notices, in the gap between the arrivals and Spotify
+        notices_panel = panels.get(ClientClasses.NOTICE_BOARD.api_name)
+        if notices_panel is not None:
+            notices_y = arrivals_box[3] + 5
+            notices_image = notices_panel.render(spotify_image.size[0], spotify_y - 5 - notices_y)
+            add_border(notices_image)
+            img.paste(notices_image, (spotify_x, notices_y), notices_image)
 
         # Weather
         weather_x = 5 + arrival_image.size[0] + 5
@@ -101,7 +109,7 @@ class DisplayController:
         # Energy
         energy_x = 5 + spotify_image.size[0] + 5
         energy_y = 5 + weather_image.size[1] + 5
-        energy_width = TOTAL_WIDTH - 5 - spotify_image.size[0] - 5
+        energy_width = TOTAL_WIDTH - 5 - spotify_image.size[0] - 5 - 5
         energy_height = TOTAL_HEIGHT - energy_y - 5
         energy_panel = panels[ClientClasses.GLOWMARKT.api_name]
         energy_image = energy_panel.render(energy_width, energy_height)

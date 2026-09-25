@@ -8,6 +8,7 @@ from config_factory import make_config
 from countdown.abstract_client import AbstractClient, ClientStatus
 from countdown.api_registry import ApiRegistry, ClientClasses, FailedClient
 from countdown.glow_client import GlowClient
+from countdown.notice_board_client import NoticeBoardClient
 from countdown.spotify_client import SpotifyClient
 from countdown.tfl_client import TflClient
 from countdown.weather_client import WeatherClient
@@ -65,6 +66,7 @@ def test_on_config_update_registers_the_enabled_clients(monkeypatch):
     asyncio.run(registry.on_config_update(config))
 
     assert {name: type(client) for name, client in registry.clients.items()} == {
+        "notice_board": NoticeBoardClient,
         "glowmarkt": GlowClient,
         "tfl": TflClient,
         "weather": WeatherClient,
@@ -79,7 +81,7 @@ def test_on_config_update_skips_disabled_clients():
 
     asyncio.run(registry.on_config_update(config))
 
-    assert set(registry.clients) == {"glowmarkt", "tfl"}
+    assert set(registry.clients) == {"notice_board", "glowmarkt", "tfl"}
 
 
 def test_on_config_update_initialises_new_clients_even_if_one_fails(monkeypatch):
@@ -181,6 +183,7 @@ def test_update_all_has_a_message_for_every_api_without_a_client():
     registry = registry_with(tfl=FakeClient("arrivals"))
 
     assert messages(asyncio.run(registry.update_all())) == {
+        "notice_board": "Not configured",
         "glowmarkt": "Not configured",
         "weather": "Not configured",
         "spotify": "Not configured",

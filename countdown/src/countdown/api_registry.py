@@ -8,6 +8,7 @@ from countdown.config_manager import ApiConfig, AppConfig
 from countdown.device_status import DeviceStatus
 from countdown.glow_client import GlowClient
 from countdown.mqtt_publisher import MqttPublisher
+from countdown.notice_board_client import NoticeBoardClient
 from countdown.spotify_client import SpotifyClient
 from countdown.tfl_client import TflClient
 from countdown.weather_client import WeatherClient
@@ -17,6 +18,7 @@ logger = logging.getLogger(__name__)
 
 
 class ClientClasses(Enum):
+    NOTICE_BOARD = ("notice_board", NoticeBoardClient)
     GLOWMARKT = ("glowmarkt", GlowClient)
     TFL = ("tfl", TflClient)
     WEATHER = ("weather", WeatherClient)
