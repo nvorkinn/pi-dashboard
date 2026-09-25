@@ -1,6 +1,7 @@
 from abc import ABC
+from typing import Any
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, model_validator
 
 
 class ApiConfig(ABC, BaseModel):
@@ -35,6 +36,15 @@ class GlowmarktConfig(ApiConfig):
     password: str | None = Field(default=None)
 
 
+class NoticeBoardConfig(ApiConfig):
+    # Where the weather warnings, floods and road incidents are looked up for. None
+    # until the owner sets one; those sources stay quiet until then.
+    postcode: str | None = Field(default=None)
+    # Not sent by the broker: a copy of AppConfig.tfl, for the stops whose lines and
+    # stations the TfL disruptions are about (see AppConfig.share_tfl_with_notice_board).
+    tfl: TflConfig = Field(default_factory=TflConfig)
+
+
 class AppConfig(BaseModel):
     """Everything auth-broker owns: TfL stops, weather location, interval, whether
     Spotify is enabled, and Glowmarkt credentials. A plain BaseModel, not
@@ -54,7 +64,21 @@ class AppConfig(BaseModel):
     spotify: SpotifyConfig
     weather: WeatherConfig
     glowmarkt: GlowmarktConfig
+    notice_board: NoticeBoardConfig = Field(default_factory=NoticeBoardConfig)
     # Required but nullable: the broker sends null once the device is paired.
     pairing_code: str | None
     # What the device still needs before it's worth showing; empty once it's set up.
     setup_missing: list[str]
+
+    @model_validator(mode="before")
+    @classmethod
+    def share_tfl_with_notice_board(cls, data: Any) -> Any:
+        """The notice board's TfL disruptions are for the same stops as the arrivals, so
+        it gets its own copy of the tfl section rather than the broker sending it twice.
+        Its postcode still comes from the broker's (optional) notice_board section."""
+        if isinstance(data, dict) and "tfl" in data:
+            notice_board = data.get("notice_board") or {}
+            if isinstance(notice_board, NoticeBoardConfig):
+                notice_board = notice_board.model_dump()
+            data = data | {"notice_board": notice_board | {"tfl": data["tfl"]}}
+        return data

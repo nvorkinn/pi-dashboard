@@ -1,0 +1,77 @@
+from PIL import Image, ImageDraw
+
+from countdown.notices.notice import Notice, Severity
+from display.panel import Panel
+from display.spotify_panel import truncate_to_fit
+from display.utils import GOOGLE_REGULAR, GOOGLE_SEMI
+
+TITLE_FONT = GOOGLE_SEMI.font_variant(size=16)
+SOURCE_FONT = GOOGLE_SEMI
+TEXT_FONT = GOOGLE_REGULAR
+
+PADDING = 4  # blank border round the whole panel
+TITLE_GAP = 6  # between the title and the first notice
+ROW_HEIGHT = 22
+MARKER_SIZE = 14  # the square severity marker at the start of each row
+MARKER_GAP = 6  # between the marker and the source tag
+SOURCE_GAP = 6  # between the source tag and the text
+
+
+class NoticeBoardPanel(Panel):
+    def __init__(self, notices: list[Notice]):
+        """`notices` already ranked, most important first."""
+        self.notices = notices
+
+    def render(self, image_width: int, image_height: int) -> Image.Image:
+        """One notice per row: a severity marker (solid for severe, outlined for a warning,
+        a dot for information, a small square for a reminder, a hollow dot for planned works), where it's from, and as
+        much of the text as fits. When there are more current notices than rows, the last
+        row says how many didn't fit; planned works only fill rows that are left over."""
+        img = Image.new("RGBA", (image_width, image_height), (255, 255, 255, 255))
+        draw = ImageDraw.Draw(img)
+        draw.fontmode = "1"
+
+        draw.text((PADDING, PADDING), "Notices", "black", font=TITLE_FONT)
+        top = PADDING + TITLE_FONT.getbbox("Notices")[3] + TITLE_GAP
+        rows = max(1, (image_height - PADDING - top) // ROW_HEIGHT)
+
+        current = [n for n in self.notices if n.severity != Severity.PLANNED]
+        planned = [n for n in self.notices if n.severity == Severity.PLANNED]
+        if len(current) > rows:
+            shown, more = current[: rows - 1], len(current) - (rows - 1)
+        else:
+            # Planned works only fill the rows left over, and don't count as "more".
+            shown, more = current + planned[: rows - len(current)], 0
+        for i, notice in enumerate(shown):
+            self._draw_row(draw, notice, top + i * ROW_HEIGHT, image_width)
+        if more:
+            y = top + len(shown) * ROW_HEIGHT + ROW_HEIGHT // 2
+            draw.text((PADDING, y), f"+{more} more", "black", font=TEXT_FONT, anchor="lm")
+        return img
+
+    @staticmethod
+    def _draw_row(draw: ImageDraw.ImageDraw, notice: Notice, y: int, image_width: int) -> None:
+        middle = y + ROW_HEIGHT // 2
+        box = (PADDING, middle - MARKER_SIZE // 2, PADDING + MARKER_SIZE - 1, middle + MARKER_SIZE // 2 - 1)
+        centre = ((box[0] + box[2] + 1) / 2, middle)
+        if notice.severity == Severity.SEVERE:
+            draw.rectangle(box, fill="black")
+            draw.text(centre, "!", "white", font=SOURCE_FONT, anchor="mm")
+        elif notice.severity == Severity.WARNING:
+            draw.rectangle(box, outline="black", width=2)
+            draw.text(centre, "!", "black", font=SOURCE_FONT, anchor="mm")
+        elif notice.severity == Severity.INFO:
+            r = 3
+            draw.ellipse((centre[0] - r, middle - r, centre[0] + r - 1, middle + r - 1), fill="black")
+        elif notice.severity == Severity.REMINDER:  # a small square
+            r = 3
+            draw.rectangle((centre[0] - r, middle - r, centre[0] + r - 1, middle + r - 1), fill="black")
+        else:  # planned: a hollow dot
+            r = 3
+            draw.ellipse((centre[0] - r, middle - r, centre[0] + r - 1, middle + r - 1), outline="black")
+
+        x = PADDING + MARKER_SIZE + MARKER_GAP
+        draw.text((x, middle), notice.source, "black", font=SOURCE_FONT, anchor="lm")
+        x += round(SOURCE_FONT.getlength(notice.source)) + SOURCE_GAP
+        text = truncate_to_fit(notice.text, TEXT_FONT, image_width - PADDING - x)
+        draw.text((x, middle), text, "black", font=TEXT_FONT, anchor="lm")

@@ -47,6 +47,8 @@ from countdown.models import (
     TubeArrival,
     Weather,
 )
+from countdown.notice_board_client import NoticeBoardClient
+from countdown.notices.notice import Notice, Severity
 from countdown.spotify_client import SpotifyClient
 from countdown.tfl_client import TflClient
 from countdown.weather_client import WeatherClient
@@ -55,6 +57,7 @@ from display.combined_arrival_panel import CombinedArrivalPanel
 from display.display import DisplayController
 from display.empty_panel import EmptyPanel
 from display.energy_panel import EnergyPanel
+from display.notice_board_panel import NoticeBoardPanel
 from display.pairing_code_panel import PairingCodePanel
 from display.panel import Panel
 from display.setup_panel import SetupPanel
@@ -182,12 +185,23 @@ def _bus_only_arrivals() -> CombinedArrivalPanel:
 
 SPOTIFY_NOT_CONFIGURED = SpotifyClient.message_panel("Not configured")
 
+NOTICES = NoticeBoardPanel(
+    [
+        Notice("Met Office", Severity.SEVERE, "Red warning: wind until Fri 21:00"),
+        Notice("Northern", Severity.WARNING, "Severe delays due to a signal failure at Camden Town."),
+        Notice("Circle", Severity.INFO, "Issues Reported"),
+        Notice("TfL", Severity.INFO, "Elephant & Castle: The lifts at the Northern line entrance are out of service"),
+        Notice("Central", Severity.PLANNED, "Saturday 26 September, no service between Marble Arch and Loughton."),
+    ]
+)
+
 
 def _panels(
     arrivals: Panel,
     energy: Panel = ENERGY,
     weather: Panel = WEATHER,
     spotify: Panel = SPOTIFY_NOT_CONFIGURED,
+    notices: Panel = NOTICES,
 ) -> dict[str, Panel]:
     """What ApiRegistry.update_all() hands DisplayController.display_screen(): a panel
     for every API, a MessagePanel where one has nothing to show."""
@@ -196,6 +210,7 @@ def _panels(
         ClientClasses.GLOWMARKT.api_name: energy,
         ClientClasses.WEATHER.api_name: weather,
         ClientClasses.SPOTIFY.api_name: spotify,
+        ClientClasses.NOTICE_BOARD.api_name: notices,
     }
 
 
@@ -226,6 +241,13 @@ def test_screen_without_energy_panel(snapshot):
     """Glowmarkt not set up (the common case for a gifted device): its area says so."""
     img = _CONTROLLER.display_screen(_panels(_bus_only_arrivals(), energy=GlowClient.message_panel("Not configured")))
     snapshot.assert_matches("screen_no_energy", img)
+
+
+def test_screen_with_no_notices(snapshot):
+    img = _CONTROLLER.display_screen(
+        _panels(_bus_only_arrivals(), notices=NoticeBoardClient.message_panel("All clear"))
+    )
+    snapshot.assert_matches("screen_no_notices", img)
 
 
 def test_splash_screen_when_the_broker_cannot_be_reached(snapshot):
