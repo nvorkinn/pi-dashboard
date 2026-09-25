@@ -198,10 +198,7 @@ def test_get_pairing_code_panel_wraps_code_and_device_id(isolated_cwd):
 
 
 def test_get_pairing_code_panel_has_changed_false_on_repeat(isolated_cwd):
-    """A device that's already paired gets `pairing_code=None` on every poll --
-    has_changed must stay False for that steady state, not flip True forever
-    just because None happens to look like "nothing cached yet" if compared
-    carelessly."""
+    """A paired device gets `pairing_code=None` on every poll; has_changed must stay False."""
     _seed_credentials()
     client = _initialised_client()
 

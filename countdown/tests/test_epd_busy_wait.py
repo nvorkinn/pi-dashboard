@@ -1,7 +1,6 @@
-"""The vendored Waveshare driver's ReadBusy() used to wait for the panel forever, flat
-out. With no display connected that pinned a core and froze the whole app (config
-refresh, API polling, MQTT health) in the first refresh. The real epdconfig needs the
-Pi's GPIO, so the driver is loaded here against a fake one."""
+"""The vendored driver's ReadBusy() must not wait forever: with no display connected that
+would freeze the whole app. The driver is loaded here against a fake epdconfig (the real
+one needs the Pi's GPIO)."""
 
 import importlib.util
 import sys

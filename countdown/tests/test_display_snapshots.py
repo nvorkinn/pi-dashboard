@@ -1,26 +1,6 @@
-"""Visual regression tests for the composed display screen.
-
-Each scenario builds panels directly from representative data -- no HTTP/TfL/
-Glowmarkt mocking layer, that's covered by test_e2e_render_cycle.py -- and
-compares the rendered PNG against a golden image checked into tests/images/.
-
-Workflow (see the `snapshot` fixture in conftest.py):
-    - `pytest tests/test_display_snapshots.py` compares against the committed
-      goldens and fails with an actual-render + red-highlighted diff image
-      (written to tests/images/_failures/) if anything changed.
-    - `pytest tests/test_display_snapshots.py --update-snapshots` regenerates
-      only the goldens that actually differ. Review the new PNGs (e.g. via a
-      GitHub PR's image diff view) before committing them.
-
-Two module-level things make this deterministic across runs/days:
-    - `_CONTROLLER` is built once at import time (before any test's `isolated_cwd`
-      fixture has chdir'd), matching how DisplayLoop's own default argument
-      constructs it -- avoids a real filesystem dependency on cwd for the
-      hardware-detection import inside DisplayController.__init__.
-    - `_freeze_time` monkeypatches `datetime.now()` everywhere the render path
-      calls it (the "Updated: ..." footer and EnergyPanel's date headers), since
-      otherwise every golden image would go stale the instant the clock ticked.
-"""
+"""Visual regression tests for the composed display screen: each scenario builds panels
+from representative data (no HTTP mocking -- see test_e2e_render_cycle.py) and compares
+the render against a golden image in tests/images/. See the README for the workflow."""
 
 import datetime as dt
 import io
@@ -29,11 +9,7 @@ import pytest
 import responses
 from PIL import Image
 
-# `countdown` must be imported before any display.* module: countdown/__init__.py
-# imports the whole app, which imports display.display, which imports back into
-# countdown.* -- so importing a display.* module first re-enters it mid-initialisation
-# and raises ImportError. Every other test file avoids this by happening to import
-# something from countdown first.
+# `countdown` must be imported before any display.* module, or it's a circular import.
 import countdown  # noqa: F401, I001
 import display.display
 import display.energy_panel
@@ -307,9 +283,7 @@ def test_screen_with_four_stops_and_neither_spotify_nor_energy(snapshot):
 
 def test_splash_screen_when_the_broker_cannot_be_reached(snapshot):
     img = SplashPanel().render(display.display.TOTAL_WIDTH, display.display.TOTAL_HEIGHT)
-    # A text-only screen with large glyphs: Ubuntu (CI) lays the same text out a pixel or so
-    # differently from macOS, which put the mean difference at ~0.011 -- over the default
-    # 0.005 -- with the same words in the same places. Measured from CI's failure artifact.
+    # Large glyphs: CI (Ubuntu) and macOS differ by ~0.011 here with identical layout.
     snapshot.assert_matches("screen_splash", img, threshold=0.02)
 
 
@@ -381,9 +355,7 @@ def test_weather_panel_rainy_night(snapshot):
     panel = WeatherPanel(
         Weather(temperature=8.6, weather_code=63, is_day=False, high=11, low=6, precipitation_probability=85)
     )
-    # The panel is small and mostly text, so the same handful of anti-aliased pixels
-    # that differ between macOS and Linux weigh more here than in a full-screen
-    # snapshot (CI measured 0.0059 against the default 0.005, all on the glyph edges).
+    # Small and mostly text, so macOS/Linux anti-aliasing differences weigh more (CI: 0.0059).
     snapshot.assert_matches("weather_rainy_night", panel.render(528, 170), threshold=0.01)
 
 

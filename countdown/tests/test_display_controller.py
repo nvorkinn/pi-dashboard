@@ -1,6 +1,5 @@
-"""How DisplayController copes with a Pi that has no e-paper panel connected: it used to
-wait on the panel forever (see test_epd_busy_wait.py); now it asks once, runs without a
-display if nothing answers, and asks again now and then in case one's been plugged in."""
+"""How DisplayController copes with a Pi that has no e-paper panel connected: it asks once,
+runs without a display if nothing answers, and asks again now and then."""
 
 import logging
 from types import SimpleNamespace
@@ -8,9 +7,7 @@ from types import SimpleNamespace
 import pytest
 from PIL import Image
 
-# countdown has to be imported before display.display: they import each other, and
-# starting from display.display trips a circular import (test_display_snapshots.py gets
-# the same effect from its own imports).
+# countdown has to be imported before display.display, or it's a circular import.
 import countdown.api_registry  # noqa: F401
 import display.display as display_module
 import display.targets as targets_module

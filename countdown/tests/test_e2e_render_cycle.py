@@ -1,25 +1,9 @@
-"""End-to-end tests for the display refresh cycle.
+"""End-to-end tests for the display refresh cycle: the real clients and ApiRegistry inside
+DisplayLoop.run(), against HTTP mocked with `responses`, through to a rendered image.
 
-Unlike the unit tests, these exercise the *real* clients (TflClient, GlowClient,
-WeatherClient, SpotifyClient), built by the real ApiRegistry inside DisplayLoop.run(),
-against mocked HTTP responses via `responses`, all the way through to a real rendered
-PIL image -- catching integration bugs (mismatched fields between layers, panel sizing,
-a client's panel not reaching the screen) that per-component unit tests miss by
-construction.
-
-The clients are created inside run(), so there's nothing to monkeypatch on a
-DisplayLoop beforehand: everything is faked at the transport layer instead. Two
-things let a test drive a known number of cycles without waiting on a real clock:
-`interval` is 1 (AppConfig rejects 0) and `asyncio.sleep` is replaced by a fake that
-raises after N calls -- see _run_cycles().
-
-Most tests build a DisplayLoop directly from a `config`/`pairing_code` override, which
-leaves BrokerClient.get_config() unmocked -- with no matching `responses` registration,
-`responses` raises ConnectionError on that call, which safe_fetch swallows, exercising
-the "broker unreachable" resilience path for free and keeping those tests focused on
-the APIs they're about. BrokerClient.fetch_app_config() has its own coverage in
-test_broker_client.py.
-"""
+`asyncio.sleep` is replaced by a fake that raises after N calls (see _run_cycles()). Most
+tests leave the broker's /config unmocked, so refreshing the config fails and is swallowed,
+and the loop carries on with the config it was built with."""
 
 import asyncio
 import datetime
@@ -150,9 +134,8 @@ def _mock_tfl_and_glowmarkt(stop_json_by_id: dict, arrivals_json_by_id: dict) ->
 
 
 def _make_config() -> AppConfig:
-    # Real (dummy) credentials, since these tests mock Glowmarkt's endpoints and
-    # exercise that path -- without them Glowmarkt is off (the common case for most
-    # real devices). Passed in, not set afterwards: they're checked when the config is read.
+    # Without credentials Glowmarkt is off. Passed in, not set afterwards: they're
+    # checked when the config is validated.
     config = make_config(glowmarkt={"username": "dummy@example.com", "password": "dummy-password"})
     config.interval = 1  # the fake sleep in _run_cycles() means this never actually waits
     return config
@@ -169,10 +152,7 @@ def _build_loop(config: AppConfig, monkeypatch, pairing_code: str | None = None)
     monkeypatch.setenv("BROKER_URL", TEST_BROKER_URL)  # SpotifyClient reads this
     broker = BrokerClient(TEST_BROKER_URL)
     asyncio.run(broker.initialise())
-    # Seeds broker's own cache too (get_pairing_code_panel, not a bare
-    # PairingCodePanel(...)), same as fetch_app_config() does for real -- so a
-    # test that later re-polls with the same code sees has_changed=False, not a
-    # spurious "first time" every call.
+    # Via get_pairing_code_panel, to seed the broker's cache like fetch_app_config() does.
     pairing_code_panel = broker.get_pairing_code_panel(AppConfig.model_validate(_app_config_json(pairing_code)))
     monkeypatch.setattr(Image.Image, "show", lambda self, *a, **kw: None)
     return DisplayLoop(broker, config, pairing_code_panel)
@@ -237,10 +217,8 @@ def test_full_render_cycle_without_spotify_track(isolated_cwd, monkeypatch):
 
 @responses.activate
 def test_full_render_cycle_skips_glowmarkt_when_credentials_empty(isolated_cwd, monkeypatch):
-    """The common case: a gifted device whose owner never set up Glowmarkt on the
-    broker. Deliberately doesn't mock any glowmarkt.com endpoint -- if the client
-    ever attempted a call, `responses` would raise ConnectionError for it, and the
-    call count below would catch it."""
+    """The common case: Glowmarkt never set up. No glowmarkt.com endpoint is mocked, so
+    any call to it would fail and show in the call count below."""
     config = make_config()
     config.interval = 1
     config.tfl.stop_ids = ["490000123W"]
@@ -342,10 +320,8 @@ def test_one_api_being_down_does_not_stop_the_others_reaching_the_screen(isolate
 
 @responses.activate
 def test_later_cycles_reuse_client_state_and_keep_slow_panels_on_screen(isolated_cwd, monkeypatch):
-    """Clients live for the whole run: Glowmarkt polls every 15 minutes, so the second
-    (seconds-later) cycle must not re-authenticate or refetch -- but the energy panel
-    still has to be drawn. Same for TfL, which polls every minute and isn't due yet
-    either: its last panel carries over rather than blanking the screen."""
+    """Clients live for the whole run: on the second cycle Glowmarkt and TfL aren't due
+    yet, so they aren't called again, but their last panels are still drawn."""
     config = _make_config()
     config.tfl.stop_ids = ["490000123W", "940GZZLUKNG", "490000456X", "940GZZLUABC"]
     _mock_tfl_and_glowmarkt(
@@ -378,9 +354,7 @@ def test_later_cycles_reuse_client_state_and_keep_slow_panels_on_screen(isolated
 @responses.activate
 def test_run_shows_pairing_screen_and_skips_normal_display_while_unpaired(isolated_cwd, monkeypatch):
     """While a pairing code is active, run() shouldn't fetch anything or paint the
-    normal screen. A device that's still unpaired has an empty config (nothing set up
-    on the broker yet), so no client has any reason to make a request either -- and
-    none are mocked here, so one that did would raise ConnectionError."""
+    normal screen (nothing is mocked, so any request would fail)."""
     loop = _build_loop(make_config(), monkeypatch, pairing_code="ABC123")
     shown = _spy_on_display_screen(loop, monkeypatch)
     pairing_screens = []
@@ -400,12 +374,8 @@ def test_run_shows_pairing_screen_and_skips_normal_display_while_unpaired(isolat
 
 @responses.activate
 def test_run_only_repaints_pairing_screen_when_code_changes(isolated_cwd, monkeypatch):
-    """A full e-paper refresh is slow and visibly flashy -- repainting an unchanged
-    pairing code every cycle for however long a device sits unpaired would be
-    needless wear, not just noise. Unlike the test above, /config IS mocked here
-    (always returning the same code) so refresh_broker_config() actually re-derives
-    pairing_code_panel each cycle via BrokerClient's cache, instead of leaving the
-    cycle-1 panel (and its has_changed=True) untouched forever."""
+    """An unchanged pairing code isn't repainted. /config is mocked here (always the same
+    code), so each cycle really re-derives the panel through BrokerClient's cache."""
     responses.add(
         responses.GET,
         f"{TEST_BROKER_URL}/api/devices/test-device/config",

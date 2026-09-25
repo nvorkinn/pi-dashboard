@@ -7,12 +7,8 @@ from test_utils import highlight_diff, images_equal
 
 @pytest.fixture(autouse=True)
 def isolated_cwd(tmp_path, monkeypatch):
-    """Run every test in an empty temp directory, so nothing can accidentally read
-    (or write into) a device-local file a test writes into this same tmp_path (e.g.
-    .auth_broker_device). BROKER_URL is the only env var the app itself reads
-    (os.environ.get() in app.py, not pydantic-settings -- AppConfig is a plain
-    BaseModel and structurally can't read env vars at all, see
-    test_live_config_ignores_env_vars), so it's the only one worth clearing here."""
+    """Run every test in an empty temp directory (device-local files like
+    .auth_broker_device land there), with the app's env vars cleared."""
     monkeypatch.chdir(tmp_path)
     monkeypatch.delenv("BROKER_URL", raising=False)
     # MqttPublisher.from_env() is disabled (makes no connection) without a host, so
@@ -23,17 +19,12 @@ def isolated_cwd(tmp_path, monkeypatch):
 
 
 # --- Visual regression snapshots -------------------------------------------------
-# Golden images live in tests/images/, addressed by __file__ (not cwd) so they're
-# unaffected by isolated_cwd's chdir above.
+# Addressed by __file__, not cwd, since isolated_cwd chdirs.
 SNAPSHOT_DIR = Path(__file__).parent / "images"
 FAILURE_DIR = SNAPSHOT_DIR / "_failures"
 
-# Pillow's text/icon rasterization can differ by a handful of anti-aliased pixels
-# between platforms (observed: goldens generated on macOS/arm64 failed on CI's
-# ubuntu-latest) even with byte-identical fonts and code -- a pure pixel-exact
-# compare is too strict across machines. A real layout/content regression moves
-# far more pixels by far more than this, so a small tolerance still catches those
-# while absorbing rendering noise.
+# Pillow's rasterization differs by a few anti-aliased pixels between macOS and Linux
+# even with identical fonts and code; a real regression moves far more than this.
 DEFAULT_SNAPSHOT_THRESHOLD = 0.005
 
 

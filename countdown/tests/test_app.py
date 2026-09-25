@@ -36,9 +36,8 @@ def test_safe_fetch_returns_fallback_on_validation_error():
 
 
 def test_the_console_script_entry_point_actually_runs_the_app(monkeypatch):
-    """The `countdown` script just calls what pyproject.toml points at. When that was an
-    `async def`, the call created a coroutine, never awaited it, and the service
-    crash-looped -- while every other test, which drive run() directly, stayed green."""
+    """The `countdown` script just calls main() without awaiting it, so main() must run the
+    app itself. Every other test drives run() directly and wouldn't notice."""
     ran = []
 
     async def fake_run():
