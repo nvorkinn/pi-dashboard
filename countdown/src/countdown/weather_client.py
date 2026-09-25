@@ -5,6 +5,7 @@ from countdown.abstract_client import AbstractClient
 from countdown.config_manager import WeatherConfig
 from countdown.http import DEFAULT_TIMEOUT
 from countdown.models import ForecastResponse, GeocodingResponse, Weather
+from countdown.notices.location import is_postcode, postcode_coordinates
 from display.panel import Panel
 from display.weather_panel import WeatherPanel
 
@@ -50,7 +51,7 @@ class WeatherClient(AbstractClient):
 
         coordinates = self._geocode()
         if coordinates is None:
-            logger.warning(f"Could not find a location matching {self.location!r} on Open-Meteo")
+            logger.warning(f"Could not find a location matching {self.location!r}")
             self._panel = self.message_panel("Location not found")
         else:
             self._panel = WeatherPanel(self._fetch_forecast(*coordinates))
@@ -58,7 +59,10 @@ class WeatherClient(AbstractClient):
         return self._panel
 
     def _geocode(self) -> tuple[float, float] | None:
-        if self._coordinates is None:
+        """Open-Meteo's geocoder only knows place names, so UK postcodes go to postcodes.io."""
+        if self._coordinates is None and is_postcode(self.location):
+            self._coordinates = postcode_coordinates(self.session, self.location)
+        elif self._coordinates is None:
             response = self.session.get(
                 GEOCODING_URL, params={"name": self.location, "count": 1, "format": "json"}, timeout=DEFAULT_TIMEOUT
             )

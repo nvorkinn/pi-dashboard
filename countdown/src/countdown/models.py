@@ -193,6 +193,17 @@ class PostcodeResponse(BaseModel):
     result: Postcode
 
 
+class Outcode(BaseModel):
+    """The centre of a postcode district ("SE17"), from postcodes.io's /outcodes/{outcode}."""
+
+    latitude: float
+    longitude: float
+
+
+class OutcodeResponse(BaseModel):
+    result: Outcode
+
+
 class Readings(BaseModel):
     data: list[tuple[int, float]]
 

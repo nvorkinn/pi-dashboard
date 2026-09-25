@@ -8,6 +8,7 @@ import responses
 from countdown import weather_client
 from countdown.config_manager import WeatherConfig
 from countdown.models import Weather
+from countdown.notices.location import is_postcode
 from countdown.weather_client import FORECAST_URL, GEOCODING_URL, WeatherClient
 
 GEOCODING_JSON = {"results": [{"name": "London", "latitude": 51.5, "longitude": -0.12, "country": "United Kingdom"}]}
@@ -122,3 +123,37 @@ def test_needs_refresh_only_when_the_location_changes():
 
     assert not client.needs_refresh(WeatherConfig(api_key="new", location="London"))  # keyless API
     assert client.needs_refresh(WeatherConfig(api_key="old", location="Paris"))
+
+
+@pytest.mark.parametrize(
+    ("location", "url"),
+    [
+        ("SE17 2PX", "https://api.postcodes.io/postcodes/SE17 2PX"),
+        ("se172px", "https://api.postcodes.io/postcodes/se172px"),
+        ("SE17", "https://api.postcodes.io/outcodes/SE17"),
+    ],
+)
+@responses.activate
+def test_uk_postcodes_are_located_with_postcodes_io(location, url):
+    responses.add(
+        responses.GET,
+        url,
+        json={"result": {"postcode": "SE17 2PX", "latitude": 51.48, "longitude": -0.09, "country": "England"}},
+    )
+    responses.add(responses.GET, FORECAST_URL, json=FORECAST_JSON)
+
+    assert asyncio.run(make_client(location).update()).weather.temperature == 14.2
+    assert not any(call.request.url.startswith(GEOCODING_URL) for call in responses.calls)
+    assert "latitude=51.48" in responses.calls[-1].request.url
+
+
+@responses.activate
+def test_unknown_postcode_says_location_not_found():
+    responses.add(responses.GET, "https://api.postcodes.io/postcodes/ZZ9 9ZZ", status=404)
+
+    assert asyncio.run(make_client("ZZ9 9ZZ").update()).message == "Location not found"
+
+
+@pytest.mark.parametrize("location", ["Kennington", "Kennington, London", "SE17 2PX London"])
+def test_only_postcode_shaped_text_counts_as_a_postcode(location):
+    assert not is_postcode(location)
