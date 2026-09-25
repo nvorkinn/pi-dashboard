@@ -2,7 +2,7 @@ from abc import ABC
 from enum import StrEnum
 from typing import Annotated, Literal
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
 
 
 class Mode(StrEnum):
@@ -30,6 +30,14 @@ class TubeArrival(Arrival):
 class BusArrival(Arrival):
     mode_name: Literal[Mode.BUS] = Field(alias="modeName")
     destination: str = Field(alias="destinationName")
+
+    @field_validator("destination")
+    @classmethod
+    def trim_destination(cls, value: str) -> str:
+        """TfL often qualifies a destination after a comma (a road or landmark), which
+        doesn't fit on the panel and isn't needed to tell buses apart. Keeps the whole
+        name if there's nothing before the comma."""
+        return value.split(",", 1)[0].strip() or value.strip()
 
 
 ArrivalUnion = Annotated[BusArrival | TubeArrival, Field(discriminator="mode_name")]

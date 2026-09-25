@@ -1,3 +1,4 @@
+import pytest
 from pydantic import TypeAdapter
 
 from countdown.models import (
@@ -53,6 +54,20 @@ def test_bus_arrival_discriminated_union():
     assert isinstance(arrival, BusArrival)
     assert arrival.destination == "Elephant & Castle"
     assert arrival.time_to_station == 300
+
+
+@pytest.mark.parametrize(
+    ("destination_name", "expected"),
+    [
+        ("Crystal Palace, Bus Station", "Crystal Palace"),
+        ("Elephant & Castle", "Elephant & Castle"),
+        ("  Peckham , Rye Lane, SE15 ", "Peckham"),
+        (", Rye Lane", ", Rye Lane"),
+    ],
+)
+def test_a_bus_destination_is_trimmed_to_the_part_before_the_first_comma(destination_name, expected):
+    arrival = TypeAdapter(ArrivalUnion).validate_python({**BUS_ARRIVAL_JSON, "destinationName": destination_name})
+    assert arrival.destination == expected
 
 
 def test_tube_arrival_discriminated_union():
