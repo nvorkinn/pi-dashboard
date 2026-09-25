@@ -18,36 +18,31 @@ Box = tuple[int, int, int, int]
 
 
 class AbstractDisplayComposer(ABC):
-    """One layout of the dashboard. DisplayController picks a composer whenever the config
-    changes (see choose_composer), from the APIs that can actually be shown, then hands it
-    every cycle's panels to arrange."""
+    """One layout of the dashboard, chosen by choose_composer() when the config changes."""
 
     ARRIVALS_HEIGHT = 185
 
-    # How many stops this layout has room for. Fixed per layout: the TfL client fetches
-    # this many each update and pages through the rest of the configured stops.
+    # The TfL client fetches this many stops per update and pages through the rest.
     stops_shown: int = 2
 
     @abstractmethod
     def can_compose(self, available: frozenset[ClientClasses]) -> bool:
-        """Whether this layout suits a device that can show `available` (see
-        ApiRegistry.available)."""
+        """Whether this layout suits a device that can show `available`."""
 
     @abstractmethod
     def compose(self, panels: dict[str, Panel]) -> tuple[Image.Image, Box]:
         """The screen without its footer, and the box the arrivals panel occupies."""
 
     def _place(self, img: Image.Image, panel: Panel, x: int, y: int, width: int, height: int) -> Image.Image:
-        """Renders `panel` at that size, borders it and pastes it at (x, y). Returns what
-        was rendered, since some panels (the arrivals) choose their own size."""
+        """Renders `panel` and pastes it at (x, y). Returns what was rendered, since some
+        panels (the arrivals) choose their own size."""
         rendered = panel.render(width, height)
         img.paste(rendered, (x, y), rendered)
         return rendered
 
     def _draw_top_row(self, img: Image.Image, panels: dict[str, Panel]) -> tuple[Box, int]:
-        """The arrivals at top-left and the weather beside them -- the same in every
-        layout, so the arrivals' partial refreshes keep working. Returns the arrivals'
-        box and the y just below the row, where the rest of the layout starts."""
+        """The arrivals and weather, the same in every layout so the arrivals' partial
+        refreshes keep working. Returns the arrivals' box and the y below the row."""
         arrival_panel = panels[ClientClasses.TFL.api_name]
         arrivals_width = TOTAL_WIDTH if isinstance(arrival_panel, CombinedArrivalPanel) else ARRIVALS_MESSAGE_WIDTH
         x, y = ARRIVALS_ORIGIN

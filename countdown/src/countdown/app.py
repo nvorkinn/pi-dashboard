@@ -20,24 +20,20 @@ from display.splash_panel import SplashPanel
 
 logger = logging.getLogger(__name__)
 
-# How long to wait between attempts to get a config at boot: the first retry comes after
-# INITIAL_RETRY_S, doubling up to MAX_RETRY_S, so a device whose Wi-Fi is still coming up
-# tries again quickly, and one whose broker is down for hours isn't hammering it.
+# Backoff between attempts to get a config at boot: doubles from INITIAL_RETRY_S up to MAX_RETRY_S.
 INITIAL_RETRY_S = 30
 MAX_RETRY_S = 300
 
 
 def main() -> None:
-    """The `countdown` console script's entry point (pyproject.toml). It has to be a plain
-    function: the generated wrapper just calls it, so an `async def` here would build a
-    coroutine, never run it, and exit 1 -- a crash loop under systemd."""
+    """The `countdown` console script's entry point. Must stay sync: the generated wrapper
+    never awaits, so an `async def` here would exit 1 without running anything."""
     configure_logging()
     asyncio.run(run())
 
 
 def configure_logging() -> None:
-    """No timestamp: journald adds its own. LOG_LEVEL (e.g. DEBUG) overrides the default INFO;
-    an unrecognised value falls back to INFO rather than crashing the service at boot."""
+    """No timestamp: journald adds its own. An unrecognised LOG_LEVEL falls back to INFO."""
     level = logging.getLevelNamesMapping().get(os.environ.get("LOG_LEVEL", "").upper(), logging.INFO)
     logging.basicConfig(
         level=level,
@@ -51,13 +47,8 @@ async def wait_for_config(
     sleep: Callable[[float], Awaitable[None]] = asyncio.sleep,
     on_retry: Callable[[], Awaitable[None]] | None = None,
 ) -> tuple[AppConfig, PairingCodePanel]:
-    """Blocks until the broker has given this device a valid config, and returns it (with the
-    pairing status that came with it). Everything the app does depends on that config, so
-    there's no empty fallback: until it arrives a splash says so (painted
-    once -- not on every retry, it's a full refresh) and the attempts continue with backoff.
-    Covers a first-time registration failing too, which used to crash-loop the service.
-    "Can't reach the broker" and "it answered with something that isn't a valid config" are
-    treated alike: either way there's no usable config yet."""
+    """Blocks until the broker returns a valid config, retrying with backoff. The splash is
+    painted once, not on every retry, since it's a full refresh."""
     delay = INITIAL_RETRY_S
     splash_shown = False
     while True:
@@ -78,10 +69,7 @@ async def wait_for_config(
 
 
 async def run() -> None:
-    # The only thing that can't come from the broker -- it's how this device finds
-    # the broker in the first place. Set via the systemd unit's Environment= line
-    # (see packaging/systemd/countdown.service). No default: if it's missing, the
-    # app should crash loudly rather than silently talk to some baked-in URL.
+    # No default: crash loudly rather than silently talk to some baked-in URL.
     broker_url = os.environ["BROKER_URL"]
 
     # The display exists before the config does, so there's somewhere to show the splash.
@@ -90,7 +78,7 @@ async def run() -> None:
     # Set up before the (possibly long) wait for a config, so a stop request works then too.
     def handle_shutdown(_signum, _frame):
         logger.info("Shutting down gracefully...")
-        # Put your epaper display to sleep to prevent burn-in
+        # Sleep the e-paper to prevent burn-in.
         display.shutdown()
         sys.exit(0)
 

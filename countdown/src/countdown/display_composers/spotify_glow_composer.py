@@ -29,7 +29,6 @@ class SpotifyGlowComposer(AbstractDisplayComposer):
             img, panels[ClientClasses.SPOTIFY.api_name], GAP, spotify_y, SPOTIFY_WIDTH, SPOTIFY_HEIGHT
         )
 
-        # Notices, in the gap between the arrivals and Spotify
         notices_panel = panels.get(ClientClasses.NOTICE_BOARD.api_name)
         if notices_panel is not None:
             self._place(img, notices_panel, GAP, below_top_row, spotify.size[0], spotify_y - GAP - below_top_row)

@@ -80,10 +80,8 @@ class TflLineStatusSource(TflSource):
             self.line_ids = self._resolve_line_ids()
         if not self.line_ids:
             return []
-        # Keyed by reason: a bus closure is reported on every route it affects, word for
-        # word (and the reason already names the routes), so it's one notice, not one per
-        # route. The most severe status and latest end among the copies win. Without a
-        # reason there's nothing to say two lines share, so each keeps its own notice.
+        # Keyed by reason: a bus closure is reported word for word on every route it
+        # affects, so it's one notice, not one per route.
         notices: dict[str | tuple[str, str], Notice] = {}
         for line in LineStatuses.validate_json(self._get(f"/Line/{','.join(self.line_ids)}/Status")):
             for status in line.line_statuses:
@@ -114,10 +112,8 @@ class TflLineStatusSource(TflSource):
 
 
 def _headline(reason: str | None, line_name: str) -> str:
-    """The first sentence of a status reason, without the line name it usually starts
-    with ("CENTRAL LINE: Saturday 26 September, ..."), since the notice is already tagged
-    with it. The rest -- replacement buses, alternative routes, "GOOD SERVICE on the rest
-    of the line" -- never fits on the board. A location prefix, like a bus diversion's
+    """The first sentence of a status reason (the rest never fits), without the line name
+    it usually starts with ("CENTRAL LINE: ..."). A location prefix, like a bus diversion's
     "WATERLOO ROAD, Southwark:", is kept."""
     text = " ".join((reason or "").split())
     prefix, colon, rest = text.partition(":")

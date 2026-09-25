@@ -52,22 +52,16 @@ class TflClient(AbstractClient):
     panel_title = "Arrivals"
 
     def __init__(self, config: TflConfig):
-        """Construction never touches the network -- stops are resolved lazily on first
-        use (see _ensure_stops), so a flaky TfL API can never prevent this object from
-        being created. Safe to just build a fresh TflClient whenever config changes."""
+        """Never touches the network: stops are resolved in _initialise()."""
         super().__init__(config)
         self.stops: list[SingleStopPoint | MetroStopPoint] = []
         self.current_stop = 0
         self.params = {"app_key": config.app_key} if config.app_key else {}
-        # How many stops are on screen at once: set by the layout (see
-        # ApiRegistry.show_stops), 2 until then.
+        # Set by the layout (ApiRegistry.show_stops).
         self.stops_per_update = 2
 
     def _initialise(self) -> None:
-        """Resolve self.config.stop_ids into self.stops if not already done. Fails (so
-        the client goes to ERROR and is retried) when stops are configured but none
-        could be resolved, e.g. the TfL API is down; resolving only some of them is
-        good enough to carry on with. Nothing configured is not a failure."""
+        """Resolves the configured stop ids. Fails (to be retried) only if none resolve."""
         if self.stops:
             return
         resolved = self.init_stops(self.config.stop_ids)

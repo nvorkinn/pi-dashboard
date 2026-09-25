@@ -6,9 +6,7 @@ DEFAULT_TIMEOUT = 10
 
 
 def build_retrying_session(retries: int = 3, backoff_factor: float = 0.5) -> requests.Session:
-    """A requests.Session that automatically retries transient failures (connection
-    errors, 502/503/504) with exponential backoff, so a flaky network doesn't need to
-    be handled by hand at every call site."""
+    """A requests.Session that retries connection errors and 502/503/504 with backoff."""
     session = requests.Session()
     retry = Retry(
         total=retries,

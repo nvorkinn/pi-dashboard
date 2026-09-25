@@ -17,12 +17,8 @@ GAP = 12
 
 
 class PairingCodePanel(Panel):
-    """Shown full-screen while a device isn't paired yet. has_changed reflects
-    whether the code differs from the last time BrokerClient checked (e.g. the
-    code was regenerated after expiring, or the device just became paired,
-    dropping the code to None) -- the display layer uses that to decide whether
-    a repaint is actually needed, since this is a full e-paper refresh and a
-    gifted device can sit unpaired for hours or days."""
+    """Shown full-screen while a device isn't paired yet. has_changed says whether the code
+    differs from the last check, so an unchanged screen isn't repainted."""
 
     def __init__(self, pairing_code: str | None, device_id: str, has_changed: bool):
         super().__init__()

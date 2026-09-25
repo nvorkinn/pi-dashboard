@@ -45,16 +45,8 @@ class EnergyPanel(Panel):
         self.readings = readings
 
     def render(self, image_width: int, image_height: int) -> Image.Image:
-        """
-        A bar chart of one page's readings, filling the given size.
-
-        page_index: 0 = last 24h, 1 = last 31 days, 2 = this year
-        readings: the usage_deltas() output for that page's time range - a list
-                  of {"start": iso-string, "kwh": float} dicts
-
-        Drawn straight onto pixels with bars on whole-pixel edges and text in 1-bit
-        font mode, so there's nothing grey to threshold or dither for the e-paper.
-        """
+        """A bar chart of one page's readings ({"start": iso-string, "kwh": float} dicts).
+        Bars on whole-pixel edges and 1-bit text, so there's nothing grey to dither."""
         img = Image.new("RGBA", (image_width, image_height), (255, 255, 255, 0))
         draw = ImageDraw.Draw(img)
         draw.fontmode = "1"

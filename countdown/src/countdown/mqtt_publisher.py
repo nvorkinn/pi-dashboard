@@ -14,16 +14,10 @@ from display.panel import Panel
 
 logger = logging.getLogger(__name__)
 
-# Topic, discovery and payload conventions follow pi-telemetry
-# (https://github.com/nvorkinn/pi-telemetry), the Rust sidecar that reports the Pi's
-# system metrics to Home Assistant. Both processes describe the *same* HA device (same
-# `device.identifiers`), so the API health entities show up next to the CPU/memory ones,
-# but each has its own discovery topic, state topic and MQTT client id -- sharing any of
-# those would have the two overwrite (or kick off) each other.
+# Shares pi-telemetry's HA device, but has its own discovery topic, state topic and client
+# id: sharing any of those would have the two overwrite (or kick off) each other.
 
-# Entities go `unavailable` in HA if no state arrives for this long: pi-telemetry's value,
-# tolerating two missed one-minute publishes. Also what covers a crash, since
-# there's no last-will message.
+# Same as pi-telemetry: two missed one-minute publishes. Also covers a crash (no last will).
 EXPIRE_AFTER_SECS = 180
 CONNECT_TIMEOUT_SECS = 10
 UNHEALTHY = frozenset({ClientStatus.ERROR, ClientStatus.FATAL})
@@ -111,16 +105,9 @@ def build_discovery_payload(device_id: str, api_names: Sequence[str]) -> str:
 
 
 class MqttPublisher(AbstractClient):
-    """Reports the other API clients' health to Home Assistant over MQTT. Unlike them
-    it has no panel: initialise() connects (and announces itself via a retained HA
-    discovery message), and each _update() publishes one JSON state message holding
-    every API's ClientStatus, read straight off `clients` -- the registry's own dict,
-    so a client that's dropped or rebuilt is reflected without telling this class. An
-    API with no client (switched off in config) reads as DISABLED.
-
-    Disabled itself (no calls, ever) when no broker host is configured, so a dev machine
-    or a Pi without Home Assistant just doesn't publish. paho's network thread handles
-    keepalive and reconnects on its own; _update() only checks the connection is up."""
+    """Reports the API clients' health and the device's stage to Home Assistant over MQTT.
+    `clients` is the registry's own dict, so rebuilt clients are picked up automatically.
+    Disabled when no broker host is configured."""
 
     def __init__(
         self,
@@ -151,8 +138,7 @@ class MqttPublisher(AbstractClient):
     def from_env(
         cls, clients: Mapping[str, AbstractClient], api_names: Sequence[str], status: DeviceStatus | None = None
     ) -> MqttPublisher:
-        """Same variables as pi-telemetry, so both can share one systemd env file. Unlike
-        pi-telemetry there's no localhost default for the host: unset means disabled."""
+        """Same variables as pi-telemetry, but no localhost default: no host means disabled."""
         try:
             port = int(os.environ.get("MQTT_BROKER_PORT", ""))
         except ValueError:
@@ -183,7 +169,6 @@ class MqttPublisher(AbstractClient):
         client.on_disconnect = self._on_disconnect
         self._client = client
         try:
-            # Blocks (DNS, TCP, then the broker's CONNACK) -- fine, we're in a worker thread.
             client.connect(self.broker_host, self.port)
             client.loop_start()
             if not self._connected.wait(CONNECT_TIMEOUT_SECS):
@@ -236,7 +221,7 @@ class MqttPublisher(AbstractClient):
 
     def _update(self) -> Panel | None:
         """Raises if the connection has dropped, flagging ERROR so the next update()
-        rebuilds it rather than trusting a CONNECTED status that's no longer true."""
+        reconnects."""
         if self._client is None or not self._connected.is_set():
             self.status = ClientStatus.ERROR
             raise ConnectionError("Not connected to the MQTT broker")

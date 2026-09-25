@@ -10,10 +10,8 @@ from display.utils import UBUNTU_BOLD, UBUNTU_CONDENSED, UBUNTU_MEDIUM
 # edges come out crisp), the destination, and the time on the right.
 ROW_HEIGHT = 24
 ROW_GAP = 3  # between departures
-# Every badge is the same width, whatever the route. Routes of up to three characters
-# fit in UBUNTU_MEDIUM ("W19" is 29 px); longer ones ("N155", "SL10") that don't are
-# drawn in UBUNTU_CONDENSED instead: the same size, and the same 10 px digit height, but
-# "N155" is 26 px wide rather than 34.
+# Every badge is the same width. Routes that don't fit in UBUNTU_MEDIUM ("N155", "SL10")
+# are drawn in UBUNTU_CONDENSED: same height, narrower.
 BADGE_WIDTH = 36
 BADGE_PADDING = 3  # either side of the route inside its badge
 DESTINATION_GAP = 6  # between the badge and the destination

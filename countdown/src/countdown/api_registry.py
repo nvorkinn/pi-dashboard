@@ -56,13 +56,9 @@ class ApiRegistry:
         self.pub = MqttPublisher.from_env(self.clients, [member.api_name for member in ClientClasses], self.status)
 
     async def on_config_update(self, config: AppConfig) -> None:
-        """Brings the registry in line with `config`, touching only what changed: a
-        client that's now disabled is dropped (with its panel), a newly enabled one is
-        built, and an existing one is asked via needs_refresh() whether the new config
-        matters to it -- if so it's replaced by a fresh client, if not it carries on
-        with its state intact. Used for the first build too (nothing is registered
-        yet, so everything enabled is new). Construction and initialise() failures are
-        logged, not raised: one broken API must not take the others down."""
+        """Brings the clients in line with `config`, rebuilding only those whose
+        needs_refresh() says so. Failures are logged, not raised, so one broken API
+        doesn't take the others down."""
         to_initialise: dict[str, AbstractClient] = {}
         for member in ClientClasses:
             name, clazz = member.value
@@ -91,11 +87,8 @@ class ApiRegistry:
         self.panels.pop(name, None)
 
     async def update_all(self) -> dict[str, Panel]:
-        """Polls whichever clients are due and returns a panel for *every* API, so the
-        display never has an area with nothing to draw: one that isn't due yet keeps its
-        last panel (a Glowmarkt client polling every 15 minutes must not blank the energy
-        panel on the cycles in between), and one that raised keeps its last good panel
-        too -- stale-but-valid beats nothing. See _panel_for() for an API with no panel."""
+        """Polls the clients that are due and returns a panel for every API. A client that
+        isn't due, or that raised, keeps its last panel."""
         due = [(api_name, client.update()) for api_name, client in self.clients.items() if client.is_due]
         outcomes = await asyncio.gather(*[coro for _, coro in due], return_exceptions=True)
 
@@ -107,10 +100,8 @@ class ApiRegistry:
         return {member.api_name: self._panel_for(member) for member in ClientClasses}
 
     def available(self) -> frozenset[ClientClasses]:
-        """The APIs worth an area on the screen: those with a client (switched on in the
-        config -- see GlowmarktConfig for one that switches itself off), and not DISABLED. A client
-        that's failing still counts -- its area should say "Could not connect", not
-        vanish, so a broken setup stays visible. Changes only with the config."""
+        """The APIs that get an area on the screen. A failing client still counts, so its
+        area says "Could not connect" rather than vanishing."""
         return frozenset(
             member
             for member in ClientClasses
@@ -118,17 +109,14 @@ class ApiRegistry:
         )
 
     def show_stops(self, count: int) -> None:
-        """How many stops the layout has room for, for the TfL client to fetch per update.
-        Called after every on_config_update(), so a TfL client rebuilt for a new config
-        gets it too."""
+        """Tells the TfL client how many stops the layout has room for. Call after every
+        on_config_update(), since that may have rebuilt the client."""
         tfl = self.clients.get(ClientClasses.TFL.api_name)
         if isinstance(tfl, TflClient):
             tfl.stops_per_update = count
 
     def _panel_for(self, member: ClientClasses) -> Panel:
-        """The API's last panel, or a MessagePanel saying why there isn't one: it's off
-        (disabled in the config, or missing what it needs, like Glowmarkt credentials), or
-        it has never once succeeded (it failed to build, initialise or update)."""
+        """The API's last panel, or a MessagePanel saying why there isn't one."""
         name, clazz = member.value
         client = self.clients.get(name)
         if client is None or client.is_disabled():
@@ -136,9 +124,8 @@ class ApiRegistry:
         return self.panels.get(name) or clazz.message_panel("Could not connect")
 
     async def publish_health(self, force: bool = False) -> None:
-        """Called by the loop every cycle, whatever stage the device is in. Like a client
-        failing, an MQTT failure is logged, never raised: telemetry must not cost the display
-        a refresh. `force` skips the once-a-minute limit, for a stage change."""
+        """Logged, never raised: telemetry must not cost the display a refresh. `force`
+        skips the once-a-minute limit (for a stage change)."""
         if not force and not self.pub.is_due:
             return
         try:
