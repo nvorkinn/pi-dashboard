@@ -29,6 +29,9 @@ class SpotifyClient(AbstractClient):
     cycle by the caller, not a one-time thing this class owns.
     """
 
+    panel_title = "Spotify"
+    panel_logo = "spotify_logo.png"
+
     def __init__(self, config: SpotifyConfig):
         super().__init__(config)
         self.base_url = os.environ["BROKER_URL"]
@@ -48,10 +51,10 @@ class SpotifyClient(AbstractClient):
         response.raise_for_status()
         return response.json()
 
-    def _update(self) -> Panel | None:
+    def _update(self) -> Panel:
         """Same shape as the old SpotifyClient.get_current_track(): the broker
         refreshes and calls Spotify server-side, this device never sees a token."""
         json = self._request("GET", f"/api/devices/{self.device_id}/now-playing")
         if json is None:
-            return None
+            return self.message_panel("Nothing playing on:")
         return SpotifyPanel(SpotifyPlayingRightNow.model_validate(json))

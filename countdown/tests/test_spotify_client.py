@@ -51,12 +51,12 @@ def test_update_sends_the_device_secret_as_a_bearer_token(client):
 
 
 @responses.activate
-def test_update_returns_none_when_nothing_is_playing(client):
+def test_update_says_so_when_nothing_is_playing(client):
     """The broker answers null (not an empty object) when there's no current track --
-    that means "no panel", not a validation failure."""
+    that means "nothing playing", not a validation failure."""
     responses.add(responses.GET, NOW_PLAYING_URL, body="null", content_type="application/json")
 
-    assert asyncio.run(client.update()) is None
+    assert asyncio.run(client.update()).message == "Nothing playing on:"
 
 
 @responses.activate

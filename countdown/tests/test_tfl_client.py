@@ -115,7 +115,7 @@ def test_failed_setup_leaves_stops_empty_and_is_retried_on_next_update(monkeypat
 
     get_mock.side_effect = None
     get_mock.return_value.raise_for_status = MagicMock()
-    get_mock.return_value.json.return_value = METRO_STOP_JSON
+    get_mock.return_value.json.side_effect = [METRO_STOP_JSON, []]  # the stop, then its arrivals
 
     asyncio.run(client.update())
     assert len(client.stops) == 1
@@ -201,7 +201,8 @@ def test_update_builds_correct_panels(monkeypatch):
     assert isinstance(panel.arrival_panels[1], TubeArrivalPanel)
 
 
-def test_update_skips_stop_on_request_failure(monkeypatch):
+def test_update_raises_when_no_stops_arrivals_could_be_fetched(monkeypatch):
+    """Raised rather than returning an empty panel, so the registry keeps the last good one."""
     client = TflClient(make_config())
     client.stops = [make_bus_stop()]
 
@@ -210,7 +211,14 @@ def test_update_skips_stop_on_request_failure(monkeypatch):
 
     monkeypatch.setattr(client.session, "get", failing_get)
 
-    assert asyncio.run(client.update()).arrival_panels == []
+    with pytest.raises(RuntimeError):
+        asyncio.run(client.update())
+
+
+def test_update_says_so_when_no_stops_are_configured():
+    client = TflClient(make_config([]))
+
+    assert asyncio.run(client.update()).message == "No stops set"
 
 
 def test_update_passes_a_timeout(monkeypatch):

@@ -22,6 +22,7 @@ def _get_utc_offset(now: datetime | None = None) -> str:
 
 class GlowClient(AbstractClient):
     poll_interval = timedelta(minutes=15)
+    panel_title = "Energy"
     base_url = "https://api.glowmarkt.com/api/v0-1"
     app_id = "b0f1b774-a586-4f72-9edd-27ead8aa7a8d"
     resource_id = None
@@ -83,7 +84,7 @@ class GlowClient(AbstractClient):
                 return resource.resourceId
         raise ValueError("Could not find a resource with name 'electricity consumption'")
 
-    def _update(self) -> EnergyPanel | None:
+    def _update(self) -> EnergyPanel:
         current = datetime.now().astimezone()
         window_start, period, bucket_delta = self._page_config(self.page_index, current)
         open_start = self._truncate(current, period)
