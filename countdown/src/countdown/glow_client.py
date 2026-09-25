@@ -45,11 +45,6 @@ class GlowClient(AbstractClient):
         self.open_readings: dict[int, tuple[datetime, float]] = {}
         self.session = build_retrying_session()
 
-    @classmethod
-    def is_configured(cls, config: GlowmarktConfig) -> bool:
-        # The broker leaves glowmarkt.enabled true when the owner clears these.
-        return bool(config.username and config.password)
-
     def _initialise(self) -> None:
         self._authenticate()
         self.resource_id = self.get_electricity_resource_id()

@@ -62,18 +62,6 @@ def test_initialise_authenticates_and_resolves_the_electricity_resource():
 
 
 @pytest.mark.parametrize(
-    "config",
-    [GlowmarktConfig(), GlowmarktConfig(username="me@example.com"), GlowmarktConfig(password="hunter2")],
-)
-def test_without_full_credentials_the_client_is_not_configured(config):
-    assert not GlowClient.is_configured(config)
-
-
-def test_with_both_credentials_the_client_is_configured():
-    assert GlowClient.is_configured(GlowmarktConfig(username="me@example.com", password="hunter2"))
-
-
-@pytest.mark.parametrize(
     ("utc_offset", "expected"),
     [
         (timedelta(0), "0"),

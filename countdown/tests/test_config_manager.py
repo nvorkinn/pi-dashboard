@@ -67,6 +67,22 @@ def test_real_glowmarkt_credentials_are_kept_as_they_are():
     assert config.glowmarkt.password == " pass word "  # a password's spaces are part of it
 
 
+@pytest.mark.parametrize(
+    "credentials",
+    [{}, {"username": "me@example.com"}, {"password": "hunter2"}, {"username": "  ", "password": "hunter2"}],
+)
+def test_glowmarkt_is_off_without_both_credentials(credentials):
+    """The broker has no Glowmarkt switch -- it always sends enabled: true -- so the
+    credentials decide."""
+    assert make_config(glowmarkt={"enabled": True, **credentials}).glowmarkt.enabled is False
+
+
+def test_glowmarkt_is_on_with_both_credentials():
+    config = make_config(glowmarkt={"enabled": True, "username": "me@example.com", "password": "hunter2"})
+
+    assert config.glowmarkt.enabled is True
+
+
 def test_config_ignores_env_vars(isolated_cwd, monkeypatch):
     """AppConfig is deliberately not env/settings-sourced -- broker-owned fields should never
     pick up a local value, only ever what the broker sent."""

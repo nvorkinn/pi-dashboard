@@ -150,13 +150,11 @@ def _mock_tfl_and_glowmarkt(stop_json_by_id: dict, arrivals_json_by_id: dict) ->
 
 
 def _make_config() -> AppConfig:
-    config = make_config()
-    config.interval = 1  # the fake sleep in _run_cycles() means this never actually waits
     # Real (dummy) credentials, since these tests mock Glowmarkt's endpoints and
-    # exercise that path -- GlowClient stays disabled when they're empty (the common
-    # case for most real devices).
-    config.glowmarkt.username = "dummy@example.com"
-    config.glowmarkt.password = "dummy-password"
+    # exercise that path -- without them Glowmarkt is off (the common case for most
+    # real devices). Passed in, not set afterwards: they're checked when the config is read.
+    config = make_config(glowmarkt={"username": "dummy@example.com", "password": "dummy-password"})
+    config.interval = 1  # the fake sleep in _run_cycles() means this never actually waits
     return config
 
 

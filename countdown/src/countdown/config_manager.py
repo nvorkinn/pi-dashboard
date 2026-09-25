@@ -39,12 +39,20 @@ class GlowmarktConfig(ApiConfig):
     @classmethod
     def blank_is_not_set(cls, value: Any) -> Any:
         """A cleared field can arrive as "" or whitespace rather than null. Either way
-        there's no credential, so it's None: GlowClient then stays disabled and the layout
-        leaves the energy panel out, instead of trying to log in with a blank username.
-        (The broker leaves `enabled` true when the credentials are cleared.)"""
+        there's no credential, so it's None (and Glowmarkt is off, see below) rather than
+        a blank username to try logging in with."""
         if isinstance(value, str) and not value.strip():
             return None
         return value
+
+    @model_validator(mode="after")
+    def enabled_only_with_credentials(self) -> GlowmarktConfig:
+        """The broker's config page has no Glowmarkt switch -- `enabled` is always sent as
+        true -- so having both credentials is what switches it on. Without them it's off
+        like any other API: no client is built, and the layout leaves the energy panel out."""
+        if not (self.username and self.password):
+            self.enabled = False
+        return self
 
 
 class NoticeBoardConfig(ApiConfig):
