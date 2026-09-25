@@ -14,6 +14,7 @@ from countdown.models import (
 )
 from display.bus_arrival_panel import BusArrivalPanel
 from display.combined_arrival_panel import CombinedArrivalPanel
+from display.panel import Panel
 from display.tube_arrival_panel import TubeArrivalPanel
 
 logger = logging.getLogger(__name__)
@@ -30,6 +31,8 @@ def _find_stop_child(stop: StopPoint, naptan_id: str) -> SingleStopPoint | Metro
 
 
 class TflClient(AbstractClient):
+    panel_title = "Arrivals"
+
     def __init__(self, config: TflConfig):
         """Construction never touches the network -- stops are resolved lazily on first
         use (see _ensure_stops), so a flaky TfL API can never prevent this object from
@@ -82,9 +85,9 @@ class TflClient(AbstractClient):
             self.current_stop = 0
         return stop
 
-    def _update(self) -> CombinedArrivalPanel | None:
+    def _update(self) -> Panel:
         if not self.stops:
-            return None
+            return self.message_panel("No stops set")
         stop_and_arrivals = []
         count_to_fetch = min(2, len(self.stops))
         for _ in range(count_to_fetch):
@@ -105,4 +108,7 @@ class TflClient(AbstractClient):
                     stop_and_arrivals.append(TubeArrivalPanel(stop, sortd))
             except Exception as e:
                 logger.exception(f"Error fetching arrivals for stop {stop.naptan_id}: {e}")
+        if not stop_and_arrivals:
+            # Raised rather than shown, so the registry keeps the last good arrivals.
+            raise RuntimeError(f"Could not fetch arrivals for any of {count_to_fetch} TfL stops")
         return CombinedArrivalPanel(stop_and_arrivals)

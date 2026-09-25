@@ -7,6 +7,7 @@ from enum import StrEnum, auto
 
 from countdown.config_manager import ApiConfig
 from countdown.http import build_retrying_session
+from display.message_panel import MessagePanel
 from display.panel import Panel
 
 logger = logging.getLogger(__name__)
@@ -43,6 +44,9 @@ class AbstractClient(ABC):
     the display render it (Pillow, SPI) later."""
 
     poll_interval: timedelta = timedelta(minutes=1)
+    # Whose area a MessagePanel standing in for this client's panel belongs to.
+    panel_title: str = ""
+    panel_logo: str | None = None
 
     def __init__(self, config: ApiConfig | None = None):
         self.config = config
@@ -125,6 +129,10 @@ class AbstractClient(ABC):
     @abstractmethod
     def _update(self) -> Panel | None:
         pass
+
+    @classmethod
+    def message_panel(cls, message: str) -> MessagePanel:
+        return MessagePanel(cls.panel_title, message, cls.panel_logo)
 
     def _cache_and_compare(self, endpoint: str, data: object) -> bool:
         """Returns True if the last call to the same endpoint returned the same data.

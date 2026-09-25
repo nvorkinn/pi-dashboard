@@ -53,15 +53,15 @@ def test_forecast_can_lack_a_precipitation_probability():
 
 @responses.activate
 def test_no_location_configured_makes_no_requests():
-    assert asyncio.run(make_client(location="").update()) is None
+    assert asyncio.run(make_client(location="").update()).message == "No location set"
     assert len(responses.calls) == 0
 
 
 @responses.activate
-def test_unknown_location_returns_none():
+def test_unknown_location_says_so():
     responses.add(responses.GET, GEOCODING_URL, json={"generationtime_ms": 0.5})  # no "results" key
 
-    assert asyncio.run(make_client("Nowheresville").update()) is None
+    assert asyncio.run(make_client("Nowheresville").update()).message == "Location not found"
     assert len(responses.calls) == 1  # never got as far as asking for a forecast
 
 

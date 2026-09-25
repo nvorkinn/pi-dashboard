@@ -41,14 +41,14 @@ class FailedClient(AbstractClient):
     def _initialise(self) -> None:
         raise self.error
 
-    def _update(self) -> Panel | None:
+    def _update(self) -> Panel:
         raise self.error
 
 
 class ApiRegistry:
     def __init__(self, status: DeviceStatus | None = None):
         self.clients: dict[str, AbstractClient] = {}
-        self.panels: dict[str, Panel | None] = {}
+        self.panels: dict[str, Panel | None] = {}  # None only from a DISABLED client
         self.status = status or DeviceStatus()
         # Shares self.clients (mutated in place, never reassigned) to read their statuses.
         self.pub = MqttPublisher.from_env(self.clients, [member.api_name for member in ClientClasses], self.status)
@@ -87,13 +87,12 @@ class ApiRegistry:
         self.clients.pop(name, None)
         self.panels.pop(name, None)
 
-    async def update_all(self) -> dict[str, Panel | None]:
-        """Polls whichever clients are due and returns the panels for *all* clients:
-        one that isn't due yet keeps its last panel (a Glowmarkt client polling every
-        15 minutes must not blank the energy panel on the cycles in between), and one
-        that raised keeps its last good panel too -- stale-but-valid beats nothing.
-        A client returning None is different: that means "nothing to show" (nothing
-        playing, no location configured) and does replace the previous panel."""
+    async def update_all(self) -> dict[str, Panel]:
+        """Polls whichever clients are due and returns a panel for *every* API, so the
+        display never has an area with nothing to draw: one that isn't due yet keeps its
+        last panel (a Glowmarkt client polling every 15 minutes must not blank the energy
+        panel on the cycles in between), and one that raised keeps its last good panel
+        too -- stale-but-valid beats nothing. See _panel_for() for an API with no panel."""
         due = [(api_name, client.update()) for api_name, client in self.clients.items() if client.is_due]
         outcomes = await asyncio.gather(*[coro for _, coro in due], return_exceptions=True)
 
@@ -102,7 +101,17 @@ class ApiRegistry:
                 logger.error(f"Error updating {api_name}: {outcome}", exc_info=outcome)
             else:
                 self.panels[api_name] = outcome
-        return dict(self.panels)
+        return {member.api_name: self._panel_for(member) for member in ClientClasses}
+
+    def _panel_for(self, member: ClientClasses) -> Panel:
+        """The API's last panel, or a MessagePanel saying why there isn't one: it's off
+        (disabled in the config, or missing what it needs, like Glowmarkt credentials), or
+        it has never once succeeded (it failed to build, initialise or update)."""
+        name, clazz = member.value
+        client = self.clients.get(name)
+        if client is None or client.is_disabled():
+            return clazz.message_panel("Not configured")
+        return self.panels.get(name) or clazz.message_panel("Could not connect")
 
     async def publish_health(self, force: bool = False) -> None:
         """Called by the loop every cycle, whatever stage the device is in. Like a client

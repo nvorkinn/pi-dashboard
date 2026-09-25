@@ -1,17 +1,17 @@
 import logging
 import time
-from datetime import datetime
 
-from PIL import Image, ImageChops, ImageDraw
+from PIL import Image, ImageChops
 
 from countdown.api_registry import ClientClasses
 from display.combined_arrival_panel import CombinedArrivalPanel
 from display.empty_panel import EmptyPanel
+from display.message_panel import MessagePanel
 from display.pairing_code_panel import PairingCodePanel
 from display.panel import Panel
 from display.setup_panel import SetupPanel
 from display.targets import DisplayTarget, target_from_env
-from display.utils import TOTAL_HEIGHT, TOTAL_WIDTH
+from display.utils import TOTAL_HEIGHT, TOTAL_WIDTH, add_border
 
 logger = logging.getLogger(__name__)
 
@@ -24,7 +24,9 @@ FULL_REFRESH_INTERVAL_S = 600
 # Where display_screen() puts the arrivals panel, the part of the screen that changes
 # every minute and so the only part worth a partial refresh.
 ARRIVALS_ORIGIN = (5, 5)
-ARRIVALS_HEIGHT = 275
+ARRIVALS_HEIGHT = 185
+# The arrivals panel is as wide as its stops; a message in its place gets one stop's width.
+ARRIVALS_MESSAGE_WIDTH = 262
 
 
 class DisplayController:
@@ -45,63 +47,66 @@ class DisplayController:
         whether the panel answered."""
         return self.target.connected
 
-    def display_screen(self, panels: dict[str, Panel | None]) -> Image.Image:
-        """Composes whatever panels the registry has and puts it on the panel only if it
+    def display_screen(self, panels: dict[str, Panel]) -> Image.Image:
+        """Composes the registry's panels, one per API, and puts it on the panel only if it
         changed: not at all if the picture is the same, as a quick partial refresh if only
-        the arrivals changed, otherwise as a full refresh (which flashes). A missing/None
-        panel just leaves its slot empty (no stops configured, Glowmarkt not set up,
-        nothing playing, weather not fetched yet) rather than failing the whole screen --
-        unless there's nothing at all, which shows a "nothing to show yet" message."""
+        the arrivals changed, otherwise as a full refresh (which flashes). An API with
+        nothing to draw has a MessagePanel saying why (not configured, couldn't connect,
+        nothing playing) -- unless none has anything, which shows a "nothing to show yet"
+        message instead."""
         img, arrivals_box = self._compose(panels)
         content = img.convert("RGB")
-        # Drawn after `content` is taken, so it never counts as a change: it's only as
-        # current as the last repaint.
-        ImageDraw.Draw(img).text(
-            (2, TOTAL_HEIGHT - 2), f"Updated: {datetime.now().isoformat()}", "LightGray", anchor="ld"
-        )
         self._show(img, content, arrivals_box)
         return img
 
-    def _compose(self, panels: dict[str, Panel | None]) -> tuple[Image.Image, tuple[int, int, int, int] | None]:
+    def _compose(self, panels: dict[str, Panel]) -> tuple[Image.Image, tuple[int, int, int, int] | None]:
         """The screen without its footer, and the box the arrivals panel occupies (None
         when it's the whole-screen "nothing to show" message)."""
         img = Image.new("RGBA", (TOTAL_WIDTH, TOTAL_HEIGHT), (255, 255, 255, 255))
 
-        # Arrivals
-        arrival_panel = panels.get(ClientClasses.TFL.api_name) or CombinedArrivalPanel([])
-        bus_stop_panel = arrival_panel.render(TOTAL_WIDTH, ARRIVALS_HEIGHT)
-        others = [ClientClasses.GLOWMARKT, ClientClasses.WEATHER, ClientClasses.SPOTIFY]
-        if bus_stop_panel.size[0] == 0 and not any(panels.get(client.api_name) for client in others):
+        if all(isinstance(panel, MessagePanel) for panel in panels.values()):
             return EmptyPanel().render(TOTAL_WIDTH, TOTAL_HEIGHT), None
-        img.paste(bus_stop_panel, ARRIVALS_ORIGIN, bus_stop_panel)
+
+        # Arrivals
+        arrival_panel = panels[ClientClasses.TFL.api_name]
+        arrivals_width = TOTAL_WIDTH if isinstance(arrival_panel, CombinedArrivalPanel) else ARRIVALS_MESSAGE_WIDTH
+        arrival_image = arrival_panel.render(arrivals_width, ARRIVALS_HEIGHT)
+        add_border(arrival_image)
+        img.paste(arrival_image, ARRIVALS_ORIGIN, arrival_image)
         arrivals_box = (
             ARRIVALS_ORIGIN[0],
             ARRIVALS_ORIGIN[1],
-            ARRIVALS_ORIGIN[0] + bus_stop_panel.size[0],
-            ARRIVALS_ORIGIN[1] + bus_stop_panel.size[1],
+            ARRIVALS_ORIGIN[0] + arrival_image.size[0],
+            ARRIVALS_ORIGIN[1] + arrival_image.size[1],
         )
 
-        energy_height = 0
-        energy_panel = panels.get(ClientClasses.GLOWMARKT.api_name)
-        if energy_panel:
-            rendered_energy = energy_panel.render(TOTAL_WIDTH, 200)
-            energy_height = rendered_energy.size[1]
-            img.paste(rendered_energy, (0, TOTAL_HEIGHT - energy_height))
+        # Spotify
+        spotify_panel = panels[ClientClasses.SPOTIFY.api_name]
+        spotify_x = 5
+        spotify_y = TOTAL_HEIGHT - 120 - 5
+        spotify_image = spotify_panel.render(536, TOTAL_HEIGHT - spotify_y)
+        add_border(spotify_image)
+        img.paste(spotify_image, (spotify_x, spotify_y), spotify_image)
 
-        draw = ImageDraw.Draw(img)
-        spotify_x = 10 + bus_stop_panel.size[0]
-        weather_panel = panels.get(ClientClasses.WEATHER.api_name)
-        spotify_panel = panels.get(ClientClasses.SPOTIFY.api_name)
-        weather_height = TOTAL_HEIGHT - energy_height
-        if spotify_panel:
-            rendered_spotify = spotify_panel.render(TOTAL_WIDTH - spotify_x, 0)
-            spotify_y = TOTAL_HEIGHT - energy_height - rendered_spotify.size[1]
-            img.paste(rendered_spotify, (spotify_x, spotify_y))
-            draw.line((spotify_x, spotify_y - 5, TOTAL_WIDTH - 10, spotify_y - 5), fill="black")
-            weather_height = spotify_y
-        if weather_panel:
-            rendered_weather = weather_panel.render(TOTAL_WIDTH - spotify_x, weather_height)
-            img.paste(rendered_weather, (spotify_x - 5, 5), rendered_weather)
+        # Weather
+        weather_x = 5 + arrival_image.size[0] + 5
+        weather_y = 5
+        weather_width = TOTAL_WIDTH - weather_x - 5
+        weather_height = arrival_image.size[1]
+        weather_panel = panels[ClientClasses.WEATHER.api_name]
+        weather_image = weather_panel.render(weather_width, weather_height)
+        add_border(weather_image)
+        img.paste(weather_image, (weather_x, weather_y), weather_image)
+
+        # Energy
+        energy_x = 5 + spotify_image.size[0] + 5
+        energy_y = 5 + weather_image.size[1] + 5
+        energy_width = TOTAL_WIDTH - 5 - spotify_image.size[0] - 5
+        energy_height = TOTAL_HEIGHT - energy_y - 5
+        energy_panel = panels[ClientClasses.GLOWMARKT.api_name]
+        energy_image = energy_panel.render(energy_width, energy_height)
+        add_border(energy_image)
+        img.paste(energy_image, (energy_x, energy_y), energy_image)
 
         return img, arrivals_box
 

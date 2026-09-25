@@ -231,8 +231,8 @@ def test_full_render_cycle_without_spotify_track(isolated_cwd, monkeypatch):
     assert isinstance(panels["glowmarkt"], EnergyPanel)
     assert panels["glowmarkt"].page_index == 0
     assert [reading["kwh"] for reading in panels["glowmarkt"].readings] == [2.25, 1.5]  # oldest first
-    assert "spotify" not in panels  # not enabled, so never even built
-    assert panels["weather"] is None  # no location configured
+    assert panels["spotify"].message == "Not configured"  # not enabled, so never even built
+    assert panels["weather"].message == "No location set"
 
 
 @responses.activate
@@ -253,7 +253,7 @@ def test_full_render_cycle_skips_glowmarkt_when_credentials_empty(isolated_cwd, 
 
     assert _calls_to("https://api.glowmarkt.com") == 0
     assert loop.api_reg.clients["glowmarkt"].is_disabled()
-    assert shown[0]["glowmarkt"] is None
+    assert shown[0]["glowmarkt"].message == "Not configured"
     assert len(shown[0]["tfl"].arrival_panels) == 1
 
 
@@ -287,7 +287,7 @@ def test_full_render_cycle_when_nothing_is_playing(isolated_cwd, monkeypatch):
 
     _run_cycles(loop, monkeypatch)
 
-    assert shown[0]["spotify"] is None
+    assert shown[0]["spotify"].message == "Nothing playing on:"
     assert isinstance(shown[0]["glowmarkt"], EnergyPanel)
 
 
@@ -334,7 +334,7 @@ def test_one_api_being_down_does_not_stop_the_others_reaching_the_screen(isolate
     _run_cycles(loop, monkeypatch)
 
     assert len(shown) == 1
-    assert shown[0].get("tfl") is None  # no stops could be resolved, so nothing to show
+    assert shown[0]["tfl"].message == "Could not connect"  # no stops could be resolved
     assert isinstance(shown[0]["glowmarkt"], EnergyPanel)
 
 
@@ -450,7 +450,7 @@ def test_config_changes_from_the_broker_reach_the_screen_on_the_next_cycle(isola
 
     _run_cycles(loop, monkeypatch, cycles=2)
 
-    assert shown[0].get("tfl") is None
+    assert shown[0]["tfl"].message == "No stops set"
     assert len(shown[1]["tfl"].arrival_panels) == 1
 
 

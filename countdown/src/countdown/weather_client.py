@@ -5,6 +5,7 @@ from countdown.abstract_client import AbstractClient
 from countdown.config_manager import WeatherConfig
 from countdown.http import DEFAULT_TIMEOUT
 from countdown.models import ForecastResponse, GeocodingResponse, Weather
+from display.panel import Panel
 from display.weather_panel import WeatherPanel
 
 logger = logging.getLogger(__name__)
@@ -21,11 +22,13 @@ class WeatherClient(AbstractClient):
     WeatherConfig.api_key is unused). Construction never touches the network: the
     location is geocoded lazily on first fetch, and only once."""
 
+    panel_title = "Weather"
+
     def __init__(self, config: WeatherConfig):
         super().__init__(config)
         self.location = config.location
         self._coordinates: tuple[float, float] | None = None
-        self._panel: WeatherPanel | None = None
+        self._panel: Panel | None = None
         self._last_attempt: dt.datetime | None = None
 
     def _initialise(self) -> None:
@@ -35,12 +38,12 @@ class WeatherClient(AbstractClient):
         # Open-Meteo is keyless, so api_key changing changes nothing.
         return self.location != new_config.location
 
-    def _update(self) -> WeatherPanel | None:
-        """None means "nothing to show": no location configured, or one Open-Meteo
-        couldn't find. Network/parse failures raise instead (RequestException /
+    def _update(self) -> Panel:
+        """A MessagePanel when there's nothing to show: no location configured, or one
+        Open-Meteo couldn't find. Network/parse failures raise instead (RequestException /
         ValidationError), for safe_fetch to fall back to the last good panel."""
         if not self.location:
-            return None
+            return self.message_panel("No location set")
 
         if self._last_attempt and dt.datetime.now() - self._last_attempt < REFRESH_INTERVAL:
             return self._panel
@@ -48,7 +51,7 @@ class WeatherClient(AbstractClient):
         coordinates = self._geocode()
         if coordinates is None:
             logger.warning(f"Could not find a location matching {self.location!r} on Open-Meteo")
-            self._panel = None
+            self._panel = self.message_panel("Location not found")
         else:
             self._panel = WeatherPanel(self._fetch_forecast(*coordinates))
         self._last_attempt = dt.datetime.now()

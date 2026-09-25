@@ -11,6 +11,7 @@ from countdown.glow_client import GlowClient
 from countdown.spotify_client import SpotifyClient
 from countdown.tfl_client import TflClient
 from countdown.weather_client import WeatherClient
+from display.message_panel import MessagePanel
 
 
 class FakeClient(AbstractClient):
@@ -37,6 +38,15 @@ def registry_with(**clients: AbstractClient) -> ApiRegistry:
     registry = ApiRegistry()
     registry.clients.update(clients)
     return registry
+
+
+def drawn(panels: dict) -> dict:
+    """The panels that aren't MessagePanels standing in for one."""
+    return {name: panel for name, panel in panels.items() if not isinstance(panel, MessagePanel)}
+
+
+def messages(panels: dict) -> dict:
+    return {name: panel.message for name, panel in panels.items() if isinstance(panel, MessagePanel)}
 
 
 def test_api_names_match_the_config_field_names():
@@ -163,7 +173,27 @@ def test_a_change_the_client_says_is_irrelevant_does_not_rebuild_it():
 def test_update_all_returns_each_clients_panel():
     registry = registry_with(tfl=FakeClient("arrivals"), weather=FakeClient("sunny"))
 
-    assert asyncio.run(registry.update_all()) == {"tfl": "arrivals", "weather": "sunny"}
+    assert drawn(asyncio.run(registry.update_all())) == {"tfl": "arrivals", "weather": "sunny"}
+
+
+def test_update_all_has_a_message_for_every_api_without_a_client():
+    """So the display never has an area with nothing to draw."""
+    registry = registry_with(tfl=FakeClient("arrivals"))
+
+    assert messages(asyncio.run(registry.update_all())) == {
+        "glowmarkt": "Not configured",
+        "weather": "Not configured",
+        "spotify": "Not configured",
+    }
+
+
+def test_update_all_has_a_message_for_a_disabled_client():
+    """Enabled in the config but missing what it needs, like Glowmarkt without credentials."""
+    glow = FakeClient(None)
+    glow.status = ClientStatus.DISABLED
+    registry = registry_with(glowmarkt=glow)
+
+    assert messages(asyncio.run(registry.update_all()))["glowmarkt"] == "Not configured"
 
 
 def test_update_all_only_polls_clients_that_are_due_but_still_returns_their_last_panel():
@@ -177,7 +207,7 @@ def test_update_all_only_polls_clients_that_are_due_but_still_returns_their_last
     panels = asyncio.run(registry.update_all())
 
     assert (tfl.updates, glow.updates) == (2, 1)
-    assert panels == {"tfl": "arrivals-2", "glowmarkt": "energy"}
+    assert drawn(panels) == {"tfl": "arrivals-2", "glowmarkt": "energy"}
 
 
 def test_update_all_keeps_the_last_good_panel_when_a_client_raises():
@@ -188,7 +218,7 @@ def test_update_all_keeps_the_last_good_panel_when_a_client_raises():
 
     panels = asyncio.run(registry.update_all())
 
-    assert panels == {"weather": "sunny"}
+    assert drawn(panels) == {"weather": "sunny"}
 
 
 def test_a_client_that_raises_during_update_is_logged_with_its_traceback(caplog):
@@ -205,19 +235,24 @@ def test_a_client_that_raises_during_update_is_logged_with_its_traceback(caplog)
 
 
 def test_update_all_replaces_the_last_panel_when_a_client_has_nothing_to_show():
-    """None is a real answer (nothing playing, no location set), unlike an error."""
-    spotify = FakeClient("now playing", None)
+    """A client's own message (nothing playing, no location set) is a real answer, unlike an error."""
+    nothing_playing = SpotifyClient.message_panel("Nothing playing on:")
+    spotify = FakeClient("now playing", nothing_playing)
     registry = registry_with(spotify=spotify)
     asyncio.run(registry.update_all())
     spotify.last_updated = None
 
-    assert asyncio.run(registry.update_all()) == {"spotify": None}
+    assert asyncio.run(registry.update_all())["spotify"] is nothing_playing
 
 
-def test_update_all_omits_a_client_that_has_never_succeeded():
+def test_update_all_says_a_client_that_has_never_succeeded_could_not_connect():
     registry = registry_with(tfl=FakeClient(RuntimeError("boom")), weather=FakeClient("sunny"))
 
-    assert asyncio.run(registry.update_all()) == {"weather": "sunny"}
+    panels = asyncio.run(registry.update_all())
+
+    assert messages(panels)["tfl"] == "Could not connect"
+    assert panels["tfl"].title == "Arrivals"
+    assert panels["weather"] == "sunny"
 
 
 def test_update_all_leaves_publishing_health_to_the_loop():
@@ -260,9 +295,9 @@ def test_the_publisher_reads_the_registrys_own_client_dict():
 
 @pytest.mark.parametrize("bad", [ValueError("bad"), KeyError("bad")])
 def test_update_all_never_lets_one_clients_failure_escape(bad):
-    registry = registry_with(a=FakeClient(bad), b=FakeClient("fine"))
+    registry = registry_with(tfl=FakeClient(bad), weather=FakeClient("fine"))
 
-    assert asyncio.run(registry.update_all())["b"] == "fine"
+    assert asyncio.run(registry.update_all())["weather"] == "fine"
 
 
 def test_a_client_that_could_not_be_built_shows_as_an_error_in_the_health_payload():
@@ -287,7 +322,7 @@ def test_a_client_that_could_not_be_built_is_reported_again_by_update_all_withou
 
     panels = asyncio.run(registry.update_all())
 
-    assert "spotify" not in panels
+    assert messages(panels)["spotify"] == "Could not connect"
     assert "Error updating spotify" in caplog.text
 
 
