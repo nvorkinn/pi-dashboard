@@ -4,7 +4,7 @@ mod homeassistant;
 mod system_value_retriever;
 mod telemetry;
 
-use crate::countdown_liveness::CountdownLiveness;
+use crate::countdown_liveness::is_countdown_active;
 use crate::device_id::resolve_device_id;
 use crate::homeassistant::{build_discovery_payload, discovery_topic};
 use rumqttc::{AsyncClient, MqttOptions, QoS};
@@ -20,7 +20,7 @@ async fn main() {
     thread::sleep(sysinfo::MINIMUM_CPU_UPDATE_INTERVAL);
     sys.refresh_cpu_usage();
     let telemetry = read_telemetry(&sys);
-    let is_alive = sys.is_alive();
+    let is_alive = is_countdown_active();
 
     println!("Total memory: {} bytes", telemetry.total_memory);
     println!("Used memory: {} bytes", telemetry.used_memory);
