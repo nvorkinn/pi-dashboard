@@ -21,7 +21,10 @@ def _get_utc_offset(now: datetime | None = None) -> str:
 
 
 class GlowClient(AbstractClient):
-    poll_interval = timedelta(minutes=15)
+    # update() runs every minute (the AbstractClient default) because each call
+    # also rotates the page; how often each page actually asks Glow for fresh
+    # readings is set per page instead. The rest of the time it redraws from cache.
+    refresh_intervals = {0: timedelta(minutes=30), 1: timedelta(hours=3), 2: timedelta(hours=12)}
     panel_title = "Energy"
     base_url = "https://api.glowmarkt.com/api/v0-1"
     app_id = "b0f1b774-a586-4f72-9edd-27ead8aa7a8d"
@@ -34,6 +37,9 @@ class GlowClient(AbstractClient):
         self.username = config.username
         self.password = config.password
         self.glow_cache = {0: {}, 1: {}, 2: {}}
+        self.cache_utc_offset: timedelta | None = None
+        self.last_fetched: dict[int, datetime] = {}
+        self.open_readings: dict[int, tuple[datetime, float]] = {}
         self.session = build_retrying_session()
         if not config.username or not config.password:
             self.status = ClientStatus.DISABLED
@@ -94,7 +100,49 @@ class GlowClient(AbstractClient):
         # cache, and every call looks like a cache miss.
         window_start = self._truncate(window_start, period)
 
+        # Glow aggregates days and months at the offset we send, so buckets cached
+        # before the clocks changed are the wrong ones - start afresh.
+        if current.utcoffset() != self.cache_utc_offset:
+            self.glow_cache = {0: {}, 1: {}, 2: {}}
+            self.last_fetched = {}
+            self.open_readings = {}
+            self.cache_utc_offset = current.utcoffset()
+
         cache = self.glow_cache[self.page_index]
+        last_fetched = self.last_fetched.get(self.page_index)
+        if last_fetched is None or current - last_fetched >= self.refresh_intervals[self.page_index]:
+            self._refresh(cache, window_start, open_start, current, period, bucket_delta)
+            self.last_fetched[self.page_index] = current
+
+        # Drop anything that's aged out of a sliding window (pages 0 and 1;
+        # page 2's window start is fixed to 1st Jan so nothing ever ages out).
+        for stale in [b for b in cache if b < window_start]:
+            del cache[stale]
+
+        usage = [
+            {"start": bucket_start.isoformat(), "kwh": round(value, 3)} for bucket_start, value in sorted(cache.items())
+        ]
+        # Between refreshes this is the reading from the last fetch - possibly for
+        # a bucket that has since closed, but still the latest figure we have.
+        open_reading = self.open_readings.get(self.page_index)
+        if open_reading is not None and open_reading[0] >= window_start and open_reading[0] not in cache:
+            open_bucket_start, open_value = open_reading
+            usage.append({"start": open_bucket_start.isoformat(), "kwh": round(open_value, 3)})
+
+        self.glow_cache[self.page_index] = cache
+        panel = EnergyPanel(usage, self.page_index)
+        self.page_index = (self.page_index + 1) % 3
+        return panel
+
+    def _refresh(
+        self,
+        cache: dict[datetime, float],
+        window_start: datetime,
+        open_start: datetime,
+        current: datetime,
+        period: str,
+        bucket_delta: timedelta,
+    ) -> None:
         # Walk forward from window_start to open_start to see which closed
         # buckets we SHOULD have, and whether any of them are missing from
         # the cache (true on first run, or after the window has slid forward).
@@ -113,28 +161,12 @@ class GlowClient(AbstractClient):
             # bucket that's still live.
             fetched = self._get_readings(open_start, current, period)
 
-        open_value: float | None = None
+        self.open_readings.pop(self.page_index, None)
         for bucket_start, value in fetched:
             if bucket_start < open_start:
                 cache[bucket_start] = value  # closed - safe to keep forever
             else:
-                open_value = value  # open - never cached, always fresh
-
-        # Drop anything that's aged out of a sliding window (pages 0 and 1;
-        # page 2's window start is fixed to 1st Jan so nothing ever ages out).
-        for stale in [b for b in cache if b < window_start]:
-            del cache[stale]
-
-        usage = [
-            {"start": bucket_start.isoformat(), "kwh": round(value, 3)} for bucket_start, value in sorted(cache.items())
-        ]
-        if open_value is not None:
-            usage.append({"start": open_start.isoformat(), "kwh": round(open_value, 3)})
-
-        self.glow_cache[self.page_index] = cache
-        panel = EnergyPanel(usage, self.page_index)
-        self.page_index = (self.page_index + 1) % 3
-        return panel
+                self.open_readings[self.page_index] = (bucket_start, value)  # open - never cached
 
     def _page_config(self, page_index: int, current: datetime) -> tuple[datetime, str, timedelta]:
         if page_index == 0:
@@ -189,14 +221,19 @@ class GlowClient(AbstractClient):
         )
         response.raise_for_status()
 
+        # With an offset set, Glow labels each bucket with its *local* wall-clock
+        # start encoded as if it were UTC (06:00 BST comes back as 06:00Z). Read the
+        # wall clock as UTC, then relabel it with the request's zone so the keys
+        # are the same instants as the bucket starts _update() walks.
+        local_tz = dt_from.tzinfo
         readings = []
         for ts, value in response.json()["data"]:
             # The API has returned both Unix-epoch-seconds and ISO strings
             # across different versions/resources in the wild, so handle both.
             if isinstance(ts, (int, float)):
-                bucket_start = datetime.fromtimestamp(ts, tz=UTC)
+                wall_clock = datetime.fromtimestamp(ts, tz=UTC)
             else:
-                bucket_start = datetime.fromisoformat(ts).replace(tzinfo=UTC)
-            readings.append((bucket_start, value))
+                wall_clock = datetime.fromisoformat(ts)
+            readings.append((wall_clock.replace(tzinfo=local_tz), value))
 
         return readings

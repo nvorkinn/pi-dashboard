@@ -1,12 +1,15 @@
 import asyncio
-from datetime import UTC, datetime
+import json
+from datetime import UTC, datetime, timedelta, timezone
 from unittest.mock import MagicMock
+from urllib.parse import parse_qs, urlparse
 
 import pytest
 import requests
 import responses
 from requests.adapters import HTTPAdapter
 
+from countdown import glow_client
 from countdown.abstract_client import ClientStatus
 from countdown.config_manager import GlowmarktConfig
 from countdown.glow_client import GlowClient, _get_utc_offset
@@ -207,6 +210,120 @@ def test_get_readings_parses_epoch_and_iso_timestamps(glowmarkt_api):
     request = glowmarkt_api.calls[-1].request
     assert "period=PT1H" in request.url
     assert request.headers["token"] == "initial-token"
+
+
+def test_get_readings_labels_buckets_as_local_wall_clock(glowmarkt_api):
+    """Glow encodes each bucket's local wall-clock start as if it were UTC: with
+    offset=-60, the 06:00 BST bucket comes back as the epoch for 06:00Z."""
+    bst = timezone(timedelta(hours=1), "BST")
+    glowmarkt_api.add(
+        responses.GET,
+        f"{BASE_URL}/resource/elec-id/readings",
+        json={"data": [[int(datetime(2026, 9, 25, 6, tzinfo=UTC).timestamp()), 1.5], ["2026-09-25T07:00:00", 2.25]]},
+    )
+    client = make_initialised_client()
+
+    readings = client._get_readings(datetime(2026, 9, 25, 6, tzinfo=bst), datetime(2026, 9, 25, 8, tzinfo=bst), "PT1H")
+
+    assert readings == [(datetime(2026, 9, 25, 6, tzinfo=bst), 1.5), (datetime(2026, 9, 25, 7, tzinfo=bst), 2.25)]
+
+
+def _fake_glow_readings(request):
+    """Mimic Glow: one bucket per period from `from` to `to` (local wall clock),
+    each labelled with its wall-clock start encoded as a UTC epoch."""
+    params = {k: v[0] for k, v in parse_qs(urlparse(request.url).query).items()}
+    start, end = datetime.fromisoformat(params["from"]), datetime.fromisoformat(params["to"])
+    period = params["period"]
+    if period == "PT1H":
+        cursor = start.replace(minute=0, second=0)
+    elif period == "P1D":
+        cursor = start.replace(hour=0, minute=0, second=0)
+    else:
+        cursor = start.replace(day=1, hour=0, minute=0, second=0)
+    data = []
+    while cursor <= end:
+        data.append([int(cursor.replace(tzinfo=UTC).timestamp()), 1.0])
+        if period == "PT1H":
+            cursor += timedelta(hours=1)
+        elif period == "P1D":
+            cursor += timedelta(days=1)
+        else:
+            cursor = cursor.replace(year=cursor.year + cursor.month // 12, month=cursor.month % 12 + 1)
+    return 200, {}, json.dumps({"data": data})
+
+
+BST = timezone(timedelta(hours=1), "BST")
+
+
+@pytest.fixture
+def clock(monkeypatch):
+    """Freezes GlowClient's idea of now; tests move it by reassigning clock.now."""
+
+    class Clock:
+        now = datetime(2026, 9, 25, 6, 10, tzinfo=BST)
+
+    class FrozenDatetime(datetime):
+        @classmethod
+        def now(cls, tz=None):
+            return Clock.now
+
+    monkeypatch.setattr(glow_client, "datetime", FrozenDatetime)
+    return Clock
+
+
+def _readings_requests(glowmarkt_api) -> list[dict[str, list[str]]]:
+    return [parse_qs(urlparse(c.request.url).query) for c in glowmarkt_api.calls if "/readings" in c.request.url]
+
+
+def _update_page(client: GlowClient, page_index: int):
+    client.page_index = page_index
+    return asyncio.run(client.update())
+
+
+@pytest.mark.parametrize("page_index", [0, 1])
+def test_refresh_after_the_first_only_fetches_the_open_bucket(glowmarkt_api, clock, page_index):
+    """The regression this guards: cached bucket keys were an hour off the bucket
+    starts _update() walks during BST, so every refresh re-fetched the whole window."""
+    glowmarkt_api.add_callback(responses.GET, f"{BASE_URL}/resource/elec-id/readings", callback=_fake_glow_readings)
+    client = make_initialised_client()
+
+    _update_page(client, page_index)
+    clock.now += GlowClient.refresh_intervals[page_index]
+    _update_page(client, page_index)
+
+    requests_made = _readings_requests(glowmarkt_api)
+    assert len(requests_made) == 2
+    open_start = "2026-09-25T06:00:00" if page_index == 0 else "2026-09-25T00:00:00"
+    assert requests_made[1]["from"] == [open_start]
+
+
+@pytest.mark.parametrize("page_index", [0, 1, 2])
+def test_page_is_redrawn_from_cache_until_its_refresh_interval_passes(glowmarkt_api, clock, page_index):
+    glowmarkt_api.add_callback(responses.GET, f"{BASE_URL}/resource/elec-id/readings", callback=_fake_glow_readings)
+    client = make_initialised_client()
+    first = _update_page(client, page_index)
+
+    clock.now += GlowClient.refresh_intervals[page_index] - timedelta(minutes=1)
+    cached = _update_page(client, page_index)
+    assert len(_readings_requests(glowmarkt_api)) == 1
+    assert cached.readings == first.readings
+
+    clock.now += timedelta(minutes=1)
+    _update_page(client, page_index)
+    assert len(_readings_requests(glowmarkt_api)) == 2
+
+
+def test_update_rotates_pages_every_call_without_refetching(glowmarkt_api, clock):
+    glowmarkt_api.add_callback(responses.GET, f"{BASE_URL}/resource/elec-id/readings", callback=_fake_glow_readings)
+    client = make_initialised_client()
+
+    pages = []
+    for _ in range(6):
+        pages.append(asyncio.run(client.update()).page_index)
+        clock.now += timedelta(minutes=1)
+
+    assert pages == [0, 1, 2, 0, 1, 2]
+    assert len(_readings_requests(glowmarkt_api)) == 3
 
 
 def test_update_returns_a_panel_and_rotates_through_the_three_pages(monkeypatch):
