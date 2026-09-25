@@ -31,7 +31,7 @@ class AbstractClient(ABC):
     shared session and a small per-endpoint cache, available to a client that wants
     to compare a fresh response against the last one it saw (BrokerClient uses this
     for pairing-code change detection). Not force-piped into every client/call --
-    see https://github.com/nvorkinn/countdown/issues/54 for the larger plan to use
+    see https://github.com/nvorkinn/pi-dashboard/issues/8 for the larger plan to use
     this more broadly for change-detection (skip a repaint / e-paper refresh when
     nothing changed).
 
