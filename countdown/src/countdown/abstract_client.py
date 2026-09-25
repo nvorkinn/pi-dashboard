@@ -85,6 +85,14 @@ class AbstractClient(ABC):
         if elapsed >= SLOW_CALL_S:
             logger.warning(f"{type(self).__name__}: {what} took {elapsed:.1f}s")
 
+    @classmethod
+    def is_configured(cls, config: ApiConfig) -> bool:
+        """Whether `config` has what this client needs to work at all. When it doesn't,
+        ApiRegistry doesn't build the client (just as when it's switched off) rather than
+        keeping one around that can't do anything. Defaults to yes; a client overrides it
+        when it needs something the broker may leave out (see GlowClient's credentials)."""
+        return True
+
     def needs_refresh(self, new_config: ApiConfig) -> bool:
         """Whether `new_config` differs from the one this client was built with in a way
         that means it should be rebuilt and re-initialised (ApiRegistry does that).

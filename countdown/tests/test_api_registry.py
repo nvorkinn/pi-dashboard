@@ -68,7 +68,6 @@ def test_on_config_update_registers_the_enabled_clients(monkeypatch):
 
     assert {name: type(client) for name, client in registry.clients.items()} == {
         "notice_board": NoticeBoardClient,
-        "glowmarkt": GlowClient,
         "tfl": TflClient,
         "weather": WeatherClient,
         "spotify": SpotifyClient,
@@ -82,7 +81,7 @@ def test_on_config_update_skips_disabled_clients():
 
     asyncio.run(registry.on_config_update(config))
 
-    assert set(registry.clients) == {"notice_board", "glowmarkt", "tfl"}
+    assert set(registry.clients) == {"notice_board", "tfl"}  # glowmarkt: no credentials
 
 
 def test_on_config_update_initialises_new_clients_even_if_one_fails(monkeypatch):
@@ -367,3 +366,21 @@ def test_available_leaves_out_glowmarkt_when_its_username_is_cleared(username):
     asyncio.run(registry.on_config_update(make_config(glowmarkt={"username": username, "password": "pw"})))
 
     assert ClientClasses.GLOWMARKT not in registry.available()
+
+
+def test_a_client_missing_what_it_needs_is_not_built_and_comes_back_fresh(monkeypatch):
+    """Clearing Glowmarkt's username removes its client altogether (the broker leaves
+    `enabled` true); putting it back builds a new one rather than reviving the old."""
+    monkeypatch.setattr(GlowClient, "initialise", lambda self: asyncio.sleep(0))  # no network
+    registry = ApiRegistry()
+    with_credentials = make_config(glowmarkt={"username": "me@example.com", "password": "pw"})
+
+    asyncio.run(registry.on_config_update(with_credentials))
+    first = registry.clients["glowmarkt"]
+    asyncio.run(registry.on_config_update(make_config(glowmarkt={"username": None, "password": "pw"})))
+    assert "glowmarkt" not in registry.clients
+    assert "glowmarkt" not in registry.panels
+
+    asyncio.run(registry.on_config_update(with_credentials))
+    assert isinstance(registry.clients["glowmarkt"], GlowClient)
+    assert registry.clients["glowmarkt"] is not first

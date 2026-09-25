@@ -254,7 +254,7 @@ def test_full_render_cycle_skips_glowmarkt_when_credentials_empty(isolated_cwd, 
     _run_cycles(loop, monkeypatch)
 
     assert _calls_to("https://api.glowmarkt.com") == 0
-    assert loop.api_reg.clients["glowmarkt"].is_disabled()
+    assert "glowmarkt" not in loop.api_reg.clients  # never built without credentials
     assert shown[0]["glowmarkt"].message == "Not configured"
     assert len(shown[0]["tfl"].arrival_panels) == 1
 

@@ -2,7 +2,7 @@ from datetime import UTC, datetime, timedelta
 
 from pydantic import TypeAdapter
 
-from countdown.abstract_client import AbstractClient, ClientStatus
+from countdown.abstract_client import AbstractClient
 from countdown.config_manager import GlowmarktConfig
 from countdown.http import DEFAULT_TIMEOUT, build_retrying_session
 from countdown.models import Entity, Readings
@@ -44,8 +44,11 @@ class GlowClient(AbstractClient):
         self.last_fetched: dict[int, datetime] = {}
         self.open_readings: dict[int, tuple[datetime, float]] = {}
         self.session = build_retrying_session()
-        if not config.username or not config.password:
-            self.status = ClientStatus.DISABLED
+
+    @classmethod
+    def is_configured(cls, config: GlowmarktConfig) -> bool:
+        # The broker leaves glowmarkt.enabled true when the owner clears these.
+        return bool(config.username and config.password)
 
     def _initialise(self) -> None:
         self._authenticate()

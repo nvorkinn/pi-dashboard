@@ -69,7 +69,9 @@ class ApiRegistry:
             client_config: ApiConfig = getattr(config, name)
             current = self.clients.get(name)
 
-            if not client_config.enabled:
+            if not client_config.enabled or not clazz.is_configured(client_config):
+                # Off, or missing what it needs (like Glowmarkt's credentials): no client
+                # at all, so one that comes back later is built fresh.
                 self._drop(name)
             elif current is None or current.needs_refresh(client_config):
                 # The old panel came from the old config, so it goes too.
@@ -106,8 +108,8 @@ class ApiRegistry:
         return {member.api_name: self._panel_for(member) for member in ClientClasses}
 
     def available(self) -> frozenset[ClientClasses]:
-        """The APIs worth an area on the screen: built, and not DISABLED (switched off in
-        the config, or missing what they need, like Glowmarkt credentials). A client
+        """The APIs worth an area on the screen: those with a client, i.e. switched on and
+        with what they need (see AbstractClient.is_configured), and not DISABLED. A client
         that's failing still counts -- its area should say "Could not connect", not
         vanish, so a broken setup stays visible. Changes only with the config."""
         return frozenset(
