@@ -4,6 +4,7 @@ import requests
 from PIL import Image, ImageDraw, ImageFont
 
 from countdown.models import Album, Artist, Queue
+from countdown.models import Image as AlbumImage
 from display.panel import Panel
 from display.utils import UBUNTU_BOLD_20, UBUNTU_MEDIUM_15, UBUNTU_MEDIUM_20
 
@@ -67,16 +68,24 @@ def truncate_to_fit(text: str, font: ImageFont.BaseImageFont, max_width: int) ->
 
 
 def _create_album_image_panel(album: Album, height: int) -> Image.Image:
-    """Downloads the album's art closest to `height` and scales it to fit. Spotify usually
-    offers a few sizes, but a local file has none: that gets an empty (0-wide) image."""
+    """Downloads the album's art (see _pick_image) and scales it down to `height`. A local
+    file has no art at all: that gets an empty (0-wide) image."""
     if not album.images:
         return Image.new("RGBA", (0, height))
-    image = min(album.images, key=lambda image: abs(image.height - height))
-    response = requests.get(str(image.url), timeout=10)
+    response = requests.get(str(_pick_image(album.images, height).url), timeout=10)
     response.raise_for_status()
     converted = Image.open(io.BytesIO(response.content)).convert("RGBA")
     converted.thumbnail((height, height))
     return converted
+
+
+def _pick_image(images: list[AlbumImage], height: int) -> AlbumImage:
+    """The smallest image at least `height` tall, for thumbnail() to scale down (it never
+    scales up, so a smaller one would stay small); the tallest if none is tall enough."""
+    tall_enough = [image for image in images if image.height >= height]
+    if tall_enough:
+        return min(tall_enough, key=lambda image: image.height)
+    return max(images, key=lambda image: image.height)
 
 
 def _artists_names(artists: list[Artist]) -> str:
