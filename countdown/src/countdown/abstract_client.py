@@ -55,6 +55,9 @@ class AbstractClient(ABC):
         self.status: ClientStatus = ClientStatus.UNINITIALISED
         self.last_updated: datetime | None = None
 
+    def __del__(self):
+        self.session.close()
+
     async def initialise(self) -> None:
         """Runs the client's own _initialise() (authenticating, resolving ids, ...)
         and tracks the outcome in self.status: CONNECTED on success, ERROR -- and the

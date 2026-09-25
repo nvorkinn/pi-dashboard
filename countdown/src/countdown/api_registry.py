@@ -70,6 +70,7 @@ class ApiRegistry:
             current = self.clients.get(name)
 
             if not client_config.enabled:
+                # No client at all, so one switched back on later is built fresh.
                 self._drop(name)
             elif current is None or current.needs_refresh(client_config):
                 # The old panel came from the old config, so it goes too.
@@ -104,6 +105,17 @@ class ApiRegistry:
             else:
                 self.panels[api_name] = outcome
         return {member.api_name: self._panel_for(member) for member in ClientClasses}
+
+    def available(self) -> frozenset[ClientClasses]:
+        """The APIs worth an area on the screen: those with a client (switched on in the
+        config -- see GlowmarktConfig for one that switches itself off), and not DISABLED. A client
+        that's failing still counts -- its area should say "Could not connect", not
+        vanish, so a broken setup stays visible. Changes only with the config."""
+        return frozenset(
+            member
+            for member in ClientClasses
+            if (client := self.clients.get(member.api_name)) is not None and not client.is_disabled()
+        )
 
     def _panel_for(self, member: ClientClasses) -> Panel:
         """The API's last panel, or a MessagePanel saying why there isn't one: it's off

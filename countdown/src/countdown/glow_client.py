@@ -2,9 +2,9 @@ from datetime import UTC, datetime, timedelta
 
 from pydantic import TypeAdapter
 
-from countdown.abstract_client import AbstractClient, ClientStatus
+from countdown.abstract_client import AbstractClient
 from countdown.config_manager import GlowmarktConfig
-from countdown.http import DEFAULT_TIMEOUT, build_retrying_session
+from countdown.http import DEFAULT_TIMEOUT
 from countdown.models import Entity, Readings
 from display.energy_panel import EnergyPanel
 
@@ -43,9 +43,6 @@ class GlowClient(AbstractClient):
         self.cache_utc_offset: timedelta | None = None
         self.last_fetched: dict[int, datetime] = {}
         self.open_readings: dict[int, tuple[datetime, float]] = {}
-        self.session = build_retrying_session()
-        if not config.username or not config.password:
-            self.status = ClientStatus.DISABLED
 
     def _initialise(self) -> None:
         self._authenticate()

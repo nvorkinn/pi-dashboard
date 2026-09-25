@@ -62,19 +62,6 @@ def test_initialise_authenticates_and_resolves_the_electricity_resource():
 
 
 @pytest.mark.parametrize(
-    "config",
-    [GlowmarktConfig(), GlowmarktConfig(username="me@example.com"), GlowmarktConfig(password="hunter2")],
-)
-def test_without_full_credentials_client_is_disabled_and_makes_no_requests(glowmarkt_api, config):
-    client = GlowClient(config)
-
-    assert client.status == ClientStatus.DISABLED
-    asyncio.run(client.initialise())
-    assert asyncio.run(client.update()) is None
-    assert len(glowmarkt_api.calls) == 0
-
-
-@pytest.mark.parametrize(
     ("utc_offset", "expected"),
     [
         (timedelta(0), "0"),

@@ -7,6 +7,7 @@ from config_factory import make_config
 
 from countdown.abstract_client import AbstractClient, ClientStatus
 from countdown.api_registry import ApiRegistry, ClientClasses, FailedClient
+from countdown.config_manager import WeatherConfig
 from countdown.glow_client import GlowClient
 from countdown.notice_board_client import NoticeBoardClient
 from countdown.spotify_client import SpotifyClient
@@ -67,7 +68,6 @@ def test_on_config_update_registers_the_enabled_clients(monkeypatch):
 
     assert {name: type(client) for name, client in registry.clients.items()} == {
         "notice_board": NoticeBoardClient,
-        "glowmarkt": GlowClient,
         "tfl": TflClient,
         "weather": WeatherClient,
         "spotify": SpotifyClient,
@@ -81,7 +81,7 @@ def test_on_config_update_skips_disabled_clients():
 
     asyncio.run(registry.on_config_update(config))
 
-    assert set(registry.clients) == {"notice_board", "glowmarkt", "tfl"}
+    assert set(registry.clients) == {"notice_board", "tfl"}  # glowmarkt: no credentials
 
 
 def test_on_config_update_initialises_new_clients_even_if_one_fails(monkeypatch):
@@ -338,3 +338,49 @@ def test_a_failed_client_is_rebuilt_when_its_config_changes_and_dropped_when_swi
     registry.panels["spotify"] = "old panel"
     asyncio.run(registry.on_config_update(make_config()))  # spotify is disabled in the new config
     assert "spotify" not in registry.clients
+
+
+def test_available_is_the_built_clients_that_are_not_disabled():
+    disabled = FakeClient()
+    disabled.status = ClientStatus.DISABLED
+    registry = registry_with(tfl=FakeClient(), glowmarkt=disabled, weather=FailedClient(WeatherConfig(), ValueError()))
+
+    # A failing client keeps its area (to say so); a disabled or missing one doesn't.
+    assert registry.available() == frozenset({ClientClasses.TFL, ClientClasses.WEATHER})
+
+
+def test_available_leaves_out_glowmarkt_without_credentials_and_spotify_when_off():
+    registry = ApiRegistry()
+
+    asyncio.run(registry.on_config_update(make_config()))
+
+    assert registry.available() == frozenset({ClientClasses.TFL, ClientClasses.WEATHER, ClientClasses.NOTICE_BOARD})
+
+
+@pytest.mark.parametrize("username", [None, "", "   "])
+def test_available_leaves_out_glowmarkt_when_its_username_is_cleared(username):
+    """The broker keeps glowmarkt.enabled true when the owner clears the credentials, so
+    it's the credentials themselves that decide."""
+    registry = ApiRegistry()
+
+    asyncio.run(registry.on_config_update(make_config(glowmarkt={"username": username, "password": "pw"})))
+
+    assert ClientClasses.GLOWMARKT not in registry.available()
+
+
+def test_a_client_missing_what_it_needs_is_not_built_and_comes_back_fresh(monkeypatch):
+    """Clearing Glowmarkt's username removes its client altogether (the broker leaves
+    `enabled` true); putting it back builds a new one rather than reviving the old."""
+    monkeypatch.setattr(GlowClient, "initialise", lambda self: asyncio.sleep(0))  # no network
+    registry = ApiRegistry()
+    with_credentials = make_config(glowmarkt={"username": "me@example.com", "password": "pw"})
+
+    asyncio.run(registry.on_config_update(with_credentials))
+    first = registry.clients["glowmarkt"]
+    asyncio.run(registry.on_config_update(make_config(glowmarkt={"username": None, "password": "pw"})))
+    assert "glowmarkt" not in registry.clients
+    assert "glowmarkt" not in registry.panels
+
+    asyncio.run(registry.on_config_update(with_credentials))
+    assert isinstance(registry.clients["glowmarkt"], GlowClient)
+    assert registry.clients["glowmarkt"] is not first

@@ -4,14 +4,14 @@ import time
 from PIL import Image, ImageChops
 
 from countdown.api_registry import ClientClasses
-from display.combined_arrival_panel import CombinedArrivalPanel
+from countdown.display_composers import DEFAULT_COMPOSER, choose_composer
 from display.empty_panel import EmptyPanel
 from display.message_panel import MessagePanel
 from display.pairing_code_panel import PairingCodePanel
 from display.panel import Panel
 from display.setup_panel import SetupPanel
 from display.targets import DisplayTarget, target_from_env
-from display.utils import TOTAL_HEIGHT, TOTAL_WIDTH, add_border
+from display.utils import TOTAL_HEIGHT, TOTAL_WIDTH
 
 logger = logging.getLogger(__name__)
 
@@ -20,13 +20,6 @@ logger = logging.getLogger(__name__)
 # repainted in full. Also the most often the screen flashes: the arrivals change about
 # once a minute, everything else far less.
 FULL_REFRESH_INTERVAL_S = 600
-
-# Where display_screen() puts the arrivals panel, the part of the screen that changes
-# every minute and so the only part worth a partial refresh.
-ARRIVALS_ORIGIN = (5, 5)
-ARRIVALS_HEIGHT = 185
-# The arrivals panel is as wide as its stops; a message in its place gets one stop's width.
-ARRIVALS_MESSAGE_WIDTH = 262
 
 
 class DisplayController:
@@ -40,12 +33,23 @@ class DisplayController:
         self._last_full_refresh = 0.0
         # A whole-screen picture (pairing code, checklist, splash) the screen couldn't take yet.
         self._pending: Image.Image | None = None
+        # The layout: the full one until use_layout() learns what this device can show.
+        self._composer = DEFAULT_COMPOSER
 
     @property
     def panel_connected(self) -> bool | None:
         """None until the target has been asked (or if it can't tell, like a preview); then
         whether the panel answered."""
         return self.target.connected
+
+    def use_layout(self, available: frozenset[ClientClasses]) -> None:
+        """Picks the layout for a device that can show `available` (see
+        ApiRegistry.available), called whenever the config changes. A new layout moves
+        panels outside the arrivals, so the next screen is a full refresh on its own."""
+        composer = choose_composer(available)
+        if type(composer) is not type(self._composer):
+            logger.info(f"Changing layout from: {type(self._composer).__name__} to {type(composer).__name__}")
+        self._composer = composer
 
     def display_screen(self, panels: dict[str, Panel]) -> Image.Image:
         """Composes the registry's panels, one per API, and puts it on the panel only if it
@@ -54,69 +58,13 @@ class DisplayController:
         nothing to draw has a MessagePanel saying why (not configured, couldn't connect,
         nothing playing) -- unless none has anything, which shows a "nothing to show yet"
         message instead."""
-        img, arrivals_box = self._compose(panels)
+        if all(isinstance(panel, MessagePanel) for panel in panels.values()):
+            img, arrivals_box = EmptyPanel().render(TOTAL_WIDTH, TOTAL_HEIGHT), None
+        else:
+            img, arrivals_box = self._composer.compose(panels)
         content = img.convert("RGB")
         self._show(img, content, arrivals_box)
         return img
-
-    def _compose(self, panels: dict[str, Panel]) -> tuple[Image.Image, tuple[int, int, int, int] | None]:
-        """The screen without its footer, and the box the arrivals panel occupies (None
-        when it's the whole-screen "nothing to show" message)."""
-        img = Image.new("RGBA", (TOTAL_WIDTH, TOTAL_HEIGHT), (255, 255, 255, 255))
-
-        if all(isinstance(panel, MessagePanel) for panel in panels.values()):
-            return EmptyPanel().render(TOTAL_WIDTH, TOTAL_HEIGHT), None
-
-        # Arrivals
-        arrival_panel = panels[ClientClasses.TFL.api_name]
-        arrivals_width = TOTAL_WIDTH if isinstance(arrival_panel, CombinedArrivalPanel) else ARRIVALS_MESSAGE_WIDTH
-        arrival_image = arrival_panel.render(arrivals_width, ARRIVALS_HEIGHT)
-        add_border(arrival_image)
-        img.paste(arrival_image, ARRIVALS_ORIGIN, arrival_image)
-        arrivals_box = (
-            ARRIVALS_ORIGIN[0],
-            ARRIVALS_ORIGIN[1],
-            ARRIVALS_ORIGIN[0] + arrival_image.size[0],
-            ARRIVALS_ORIGIN[1] + arrival_image.size[1],
-        )
-
-        # Spotify
-        spotify_panel = panels[ClientClasses.SPOTIFY.api_name]
-        spotify_x = 5
-        spotify_y = TOTAL_HEIGHT - 120 - 5
-        spotify_image = spotify_panel.render(536, TOTAL_HEIGHT - spotify_y - 5)
-        add_border(spotify_image)
-        img.paste(spotify_image, (spotify_x, spotify_y), spotify_image)
-
-        # Notices, in the gap between the arrivals and Spotify
-        notices_panel = panels.get(ClientClasses.NOTICE_BOARD.api_name)
-        if notices_panel is not None:
-            notices_y = arrivals_box[3] + 5
-            notices_image = notices_panel.render(spotify_image.size[0], spotify_y - 5 - notices_y)
-            add_border(notices_image)
-            img.paste(notices_image, (spotify_x, notices_y), notices_image)
-
-        # Weather
-        weather_x = 5 + arrival_image.size[0] + 5
-        weather_y = 5
-        weather_width = TOTAL_WIDTH - weather_x - 5
-        weather_height = arrival_image.size[1]
-        weather_panel = panels[ClientClasses.WEATHER.api_name]
-        weather_image = weather_panel.render(weather_width, weather_height)
-        add_border(weather_image)
-        img.paste(weather_image, (weather_x, weather_y), weather_image)
-
-        # Energy
-        energy_x = 5 + spotify_image.size[0] + 5
-        energy_y = 5 + weather_image.size[1] + 5
-        energy_width = TOTAL_WIDTH - 5 - spotify_image.size[0] - 5 - 5
-        energy_height = TOTAL_HEIGHT - energy_y - 5
-        energy_panel = panels[ClientClasses.GLOWMARKT.api_name]
-        energy_image = energy_panel.render(energy_width, energy_height)
-        add_border(energy_image)
-        img.paste(energy_image, (energy_x, energy_y), energy_image)
-
-        return img, arrivals_box
 
     def _show(self, img: Image.Image, content: Image.Image, arrivals_box) -> None:
         changed = ImageChops.difference(self._shown, content).getbbox() if self._shown is not None else None

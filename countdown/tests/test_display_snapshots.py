@@ -67,6 +67,16 @@ from display.tube_arrival_panel import TubeArrivalPanel
 from display.weather_panel import WeatherPanel
 
 _CONTROLLER = DisplayController()
+EVERYTHING = frozenset(ClientClasses)
+NO_GLOWMARKT = EVERYTHING - {ClientClasses.GLOWMARKT}
+
+
+@pytest.fixture(autouse=True)
+def _full_layout():
+    """_CONTROLLER is shared, so each test starts from the full layout (a test that wants
+    another sets it) rather than whichever one the previous test left behind."""
+    _CONTROLLER.use_layout(EVERYTHING)
+
 
 _FROZEN_NOW = dt.datetime(2026, 1, 15, 12, 0, 0)
 
@@ -238,9 +248,26 @@ def test_screen_without_weather_data_yet(snapshot):
 
 
 def test_screen_without_energy_panel(snapshot):
-    """Glowmarkt not set up (the common case for a gifted device): its area says so."""
+    """Glowmarkt not set up (the common case for a gifted device): no energy column, and
+    the notices and Spotify take the full width instead."""
+    _CONTROLLER.use_layout(NO_GLOWMARKT)
     img = _CONTROLLER.display_screen(_panels(_bus_only_arrivals(), energy=GlowClient.message_panel("Not configured")))
     snapshot.assert_matches("screen_no_energy", img)
+
+
+@responses.activate
+def test_screen_without_energy_panel_playing_spotify(snapshot):
+    """Spotify at the full width it gets without the energy column."""
+    responses.add(responses.GET, ALBUM_ART_URL, body=_album_art_bytes(), content_type="image/png")
+    _CONTROLLER.use_layout(NO_GLOWMARKT)
+    img = _CONTROLLER.display_screen(
+        _panels(
+            _bus_only_arrivals(),
+            energy=GlowClient.message_panel("Not configured"),
+            spotify=SpotifyPanel(SPOTIFY_QUEUE),
+        )
+    )
+    snapshot.assert_matches("screen_no_energy_spotify_playing", img)
 
 
 def test_screen_with_no_notices(snapshot):
