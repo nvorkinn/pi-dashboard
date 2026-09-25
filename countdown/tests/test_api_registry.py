@@ -7,7 +7,7 @@ from config_factory import make_config
 
 from countdown.abstract_client import AbstractClient, ClientStatus
 from countdown.api_registry import ApiRegistry, ClientClasses, FailedClient
-from countdown.config_manager import WeatherConfig
+from countdown.config_manager import TflConfig, WeatherConfig
 from countdown.glow_client import GlowClient
 from countdown.notice_board_client import NoticeBoardClient
 from countdown.spotify_client import SpotifyClient
@@ -384,3 +384,15 @@ def test_a_client_missing_what_it_needs_is_not_built_and_comes_back_fresh(monkey
     asyncio.run(registry.on_config_update(with_credentials))
     assert isinstance(registry.clients["glowmarkt"], GlowClient)
     assert registry.clients["glowmarkt"] is not first
+
+
+def test_show_stops_tells_the_tfl_client_how_many_to_fetch():
+    registry = registry_with(tfl=TflClient(TflConfig()))
+
+    registry.show_stops(4)
+
+    assert registry.clients["tfl"].stops_per_update == 4
+
+
+def test_show_stops_without_a_tfl_client_does_nothing():
+    registry_with(weather=FakeClient()).show_stops(4)
