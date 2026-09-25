@@ -201,6 +201,38 @@ def test_update_builds_correct_panels(monkeypatch):
     assert isinstance(panel.arrival_panels[1], TubeArrivalPanel)
 
 
+def _shown_stop_ids(client: TflClient) -> list[str]:
+    return [panel.stop.naptan_id for panel in asyncio.run(client.update()).arrival_panels]
+
+
+def _no_arrivals(monkeypatch, client: TflClient) -> None:
+    response = MagicMock(raise_for_status=MagicMock())
+    response.json.return_value = []
+    monkeypatch.setattr(client.session, "get", lambda url, params=None, timeout=None: response)
+
+
+def test_update_pages_through_more_stops_than_the_layout_shows(monkeypatch):
+    client = TflClient(make_config())
+    client.stops = [make_bus_stop(f"49000000{i}") for i in range(8)]
+    client.stops_per_update = 4
+    _no_arrivals(monkeypatch, client)
+
+    assert _shown_stop_ids(client) == [f"49000000{i}" for i in range(4)]
+    assert _shown_stop_ids(client) == [f"49000000{i}" for i in range(4, 8)]
+    assert _shown_stop_ids(client) == [f"49000000{i}" for i in range(4)]
+
+
+def test_update_shows_every_stop_in_order_when_they_all_fit(monkeypatch):
+    """No rotation, so no stop shown twice: 3 stops in a 4-stop layout are just 1, 2, 3."""
+    client = TflClient(make_config())
+    client.stops = [make_bus_stop(f"49000000{i}") for i in range(3)]
+    client.stops_per_update = 4
+    _no_arrivals(monkeypatch, client)
+
+    assert _shown_stop_ids(client) == ["490000000", "490000001", "490000002"]
+    assert _shown_stop_ids(client) == ["490000000", "490000001", "490000002"]
+
+
 def test_update_raises_when_no_stops_arrivals_could_be_fetched(monkeypatch):
     """Raised rather than returning an empty panel, so the registry keeps the last good one."""
     client = TflClient(make_config())

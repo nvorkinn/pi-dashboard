@@ -193,6 +193,20 @@ def _bus_only_arrivals() -> CombinedArrivalPanel:
     return CombinedArrivalPanel([BusArrivalPanel(BUS_STOP, BUS_ARRIVALS)])
 
 
+def _four_stop_arrivals() -> CombinedArrivalPanel:
+    """Two bus stops and two stations, for the layout with room for four."""
+    other_bus_stop = BUS_STOP.model_copy(update={"common_name": "Walworth Road", "stop_letter": "E"})
+    other_station = TUBE_STOP.model_copy(update={"common_name": "Oval Underground Station"})
+    return CombinedArrivalPanel(
+        [
+            BusArrivalPanel(BUS_STOP, BUS_ARRIVALS),
+            TubeArrivalPanel(TUBE_STOP, TUBE_ARRIVALS),
+            BusArrivalPanel(other_bus_stop, BUS_ARRIVALS),
+            TubeArrivalPanel(other_station, TUBE_ARRIVALS),
+        ]
+    )
+
+
 SPOTIFY_NOT_CONFIGURED = SpotifyClient.message_panel("Not configured")
 
 NOTICES = NoticeBoardPanel(
@@ -275,6 +289,20 @@ def test_screen_with_no_notices(snapshot):
         _panels(_bus_only_arrivals(), notices=NoticeBoardClient.message_panel("All clear"))
     )
     snapshot.assert_matches("screen_no_notices", img)
+
+
+def test_screen_without_spotify(snapshot):
+    """GlowComposer: the notices under the arrivals, the energy chart under the weather."""
+    _CONTROLLER.use_layout(EVERYTHING - {ClientClasses.SPOTIFY})
+    img = _CONTROLLER.display_screen(_panels(_bus_and_tube_arrivals()))
+    snapshot.assert_matches("screen_no_spotify", img)
+
+
+def test_screen_with_four_stops_and_neither_spotify_nor_energy(snapshot):
+    """BaseComposer: four stops in a 2x2 grid beside the weather, the notices below."""
+    _CONTROLLER.use_layout(EVERYTHING - {ClientClasses.SPOTIFY, ClientClasses.GLOWMARKT})
+    img = _CONTROLLER.display_screen(_panels(_four_stop_arrivals()))
+    snapshot.assert_matches("screen_four_stops", img)
 
 
 def test_splash_screen_when_the_broker_cannot_be_reached(snapshot):

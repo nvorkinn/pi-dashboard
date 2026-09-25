@@ -117,6 +117,14 @@ class ApiRegistry:
             if (client := self.clients.get(member.api_name)) is not None and not client.is_disabled()
         )
 
+    def show_stops(self, count: int) -> None:
+        """How many stops the layout has room for, for the TfL client to fetch per update.
+        Called after every on_config_update(), so a TfL client rebuilt for a new config
+        gets it too."""
+        tfl = self.clients.get(ClientClasses.TFL.api_name)
+        if isinstance(tfl, TflClient):
+            tfl.stops_per_update = count
+
     def _panel_for(self, member: ClientClasses) -> Panel:
         """The API's last panel, or a MessagePanel saying why there isn't one: it's off
         (disabled in the config, or missing what it needs, like Glowmarkt credentials), or

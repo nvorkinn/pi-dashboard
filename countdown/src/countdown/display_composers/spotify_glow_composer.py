@@ -13,7 +13,7 @@ SPOTIFY_HEIGHT = 120
 
 class SpotifyGlowComposer(AbstractDisplayComposer):
     """Everything: the notices above Spotify on the left, the energy chart on the right.
-    Also the fallback when no more specific layout fits."""
+    Also what's drawn before the first config arrives."""
 
     @override
     def can_compose(self, available: frozenset[ClientClasses]) -> bool:
