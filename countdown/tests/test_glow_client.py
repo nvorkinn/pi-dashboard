@@ -1,5 +1,6 @@
 import asyncio
 import json
+import time
 from datetime import UTC, datetime, timedelta, timezone
 from unittest.mock import MagicMock
 from urllib.parse import parse_qs, urlparse
@@ -257,7 +258,11 @@ BST = timezone(timedelta(hours=1), "BST")
 
 @pytest.fixture
 def clock(monkeypatch):
-    """Freezes GlowClient's idea of now; tests move it by reassigning clock.now."""
+    """Freezes GlowClient's idea of now; tests move it by reassigning clock.now.
+    Also puts the process in UK time, since _update() converts now to the
+    machine's zone - otherwise a UTC CI runner never exercises BST."""
+    monkeypatch.setenv("TZ", "Europe/London")
+    time.tzset()
 
     class Clock:
         now = datetime(2026, 9, 25, 6, 10, tzinfo=BST)
@@ -268,7 +273,9 @@ def clock(monkeypatch):
             return Clock.now
 
     monkeypatch.setattr(glow_client, "datetime", FrozenDatetime)
-    return Clock
+    yield Clock
+    monkeypatch.undo()
+    time.tzset()
 
 
 def _readings_requests(glowmarkt_api) -> list[dict[str, list[str]]]:
