@@ -1,10 +1,22 @@
 from abc import ABC, abstractmethod
 
-from PIL import Image, ImageDraw
+from PIL import Image, ImageDraw, ImageFont
 
 from countdown.models import ArrivalUnion
 from display.panel import Panel
-from display.utils import UBUNTU_BOLD, UBUNTU_MEDIUM
+from display.utils import UBUNTU_BOLD, UBUNTU_CONDENSED, UBUNTU_MEDIUM
+
+# One departure per row: a route badge (square-cornered -- on a 1-bit screen only straight
+# edges come out crisp), the destination, and the time on the right.
+ROW_HEIGHT = 24
+ROW_GAP = 3  # between departures
+# Every badge is the same width, whatever the route. Routes of up to three characters
+# fit in UBUNTU_MEDIUM ("W19" is 29 px); longer ones ("N155", "SL10") that don't are
+# drawn in UBUNTU_CONDENSED instead: the same size, and the same 10 px digit height, but
+# "N155" is 26 px wide rather than 34.
+BADGE_WIDTH = 36
+BADGE_PADDING = 3  # either side of the route inside its badge
+DESTINATION_GAP = 6  # between the badge and the destination
 
 
 class AbstractArrivalPanel(Panel, ABC):
@@ -31,15 +43,22 @@ class AbstractArrivalPanel(Panel, ABC):
         raise NotImplementedError("Subclasses must implement the _create_panel_for_arrivals method.")
 
     @staticmethod
+    def _route_font(route: str) -> ImageFont.FreeTypeFont:
+        """The usual font if the route fits its badge, otherwise the condensed one."""
+        if UBUNTU_MEDIUM.getlength(route) <= BADGE_WIDTH - 2 * BADGE_PADDING:
+            return UBUNTU_MEDIUM
+        return UBUNTU_CONDENSED
+
+    @staticmethod
     def _create_panel_for_stop_arrival(route: str, destination: str, eta: str, max_x: int) -> Image.Image:
-        radius = 14
-        img = Image.new("RGBA", (max_x, radius * 2 + 1), (255, 255, 255, 0))
+        img = Image.new("RGBA", (max_x, ROW_HEIGHT), (255, 255, 255, 0))
         d = ImageDraw.Draw(img)
         d.fontmode = "1"
-        d.circle((radius, radius), radius, "black")
-        d.text((radius, radius), route, "white", font=UBUNTU_MEDIUM, anchor="mm")
-        d.text((35, radius), destination, "black", font=UBUNTU_BOLD, anchor="lm")
-        d.text((img.size[0], radius), eta, "black", font=UBUNTU_MEDIUM, anchor="rm")
+        middle = ROW_HEIGHT // 2
+        d.rectangle((0, 0, BADGE_WIDTH - 1, ROW_HEIGHT - 1), fill="black")
+        d.text((BADGE_WIDTH / 2, middle), route, "white", font=AbstractArrivalPanel._route_font(route), anchor="mm")
+        d.text((BADGE_WIDTH + DESTINATION_GAP, middle), destination, "black", font=UBUNTU_BOLD, anchor="lm")
+        d.text((img.size[0], middle), eta, "black", font=UBUNTU_MEDIUM, anchor="rm")
         return img
 
     @staticmethod

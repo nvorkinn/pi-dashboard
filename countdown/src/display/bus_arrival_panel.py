@@ -1,7 +1,7 @@
 from PIL import Image, ImageDraw
 
 from countdown.models import BusArrival, SingleStopPoint
-from display.abstract_arrival_panel import AbstractArrivalPanel
+from display.abstract_arrival_panel import ROW_GAP, AbstractArrivalPanel
 
 
 class BusArrivalPanel(AbstractArrivalPanel):
@@ -29,5 +29,5 @@ class BusArrivalPanel(AbstractArrivalPanel):
             if arrival_panel_bottom > img.size[1]:
                 return img
             img.paste(arrival_panel, (0, y))
-            y = arrival_panel_bottom + 3
+            y = arrival_panel_bottom + ROW_GAP
         return img

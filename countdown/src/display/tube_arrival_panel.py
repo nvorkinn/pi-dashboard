@@ -3,7 +3,7 @@ from collections import defaultdict
 from PIL import Image, ImageDraw
 
 from countdown.models import MetroStopPoint, TubeArrival
-from display.abstract_arrival_panel import AbstractArrivalPanel
+from display.abstract_arrival_panel import ROW_GAP, AbstractArrivalPanel
 from display.utils import ROUNDEL, TFL_MEDIUM_FONT_10
 
 
@@ -36,7 +36,7 @@ class TubeArrivalPanel(AbstractArrivalPanel):
                 if arrival_panel_bottom > img.size[1]:
                     return img
                 img.paste(arrival_panel, (0, y))
-                y = arrival_panel_bottom + 3
+                y = arrival_panel_bottom + ROW_GAP
         return img
 
     @staticmethod
