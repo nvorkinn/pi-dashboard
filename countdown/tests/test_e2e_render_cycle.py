@@ -41,6 +41,7 @@ from countdown.display_loop import DisplayLoop
 from display.combined_arrival_panel import CombinedArrivalPanel
 from display.energy_panel import EnergyPanel
 from display.spotify_panel import SpotifyPanel
+from display.spotify_top_panel import SpotifyTopPanel
 from display.weather_panel import WeatherPanel
 
 TEST_BROKER_URL = "https://broker.example.com"
@@ -281,12 +282,14 @@ def test_full_render_cycle_when_nothing_is_playing(isolated_cwd, monkeypatch):
     config.spotify.enabled = True
     _mock_tfl_and_glowmarkt({"490000123W": BUS_STOP_JSON}, {"490000123W": BUS_ARRIVALS_JSON})
     responses.add(responses.GET, QUEUE_URL, json={"currently_playing": None, "queue": []})
+    responses.add(responses.GET, f"{TEST_BROKER_URL}/api/devices/test-device/top/tracks", json={"items": []})
+    responses.add(responses.GET, f"{TEST_BROKER_URL}/api/devices/test-device/top/artists", json={"items": []})
     loop = _build_loop(config, monkeypatch)
     shown = _spy_on_display_screen(loop, monkeypatch)
 
     _run_cycles(loop, monkeypatch)
 
-    assert shown[0]["spotify"].message == "Nothing playing on:"
+    assert isinstance(shown[0]["spotify"], SpotifyTopPanel)  # the player has nothing to show
     assert isinstance(shown[0]["glowmarkt"], EnergyPanel)
 
 

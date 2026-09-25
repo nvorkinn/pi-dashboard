@@ -23,20 +23,20 @@ class SpotifyPanel(Panel):
         space_remaining = img.size[0] - album_image_panel.size[0] - 5
         draw.text(
             (album_image_panel.size[0] + 5, 0),
-            _truncate_to_fit(self.queue.currently_playing.name, UBUNTU_MEDIUM_20, space_remaining),
+            truncate_to_fit(self.queue.currently_playing.name, UBUNTU_MEDIUM_20, space_remaining),
             "black",
             anchor="la",
         )
         draw.text(
             (album_image_panel.size[0] + 5, 27),
-            _truncate_to_fit(_artists_names(self.queue.currently_playing.artists), UBUNTU_BOLD_20, space_remaining),
+            truncate_to_fit(_artists_names(self.queue.currently_playing.artists), UBUNTU_BOLD_20, space_remaining),
             "black",
             font=UBUNTU_BOLD_20,
             anchor="la",
         )
         draw.text(
             (album_image_panel.size[0] + 5, 55),
-            _truncate_to_fit(self.queue.currently_playing.album.name, UBUNTU_MEDIUM_20, space_remaining),
+            truncate_to_fit(self.queue.currently_playing.album.name, UBUNTU_MEDIUM_20, space_remaining),
             fill="black",
             anchor="la",
         )
@@ -45,7 +45,7 @@ class SpotifyPanel(Panel):
             up_next = f"{self.queue.queue[0].name} by {_artists_names(self.queue.queue[0].artists)}"
             draw.text(
                 (album_image_panel.size[0] + 5, image_height - 10),
-                _truncate_to_fit(f"Up next: {up_next}", UBUNTU_MEDIUM_15, space_remaining),
+                truncate_to_fit(f"Up next: {up_next}", UBUNTU_MEDIUM_15, space_remaining),
                 "black",
                 font=UBUNTU_MEDIUM_15,
                 anchor="ld",
@@ -54,7 +54,7 @@ class SpotifyPanel(Panel):
         return img
 
 
-def _truncate_to_fit(text: str, font: ImageFont.BaseImageFont, max_width: int) -> str:
+def truncate_to_fit(text: str, font: ImageFont.BaseImageFont, max_width: int) -> str:
     """Truncates text with an ellipsis if it exceeds max_width pixels."""
     if font.getlength(text) <= max_width:
         return text
