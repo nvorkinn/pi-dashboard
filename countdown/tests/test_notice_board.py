@@ -568,6 +568,20 @@ def test_board_adds_local_sources_once_the_postcode_is_found(api, clock):
     ]
 
 
+def test_board_logs_where_the_postcode_is(api, clock, caplog):
+    api.add(responses.GET, f"{POSTCODES_URL}/SE17%203LL", json={"result": SOUTHWARK.model_dump()})
+    client = NoticeBoardClient(NoticeBoardConfig(postcode="SE17 3LL"))
+    client._refresh = lambda source, now: None
+
+    with caplog.at_level("INFO", logger="countdown.notice_board_client"), pytest.raises(RuntimeError):
+        update(client)
+
+    assert (
+        "Notice board: SE17 3LL is in London, Southwark; Met Office region se, bank holidays for england-and-wales"
+        in caplog.messages
+    )
+
+
 def test_board_with_an_unknown_postcode_says_so(api, clock):
     api.add(responses.GET, f"{POSTCODES_URL}/ZZ1%201ZZ", status=404, json={"error": "Invalid postcode"})
     api.add(responses.GET, BANK_HOLIDAYS_URL, json=BANK_HOLIDAYS)
