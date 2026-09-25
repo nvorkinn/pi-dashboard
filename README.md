@@ -107,9 +107,9 @@ all of it:
   and has to be re-created and re-encrypted from scratch.
 
 If a given `secrets/<app>.env.age` doesn't exist yet, `install.sh` skips it
-and that app falls back to its own defaults (countdown runs with no config
-until you set it via its web UI; pi-telemetry seeds a placeholder env you
-have to edit by hand).
+and that app falls back to its own defaults (countdown gets its config from
+auth-broker anyway; pi-telemetry seeds a placeholder env you have to edit by
+hand).
 
 ### Adding or updating a secret
 
