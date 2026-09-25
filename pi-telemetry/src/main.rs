@@ -53,8 +53,7 @@ async fn main() {
 
     let (client, mut event_loop) = AsyncClient::new(mqtt_options, 10);
 
-    // rumqttc only actually does network I/O while the event loop is being
-    // polled, so we drive it on a background task for the life of the process.
+    // rumqttc only does network I/O while the event loop is polled.
     tokio::spawn(async move {
         loop {
             if let Err(e) = event_loop.poll().await {
@@ -90,7 +89,6 @@ async fn main() {
 
     println!("Published telemetry to {state_topic}");
 
-    // Give the event loop task a moment to actually flush the publish over
-    // the socket before the process exits.
+    // Give the event loop a moment to flush the publish before exiting.
     tokio::time::sleep(Duration::from_secs(1)).await;
 }

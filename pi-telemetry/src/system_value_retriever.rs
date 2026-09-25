@@ -26,7 +26,6 @@ impl SystemInfo for System {
     }
 }
 
-// Returns a fully initialized System instance, using `System::new_all`.
 pub fn get_system() -> System {
     System::new_all()
 }
