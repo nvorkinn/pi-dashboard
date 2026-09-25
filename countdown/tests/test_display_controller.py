@@ -230,7 +230,12 @@ class Solid(Panel):
 
 
 def frame(arrivals: str = "black", weather: str = "gray", arrivals_width: int = 300) -> dict:
-    return {"tfl": Solid(arrivals, (arrivals_width, 275)), "weather": Solid(weather, (200, 200))}
+    return {
+        "tfl": Solid(arrivals, (arrivals_width, 185)),
+        "weather": Solid(weather, (200, 185)),
+        "spotify": Solid("white", (536, 120)),
+        "glowmarkt": Solid("white", (250, 280)),
+    }
 
 
 @pytest.fixture
@@ -252,13 +257,13 @@ def test_the_first_frame_is_one_full_refresh_with_no_clear_first(no_preview, clo
     assert epd.calls == ["init", "display", "sleep"]
 
 
-def test_an_unchanged_screen_is_left_alone_even_though_the_footer_time_moves_on(no_preview, clock):
+def test_an_unchanged_screen_is_left_alone(no_preview, clock):
     epd = FakeEpd(answers=True)
     controller = controller_with(epd)
     controller.display_screen(frame())
     calls = list(epd.calls)
 
-    controller.display_screen(frame())  # the footer's timestamp has moved on; the picture hasn't
+    controller.display_screen(frame())
 
     assert epd.calls == calls
 
@@ -273,8 +278,8 @@ def test_only_the_arrivals_changing_is_a_partial_refresh_of_just_their_area(no_p
 
     assert epd.calls == ["init_part", "display_Partial", "sleep"]
     ((region, buffer_length),) = epd.partials
-    assert region == (0, 5, 312, 280)  # arrivals sit at (5, 5), 300x275; x rounded out to whole bytes
-    assert buffer_length == (312 // 8) * (280 - 5)
+    assert region == (0, 5, 312, 190)  # arrivals sit at (5, 5), 300x185; x rounded out to whole bytes
+    assert buffer_length == (312 // 8) * (190 - 5)
 
 
 @pytest.mark.parametrize("width", [300, 301, 307, 250])

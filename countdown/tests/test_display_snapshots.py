@@ -38,6 +38,7 @@ import countdown  # noqa: F401, I001
 import display.display
 import display.energy_panel
 from countdown.api_registry import ClientClasses
+from countdown.glow_client import GlowClient
 from countdown.models import (
     BusArrival,
     MetroStopPoint,
@@ -46,6 +47,9 @@ from countdown.models import (
     TubeArrival,
     Weather,
 )
+from countdown.spotify_client import SpotifyClient
+from countdown.tfl_client import TflClient
+from countdown.weather_client import WeatherClient
 from display.bus_arrival_panel import BusArrivalPanel
 from display.combined_arrival_panel import CombinedArrivalPanel
 from display.display import DisplayController
@@ -72,7 +76,6 @@ class _FrozenDatetime(dt.datetime):
 
 @pytest.fixture(autouse=True)
 def _freeze_time(monkeypatch):
-    monkeypatch.setattr(display.display, "datetime", _FrozenDatetime)
     monkeypatch.setattr(display.energy_panel, "datetime", _FrozenDatetime)
 
 
@@ -168,28 +171,27 @@ def _bus_only_arrivals() -> CombinedArrivalPanel:
     return CombinedArrivalPanel([BusArrivalPanel(BUS_STOP, BUS_ARRIVALS)])
 
 
-def _no_arrivals() -> CombinedArrivalPanel:
-    return CombinedArrivalPanel([])
+SPOTIFY_NOT_CONFIGURED = SpotifyClient.message_panel("Not configured")
 
 
 def _panels(
-    arrivals: CombinedArrivalPanel | None,
-    energy: EnergyPanel | None = ENERGY,
-    weather: WeatherPanel | None = WEATHER,
-    track: SpotifyPlayingRightNow | None = None,
-) -> dict[str, Panel | None]:
-    """What ApiRegistry.update_all() hands DisplayController.display_screen(): one
-    entry per client, None (or absent) meaning that client has nothing to show."""
+    arrivals: Panel,
+    energy: Panel = ENERGY,
+    weather: Panel = WEATHER,
+    spotify: Panel = SPOTIFY_NOT_CONFIGURED,
+) -> dict[str, Panel]:
+    """What ApiRegistry.update_all() hands DisplayController.display_screen(): a panel
+    for every API, a MessagePanel where one has nothing to show."""
     return {
         ClientClasses.TFL.api_name: arrivals,
         ClientClasses.GLOWMARKT.api_name: energy,
         ClientClasses.WEATHER.api_name: weather,
-        ClientClasses.SPOTIFY.api_name: SpotifyPanel(track) if track else None,
+        ClientClasses.SPOTIFY.api_name: spotify,
     }
 
 
 def test_screen_with_no_stops_configured(snapshot):
-    img = _CONTROLLER.display_screen(_panels(_no_arrivals()))
+    img = _CONTROLLER.display_screen(_panels(TflClient.message_panel("No stops set")))
     snapshot.assert_matches("screen_no_stops", img)
 
 
@@ -204,16 +206,16 @@ def test_screen_with_mixed_bus_and_tube(snapshot):
 
 
 def test_screen_without_weather_data_yet(snapshot):
-    """Covers the case where the very first weather fetch hasn't completed yet --
-    display_screen must not crash when there's no weather panel yet."""
-    img = _CONTROLLER.display_screen(_panels(_bus_only_arrivals(), weather=None))
+    """The weather has never been fetched successfully: its area says so."""
+    img = _CONTROLLER.display_screen(
+        _panels(_bus_only_arrivals(), weather=WeatherClient.message_panel("Could not connect"))
+    )
     snapshot.assert_matches("screen_no_weather", img)
 
 
 def test_screen_without_energy_panel(snapshot):
-    """Glowmarkt not set up (the common case for a gifted device): the slot is left
-    empty and the weather panel takes over the full height."""
-    img = _CONTROLLER.display_screen(_panels(_bus_only_arrivals(), energy=None))
+    """Glowmarkt not set up (the common case for a gifted device): its area says so."""
+    img = _CONTROLLER.display_screen(_panels(_bus_only_arrivals(), energy=GlowClient.message_panel("Not configured")))
     snapshot.assert_matches("screen_no_energy", img)
 
 
@@ -275,14 +277,14 @@ def test_screen_with_no_panels_at_all_says_there_is_nothing_to_show(snapshot):
 @responses.activate
 def test_screen_with_spotify_playing(snapshot):
     responses.add(responses.GET, SPOTIFY_TRACK_PLAYING.album_image, body=_album_art_bytes(), content_type="image/png")
-    img = _CONTROLLER.display_screen(_panels(_bus_only_arrivals(), track=SPOTIFY_TRACK_PLAYING))
+    img = _CONTROLLER.display_screen(_panels(_bus_only_arrivals(), spotify=SpotifyPanel(SPOTIFY_TRACK_PLAYING)))
     snapshot.assert_matches("screen_spotify_playing", img)
 
 
 @responses.activate
 def test_screen_with_spotify_paused(snapshot):
     responses.add(responses.GET, SPOTIFY_TRACK_PAUSED.album_image, body=_album_art_bytes(), content_type="image/png")
-    img = _CONTROLLER.display_screen(_panels(_bus_only_arrivals(), track=SPOTIFY_TRACK_PAUSED))
+    img = _CONTROLLER.display_screen(_panels(_bus_only_arrivals(), spotify=SpotifyPanel(SPOTIFY_TRACK_PAUSED)))
     snapshot.assert_matches("screen_spotify_paused", img)
 
 
