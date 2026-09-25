@@ -68,12 +68,21 @@ class NoticeBoardClient(AbstractClient):
             self.sources.append(BankHolidaySource(self.session))  # England and Wales
             return
         self.location = location
+        bank_holidays = BankHolidaySource(self.session, location.country)
+        met_office = MetOfficeWarningsSource(self.session, location)
         self.sources += [
-            BankHolidaySource(self.session, location.country),
-            MetOfficeWarningsSource(self.session, location),
+            bank_holidays,
+            met_office,
             FloodWarningsSource(self.session, location),
             TflRoadSource(self.session, self.tfl_config, location),
         ]
+        # The one sign on a device that the broker's postcode arrived and was placed:
+        # otherwise a quiet board looks the same with or without it.
+        area = ", ".join(part for part in (location.region or location.country, location.admin_district) if part)
+        logger.info(
+            f"Notice board: {location.postcode} is in {area}; Met Office region {met_office.region}, "
+            f"bank holidays for {bank_holidays.division}"
+        )
 
     def _refresh(self, source: NoticeSource, now: datetime) -> None:
         last = self.last_tried.get(source)

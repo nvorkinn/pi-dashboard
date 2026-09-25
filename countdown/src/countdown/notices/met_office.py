@@ -131,7 +131,8 @@ class MetOfficeWarningsSource(NoticeSource):
 
     def __init__(self, session, location: Postcode):
         super().__init__(session)
-        self.url = FEED_URL.format(region=region_for(location))
+        self.region = region_for(location)
+        self.url = FEED_URL.format(region=self.region)
 
     def fetch(self, now: datetime) -> list[Notice]:
         response = self.session.get(self.url, timeout=DEFAULT_TIMEOUT)
