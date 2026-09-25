@@ -5,7 +5,7 @@ from pathlib import Path
 from countdown.abstract_client import AbstractClient
 from countdown.config_manager import SpotifyConfig
 from countdown.http import DEFAULT_TIMEOUT
-from countdown.models import SpotifyPlayingRightNow
+from countdown.models import Queue
 from display.panel import Panel
 from display.spotify_panel import SpotifyPanel
 
@@ -43,18 +43,18 @@ class SpotifyClient(AbstractClient):
     def _initialise(self) -> None:
         pass
 
-    def _request(self, method: str, path: str, **kwargs):
+    def _request(self, method: str, path: str, **kwargs) -> bytes:
         headers = {"Authorization": f"Bearer {self.device_secret}"}
         response = self.session.request(
             method, f"{self.base_url}{path}", headers=headers, timeout=DEFAULT_TIMEOUT, **kwargs
         )
         response.raise_for_status()
-        return response.json()
+        return response.content
 
     def _update(self) -> Panel:
-        """Same shape as the old SpotifyClient.get_current_track(): the broker
+        """What's playing and what's up next, from the broker's queue: the broker
         refreshes and calls Spotify server-side, this device never sees a token."""
-        json = self._request("GET", f"/api/devices/{self.device_id}/now-playing")
-        if json is None:
+        queue = Queue.model_validate_json(self._request("GET", f"/api/devices/{self.device_id}/queue"))
+        if queue.currently_playing is None:
             return self.message_panel("Nothing playing on:")
-        return SpotifyPanel(SpotifyPlayingRightNow.model_validate(json))
+        return SpotifyPanel(queue)

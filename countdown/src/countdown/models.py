@@ -1,8 +1,9 @@
 from abc import ABC
+from datetime import timedelta
 from enum import StrEnum
 from typing import Annotated, Literal
 
-from pydantic import BaseModel, Field, field_validator
+from pydantic import BaseModel, BeforeValidator, Field, HttpUrl, field_validator
 
 
 class Mode(StrEnum):
@@ -156,9 +157,34 @@ class Weather(BaseModel):
     precipitation_probability: int | None = None
 
 
-class SpotifyPlayingRightNow(BaseModel):
-    album: str
-    album_image: str
-    artist: str
-    is_playing: bool
-    song: str
+MillisecondTimedelta = Annotated[
+    timedelta, BeforeValidator(lambda v: timedelta(milliseconds=v) if isinstance(v, (int, float)) else v)
+]
+
+
+class Image(BaseModel):
+    width: int
+    height: int
+    url: HttpUrl
+
+
+class Album(BaseModel):
+    images: list[Image]
+    name: str
+    # release_date: date
+
+
+class Artist(BaseModel):
+    name: str
+
+
+class Track(BaseModel):
+    album: Album
+    artists: list[Artist]
+    name: str
+    duration_ms: MillisecondTimedelta
+
+
+class Queue(BaseModel):
+    currently_playing: Track | None
+    queue: list[Track]

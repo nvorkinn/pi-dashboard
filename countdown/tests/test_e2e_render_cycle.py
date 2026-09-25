@@ -45,7 +45,7 @@ from display.weather_panel import WeatherPanel
 
 TEST_BROKER_URL = "https://broker.example.com"
 GLOWMARKT_URL = "https://api.glowmarkt.com/api/v0-1"
-NOW_PLAYING_URL = f"{TEST_BROKER_URL}/api/devices/test-device/now-playing"
+QUEUE_URL = f"{TEST_BROKER_URL}/api/devices/test-device/queue"
 
 
 def _app_config_json(
@@ -99,11 +99,10 @@ METRO_ARRIVALS_JSON = [
     }
 ]
 TRACK_JSON = {
-    "song": "Test Song",
-    "artist": "Test Artist",
-    "album": "Test Album",
-    "album_image": "https://example.com/album.jpg",
-    "is_playing": True,
+    "name": "Test Song",
+    "artists": [{"name": "Test Artist"}],
+    "album": {"name": "Test Album", "images": [{"width": 64, "height": 64, "url": "https://example.com/album.jpg"}]},
+    "duration_ms": 200_000,
 }
 
 
@@ -263,7 +262,7 @@ def test_full_render_cycle_with_spotify_track(isolated_cwd, monkeypatch):
     config.tfl.stop_ids = ["490000123W"]
     config.spotify.enabled = True
     _mock_tfl_and_glowmarkt({"490000123W": BUS_STOP_JSON}, {"490000123W": BUS_ARRIVALS_JSON})
-    responses.add(responses.GET, NOW_PLAYING_URL, json=TRACK_JSON)
+    responses.add(responses.GET, QUEUE_URL, json={"currently_playing": TRACK_JSON, "queue": []})
     responses.add(responses.GET, "https://example.com/album.jpg", body=_png_bytes(), content_type="image/png")
     loop = _build_loop(config, monkeypatch)
     shown = _spy_on_display_screen(loop, monkeypatch)
@@ -271,7 +270,7 @@ def test_full_render_cycle_with_spotify_track(isolated_cwd, monkeypatch):
     _run_cycles(loop, monkeypatch)
 
     assert isinstance(shown[0]["spotify"], SpotifyPanel)
-    assert shown[0]["spotify"].playingRightNow.song == "Test Song"
+    assert shown[0]["spotify"].queue.currently_playing.name == "Test Song"
     assert _calls_to("https://example.com/album.jpg") == 1  # the screen really was rendered with the art
 
 
@@ -281,7 +280,7 @@ def test_full_render_cycle_when_nothing_is_playing(isolated_cwd, monkeypatch):
     config.tfl.stop_ids = ["490000123W"]
     config.spotify.enabled = True
     _mock_tfl_and_glowmarkt({"490000123W": BUS_STOP_JSON}, {"490000123W": BUS_ARRIVALS_JSON})
-    responses.add(responses.GET, NOW_PLAYING_URL, body="null", content_type="application/json")
+    responses.add(responses.GET, QUEUE_URL, json={"currently_playing": None, "queue": []})
     loop = _build_loop(config, monkeypatch)
     shown = _spy_on_display_screen(loop, monkeypatch)
 

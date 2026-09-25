@@ -42,8 +42,8 @@ from countdown.glow_client import GlowClient
 from countdown.models import (
     BusArrival,
     MetroStopPoint,
+    Queue,
     SingleStopPoint,
-    SpotifyPlayingRightNow,
     TubeArrival,
     Weather,
 )
@@ -138,21 +138,30 @@ WEATHER = WeatherPanel(
     Weather(temperature=14.2, weather_code=3, is_day=True, high=18.4, low=9.1, precipitation_probability=40)
 )
 
-SPOTIFY_TRACK_PLAYING = SpotifyPlayingRightNow(
-    song="Around The World",
-    artist="Daft Punk",
-    album="Homework",
-    album_image="https://example.com/album.jpg",
-    is_playing=True,
+ALBUM_ART_URL = "https://example.com/album.jpg"
+
+
+def _track(name: str, artist: str, album: str) -> dict:
+    return {
+        "name": name,
+        "artists": [{"name": artist}],
+        "album": {"name": album, "images": [{"width": 64, "height": 64, "url": ALBUM_ART_URL}]},
+        "duration_ms": 427_000,
+    }
+
+
+SPOTIFY_QUEUE = Queue.model_validate(
+    {
+        "currently_playing": _track("Around The World", "Daft Punk", "Homework"),
+        "queue": [_track("Da Funk", "Daft Punk", "Homework")],
+    }
 )
-SPOTIFY_TRACK_PAUSED = SPOTIFY_TRACK_PLAYING.model_copy(update={"is_playing": False})
+SPOTIFY_QUEUE_LAST_TRACK = SPOTIFY_QUEUE.model_copy(update={"queue": []})
 
 
 def _album_art_bytes() -> bytes:
-    """64x64 to match what auth-broker actually picks (the *smallest* of the sizes
-    Spotify returns, same logic that used to live in this repo's spotify_client.py
-    before Spotify calls moved server-side) -- a larger thumbnail here would
-    overflow the panel's fixed height budget below the energy panel."""
+    """The album's only image, and a small one: thumbnail() never scales up, so it
+    stays 64x64 in the 120px-high panel."""
     buf = io.BytesIO()
     Image.new("RGB", (64, 64), (30, 30, 30)).save(buf, format="PNG")
     return buf.getvalue()
@@ -276,16 +285,17 @@ def test_screen_with_no_panels_at_all_says_there_is_nothing_to_show(snapshot):
 
 @responses.activate
 def test_screen_with_spotify_playing(snapshot):
-    responses.add(responses.GET, SPOTIFY_TRACK_PLAYING.album_image, body=_album_art_bytes(), content_type="image/png")
-    img = _CONTROLLER.display_screen(_panels(_bus_only_arrivals(), spotify=SpotifyPanel(SPOTIFY_TRACK_PLAYING)))
+    responses.add(responses.GET, ALBUM_ART_URL, body=_album_art_bytes(), content_type="image/png")
+    img = _CONTROLLER.display_screen(_panels(_bus_only_arrivals(), spotify=SpotifyPanel(SPOTIFY_QUEUE)))
     snapshot.assert_matches("screen_spotify_playing", img)
 
 
 @responses.activate
-def test_screen_with_spotify_paused(snapshot):
-    responses.add(responses.GET, SPOTIFY_TRACK_PAUSED.album_image, body=_album_art_bytes(), content_type="image/png")
-    img = _CONTROLLER.display_screen(_panels(_bus_only_arrivals(), spotify=SpotifyPanel(SPOTIFY_TRACK_PAUSED)))
-    snapshot.assert_matches("screen_spotify_paused", img)
+def test_screen_with_spotify_playing_the_last_queued_track(snapshot):
+    """Nothing up next: that line is left out rather than drawn empty."""
+    responses.add(responses.GET, ALBUM_ART_URL, body=_album_art_bytes(), content_type="image/png")
+    img = _CONTROLLER.display_screen(_panels(_bus_only_arrivals(), spotify=SpotifyPanel(SPOTIFY_QUEUE_LAST_TRACK)))
+    snapshot.assert_matches("screen_spotify_last_track", img)
 
 
 def test_weather_panel_rainy_night(snapshot):
