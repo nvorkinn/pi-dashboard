@@ -1,7 +1,7 @@
 from abc import ABC
 from typing import Any
 
-from pydantic import BaseModel, Field, model_validator
+from pydantic import BaseModel, Field, field_validator, model_validator
 
 
 class ApiConfig(ABC, BaseModel):
@@ -34,6 +34,17 @@ class GlowmarktConfig(ApiConfig):
     # the way e.g. a search query might.
     username: str | None = Field(default=None)
     password: str | None = Field(default=None)
+
+    @field_validator("username", "password", mode="before")
+    @classmethod
+    def blank_is_not_set(cls, value: Any) -> Any:
+        """A cleared field can arrive as "" or whitespace rather than null. Either way
+        there's no credential, so it's None: GlowClient then stays disabled and the layout
+        leaves the energy panel out, instead of trying to log in with a blank username.
+        (The broker leaves `enabled` true when the credentials are cleared.)"""
+        if isinstance(value, str) and not value.strip():
+            return None
+        return value
 
 
 class NoticeBoardConfig(ApiConfig):

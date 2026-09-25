@@ -51,6 +51,22 @@ def test_settings_inside_a_section_can_still_default():
     assert config.glowmarkt.password is None
 
 
+@pytest.mark.parametrize("blank", ["", "   ", None])
+def test_a_cleared_glowmarkt_credential_is_not_set(blank):
+    """The broker may send a cleared field as "" or whitespace rather than null."""
+    config = make_config(glowmarkt={"username": blank, "password": blank})
+
+    assert config.glowmarkt.username is None
+    assert config.glowmarkt.password is None
+
+
+def test_real_glowmarkt_credentials_are_kept_as_they_are():
+    config = make_config(glowmarkt={"username": "me@example.com", "password": " pass word "})
+
+    assert config.glowmarkt.username == "me@example.com"
+    assert config.glowmarkt.password == " pass word "  # a password's spaces are part of it
+
+
 def test_config_ignores_env_vars(isolated_cwd, monkeypatch):
     """AppConfig is deliberately not env/settings-sourced -- broker-owned fields should never
     pick up a local value, only ever what the broker sent."""

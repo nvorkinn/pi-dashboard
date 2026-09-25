@@ -356,3 +356,14 @@ def test_available_leaves_out_glowmarkt_without_credentials_and_spotify_when_off
     asyncio.run(registry.on_config_update(make_config()))
 
     assert registry.available() == frozenset({ClientClasses.TFL, ClientClasses.WEATHER, ClientClasses.NOTICE_BOARD})
+
+
+@pytest.mark.parametrize("username", [None, "", "   "])
+def test_available_leaves_out_glowmarkt_when_its_username_is_cleared(username):
+    """The broker keeps glowmarkt.enabled true when the owner clears the credentials, so
+    it's the credentials themselves that decide."""
+    registry = ApiRegistry()
+
+    asyncio.run(registry.on_config_update(make_config(glowmarkt={"username": username, "password": "pw"})))
+
+    assert ClientClasses.GLOWMARKT not in registry.available()
