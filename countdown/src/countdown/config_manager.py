@@ -15,9 +15,7 @@ class TflConfig(ApiConfig):
 
 
 class SpotifyConfig(ApiConfig):
-    # Client credentials/OAuth live entirely in auth-broker now; this device only
-    # ever sees whether the panel should be shown, fetched from the broker each
-    # cycle (see DisplayLoop.refresh_broker_config).
+    # OAuth lives in auth-broker; the device only knows whether to show the panel.
     enabled: bool | None = Field(default=False)
 
 
@@ -27,37 +25,29 @@ class WeatherConfig(ApiConfig):
 
 
 class GlowmarktConfig(ApiConfig):
-    # None, not "" -- these come from the broker as null when a device's owner
-    # hasn't set up Glowmarkt (the common case), and an explicit "not configured"
-    # is worth keeping honest rather than folding into the same empty-string
-    # convention used elsewhere, since a credential has no legitimate empty value
-    # the way e.g. a search query might.
+    # None, not "": a credential has no legitimate empty value.
     username: str | None = Field(default=None)
     password: str | None = Field(default=None)
 
     @field_validator("username", "password", mode="before")
     @classmethod
     def blank_is_not_set(cls, value: Any) -> Any:
-        """A cleared field can arrive as "" or whitespace rather than null. Either way
-        there's no credential, so it's None (and Glowmarkt is off, see below) rather than
-        a blank username to try logging in with."""
+        """A cleared field can arrive as "" or whitespace rather than null."""
         if isinstance(value, str) and not value.strip():
             return None
         return value
 
     @model_validator(mode="after")
     def enabled_only_with_credentials(self) -> GlowmarktConfig:
-        """The broker's config page has no Glowmarkt switch -- `enabled` is always sent as
-        true -- so having both credentials is what switches it on. Without them it's off
-        like any other API: no client is built, and the layout leaves the energy panel out."""
+        """The broker has no Glowmarkt switch (`enabled` is always true), so having both
+        credentials is what switches it on."""
         if not (self.username and self.password):
             self.enabled = False
         return self
 
 
 class NoticeBoardConfig(ApiConfig):
-    # Where the weather warnings, floods and road incidents are looked up for. None
-    # until the owner sets one; those sources stay quiet until then.
+    # Where weather warnings, floods and road incidents are looked up for.
     postcode: str | None = Field(default=None)
     # Not sent by the broker: a copy of AppConfig.tfl, for the stops whose lines and
     # stations the TfL disruptions are about (see AppConfig.share_tfl_with_notice_board).
@@ -65,18 +55,9 @@ class NoticeBoardConfig(ApiConfig):
 
 
 class AppConfig(BaseModel):
-    """Everything auth-broker owns: TfL stops, weather location, interval, whether
-    Spotify is enabled, and Glowmarkt credentials. A plain BaseModel, not
-    BaseSettings -- structurally cannot read .env or any env var.
-
-    Deliberately has no defaults at this level: an AppConfig only ever comes from a
-    validated broker response, so one that says "no stops" means the broker said so, not
-    that we never heard from it. A response with a section missing is rejected -- and the
-    device keeps the config it already had (see DisplayLoop.refresh_broker_config) --
-    rather than quietly turning into an empty one that blanks the screen. At boot the app
-    waits for a valid config (app.wait_for_config); there is no empty fallback. (Settings
-    nested inside a section still default where the broker legitimately omits or nulls
-    them.) Tests build one with tests/config_factory.make_config()."""
+    """The device's config, as served by auth-broker. Sections deliberately have no
+    defaults: a response missing one is rejected (and the previous config kept) rather
+    than turning into an empty config that blanks the screen."""
 
     interval: int = Field(gt=0, description="The interval in seconds between updates.")
     tfl: TflConfig
@@ -92,9 +73,8 @@ class AppConfig(BaseModel):
     @model_validator(mode="before")
     @classmethod
     def share_tfl_with_notice_board(cls, data: Any) -> Any:
-        """The notice board's TfL disruptions are for the same stops as the arrivals, so
-        it gets its own copy of the tfl section rather than the broker sending it twice.
-        Its postcode still comes from the broker's (optional) notice_board section."""
+        """The notice board's TfL disruptions are for the arrivals' stops, so it gets a copy
+        of the tfl section rather than the broker sending it twice."""
         if isinstance(data, dict) and "tfl" in data:
             notice_board = data.get("notice_board") or {}
             if isinstance(notice_board, NoticeBoardConfig):

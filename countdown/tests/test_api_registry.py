@@ -200,8 +200,7 @@ def test_update_all_has_a_message_for_a_disabled_client():
 
 
 def test_update_all_only_polls_clients_that_are_due_but_still_returns_their_last_panel():
-    """Glowmarkt polls every 15 minutes; the cycles in between must still draw the
-    energy panel, not blank it."""
+    """A client that isn't due yet must still have its last panel drawn, not blanked."""
     tfl, glow = FakeClient("arrivals-1", "arrivals-2"), FakeClient("energy")
     registry = registry_with(tfl=tfl, glowmarkt=glow)
     asyncio.run(registry.update_all())

@@ -167,9 +167,8 @@ def test_the_hooks_run_in_a_worker_thread_not_on_the_event_loop():
 
 
 def test_several_clients_are_really_polled_concurrently():
-    """Both hooks wait for each other at a barrier: it only opens if they run at the same
-    time. Run one after the other (what `async def` around blocking calls used to do) the
-    first would time out waiting for a partner that never starts."""
+    """Both hooks wait at a barrier that only opens if they run at the same time; run one
+    after the other, the first would time out."""
     barrier = threading.Barrier(2, timeout=5)
 
     class Waits(FakeClient):

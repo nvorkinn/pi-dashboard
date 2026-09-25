@@ -15,10 +15,8 @@ CREDENTIALS_FILE = Path(".auth_broker_device")
 
 
 def _device_name_header() -> dict[str, str]:
-    """X-Device-Name is purely cosmetic on the broker side (see auth-broker's
-    devices_api._update_device_name): sent on every call so a rename takes effect on
-    its next poll, and never allowed to fail a request just because a hostname
-    couldn't be resolved on some dev box with DEVICE_ID unset."""
+    """X-Device-Name is cosmetic on the broker side, so it's sent on every call (a rename
+    shows on the next poll) but never allowed to fail a request."""
     try:
         return {"X-Device-Name": resolve_device_id(os.environ.get("DEVICE_ID"), socket.gethostname())}
     except ValueError:
@@ -26,21 +24,8 @@ def _device_name_header() -> dict[str, str]:
 
 
 class BrokerClient(AbstractClient):
-    """Talks to auth-broker (https://github.com/nvorkinn/auth-broker), the cloud
-    service that handles Spotify OAuth and hosts this device's config centrally --
-    gifted frames have no stable public address of their own, so the broker is the
-    one place that needs real TLS.
-
-    Registers itself on first run, persisting credentials to CREDENTIALS_FILE
-    (gitignored, same treatment as .spotify_token_cache/config.json) so later runs
-    just load them -- no network call needed at all once registered. Registration
-    has to succeed for construction to succeed: without a device_id, nothing else
-    here works anyway, same as SpotifyOAuth's eager validation today.
-
-    Deliberately doesn't request a pairing code itself -- that's part of
-    get_config()'s response (see BrokerConfig.pairing_code), checked fresh every
-    cycle by the caller, not a one-time thing this class owns.
-    """
+    """Talks to auth-broker (https://github.com/nvorkinn/auth-broker). Registers on first
+    run and persists the credentials to CREDENTIALS_FILE, so later runs just load them."""
 
     def __init__(self, base_url: str):
         super().__init__()
@@ -77,11 +62,8 @@ class BrokerClient(AbstractClient):
         return AppConfig.model_validate(json_data)
 
     def get_pairing_code_panel(self, config: AppConfig) -> PairingCodePanel:
-        """Wraps an already-fetched BrokerConfig's pairing_code as a renderable
-        panel -- doesn't fetch anything itself (get_config() already did, once,
-        this cycle; no reason for a second round-trip just for this field) -- and
-        uses the inherited cache to flag whether the code actually changed since
-        the last time this was checked."""
+        """Wraps the config's pairing_code as a panel, flagging whether it changed since
+        the last check."""
         is_same = self._cache_and_compare("pairing_code", config.pairing_code)
         return PairingCodePanel(config.pairing_code, self.device_id, has_changed=not is_same)
 
@@ -89,10 +71,7 @@ class BrokerClient(AbstractClient):
         pass
 
     def fetch_app_config(self) -> tuple[AppConfig, PairingCodePanel]:
-        """The device's config and current pairing status in one go, for the app's boot.
-        Raises -- requests.exceptions.RequestException if the broker can't be reached,
-        pydantic.ValidationError if it answers with something that isn't a complete config --
-        rather than falling back to anything: with no valid config there's nothing sensible
-        to run, so app.wait_for_config() shows a splash and retries."""
+        """The config and pairing status in one go, for boot. Raises rather than falling
+        back if the broker can't be reached or the config is invalid."""
         config = self.get_config()
         return config, self.get_pairing_code_panel(config)

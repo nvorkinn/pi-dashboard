@@ -1,12 +1,5 @@
-"""Client for fetching public transport arrivals and departures in Oslo / Norway.
-
-In Oslo, Ruter operates the public transport network (metro/T-bane, tram/trikk,
-bus, and ferries). The transit data is standardized nationally and served via
-Entur's JourneyPlanner GraphQL API (Transmodel / NeTEx compliant).
-
-This client is mode-agnostic, meaning the exact same queries and data structures
-handle bus, tram, metro, rail, and ferry departures.
-"""
+"""Departures in Oslo / Norway (Ruter), via Entur's JourneyPlanner GraphQL API. The same
+queries handle every mode: bus, tram, metro, rail and ferry."""
 
 from __future__ import annotations
 
@@ -165,11 +158,7 @@ def _normalize_stop_id(stop_id: str | int) -> str:
 
 
 class RuterClient:
-    """Client for Ruter / Entur public transport API in Oslo and Norway.
-
-    Can be used standalone or initialized with a list of stop IDs.
-    Works mode-agnostically for buses, trams, metro (T-bane), rail, and ferries.
-    """
+    """Client for the Entur API, standalone or with a list of stop IDs to cycle through."""
 
     JOURNEY_PLANNER_URL = "https://api.entur.io/journey-planner/v3/graphql"
     GEOCODER_URL = "https://api.entur.io/geocoder/v1"
@@ -181,11 +170,9 @@ class RuterClient:
         session: requests.Session | None = None,
     ):
         """
-        Initialize the Ruter / Entur client.
-
         Args:
-            stop_ids: List of stop place IDs (e.g. ['NSR:StopPlace:59872'] or numeric IDs).
-            client_name: ET-Client-Name identifying your application to Entur (required by Entur ToS).
+            stop_ids: Stop place IDs (e.g. ['NSR:StopPlace:59872'] or numeric IDs).
+            client_name: ET-Client-Name identifying the app to Entur (required by Entur's terms).
             session: Optional existing requests.Session.
         """
         self.client_name = client_name
@@ -271,19 +258,13 @@ class RuterClient:
         now: datetime | None = None,
     ) -> list[RuterDeparture]:
         """
-        Get the list of next departures for any stop place or quay.
-
-        Mode-agnostic: automatically handles bus, tram, metro, train, and boat.
+        The next departures from a stop place or quay, soonest first.
 
         Args:
             stop_id: Entur StopPlace or Quay ID (e.g. 'NSR:StopPlace:59872' or 59872).
             limit: Maximum number of departures to return.
-            modes: Optional list of modes to filter by (e.g. [TransportMode.METRO, TransportMode.BUS]).
-                   If None or empty, departures of ALL modes are returned.
-            now: Current reference time (defaults to datetime.now(timezone.utc)).
-
-        Returns:
-            List of RuterDeparture objects sorted by departure time.
+            modes: Modes to filter by; None or empty returns all of them.
+            now: Reference time (defaults to now, UTC).
         """
         ref_time = now or datetime.now(UTC)
         normalized_id = _normalize_stop_id(stop_id)
@@ -325,10 +306,9 @@ class RuterClient:
             if allowed_modes and mode not in allowed_modes:
                 continue
 
-            # Departure time parsing
             exp_dep_str = call.get("expectedDepartureTime") or call.get("aimedDepartureTime")
             if not exp_dep_str:
-                # If terminal arrival with no departure time, fallback to expectedArrivalTime
+                # A terminal stop has no departure time, only an arrival.
                 exp_dep_str = call.get("expectedArrivalTime") or call.get("aimedArrivalTime")
 
             if not exp_dep_str:
@@ -343,10 +323,8 @@ class RuterClient:
             )
             aim_arr_time = datetime.fromisoformat(call["aimedArrivalTime"]) if call.get("aimedArrivalTime") else None
 
-            # Calculate seconds to departure
             seconds = int((exp_dep_time - ref_time).total_seconds())
             if seconds < -60:
-                # Skip departures already gone over 1 minute ago
                 continue
 
             time_to_station = max(0, seconds)
@@ -387,10 +365,7 @@ class RuterClient:
     def get_next_departures(
         self, count_stops: int = 2, limit_per_stop: int = 5
     ) -> list[tuple[RuterStop, list[RuterDeparture]]]:
-        """
-        Cycle through configured stops and return departures for the next batch of stops.
-        Mirrors the paging behavior in TfLClient.
-        """
+        """Departures for the next batch of configured stops, paging like TflClient."""
         if not self.stops:
             return []
 
@@ -412,14 +387,7 @@ class RuterClient:
         return ceil(len(self.stops) / 2) if self.stops else 1
 
     def search_stops(self, query: str, size: int = 5) -> list[dict[str, Any]]:
-        """
-        Search for stop places by name using Entur's Geocoder autocomplete API.
-
-        Example:
-            client.search_stops("Jernbanetorget")
-            client.search_stops("Majorstuen")
-            client.search_stops("Alexander Kiellands plass")
-        """
+        """Search stop places by name (e.g. "Jernbanetorget") with Entur's geocoder."""
         params = {
             "text": query,
             "size": size,
@@ -447,11 +415,7 @@ class RuterClient:
         return results
 
     def get_nearest_stops(self, lat: float, lon: float, size: int = 5) -> list[dict[str, Any]]:
-        """
-        Find transit stops nearest to a given GPS latitude and longitude.
-
-        Uses Entur's reverse geocoder.
-        """
+        """The transit stops nearest a latitude/longitude, from Entur's reverse geocoder."""
         params = {
             "point.lat": lat,
             "point.lon": lon,

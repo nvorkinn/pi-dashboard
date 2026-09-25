@@ -263,7 +263,6 @@ class Image(BaseModel):
 class Album(BaseModel):
     images: list[Image]
     name: str
-    # release_date: date
 
 
 class Artist(BaseModel):

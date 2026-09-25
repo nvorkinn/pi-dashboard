@@ -33,21 +33,8 @@ class TopPageConfig(PageConfig):
 
 
 class SpotifyClient(AbstractClient):
-    """Talks to auth-broker (https://github.com/nvorkinn/auth-broker), the cloud
-    service that handles Spotify OAuth and hosts this device's config centrally --
-    gifted frames have no stable public address of their own, so the broker is the
-    one place that needs real TLS.
-
-    Registers itself on first run, persisting credentials to CREDENTIALS_FILE
-    (gitignored, same treatment as .spotify_token_cache/config.json) so later runs
-    just load them -- no network call needed at all once registered. Registration
-    has to succeed for construction to succeed: without a device_id, nothing else
-    here works anyway, same as SpotifyOAuth's eager validation today.
-
-    Deliberately doesn't request a pairing code itself -- that's part of
-    get_config()'s response (see BrokerConfig.pairing_code), checked fresh every
-    cycle by the caller, not a one-time thing this class owns.
-    """
+    """Now playing and top tracks/artists, via auth-broker, which calls Spotify server-side
+    so this device never holds a token. Uses BrokerClient's saved device credentials."""
 
     panel_title = "Spotify"
     panel_logo = "spotify_logo.png"
@@ -73,8 +60,7 @@ class SpotifyClient(AbstractClient):
         return response.content
 
     def _update(self) -> Panel:
-        """The next page in PAGES, or the one after if that has nothing to show. The
-        broker refreshes and calls Spotify server-side, this device never sees a token."""
+        """The next page in PAGES, or the one after if that has nothing to show."""
         for _ in range(2):
             self.page = (self.page + 1) % len(PAGES)
             page_config = PAGES[self.page]

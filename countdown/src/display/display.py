@@ -16,38 +16,29 @@ from display.utils import TOTAL_HEIGHT, TOTAL_WIDTH
 
 logger = logging.getLogger(__name__)
 
-# A partial refresh is quick and doesn't flash, but each one leaves a little ghosting
-# behind, so once this long has passed since the last full refresh the next change is
-# repainted in full. Also the most often the screen flashes: the arrivals change about
-# once a minute, everything else far less.
+# Partial refreshes leave a little ghosting, so once this long has passed since the last
+# full refresh the next change is repainted in full.
 FULL_REFRESH_INTERVAL_S = 600
 
 
 class DisplayController:
     def __init__(self, target: DisplayTarget | None = None):
-        # Where frames actually go: the e-paper panel, a local preview or a Pi over ssh.
         self.target = target if target is not None else target_from_env()
-        # What's on the screen right now (minus the "Updated:" footer), so an unchanged
-        # picture isn't repainted and a changed arrivals panel can be refreshed alone.
-        # None whenever that isn't known -- nothing painted yet, or the last paint failed.
+        # What's on the screen right now, or None if that isn't known (nothing painted
+        # yet, or the last paint failed).
         self._shown: Image.Image | None = None
         self._last_full_refresh = 0.0
         # A whole-screen picture (pairing code, checklist, splash) the screen couldn't take yet.
         self._pending: Image.Image | None = None
-        # The layout: the full one until use_layout() learns what this device can show.
         self._composer = DEFAULT_COMPOSER
 
     @property
     def panel_connected(self) -> bool | None:
-        """None until the target has been asked (or if it can't tell, like a preview); then
-        whether the panel answered."""
+        """None until the target has been asked (or if it can't tell, like a preview)."""
         return self.target.connected
 
     def use_layout(self, available: frozenset[ClientClasses]) -> AbstractDisplayComposer:
-        """Picks the layout for a device that can show `available` (see
-        ApiRegistry.available), called whenever the config changes, and returns it (the
-        caller tells the TfL client how many stops it shows). A new layout moves panels
-        outside the arrivals, so the next screen is a full refresh on its own."""
+        """Picks the layout for a device that can show `available`, and returns it."""
         composer = choose_composer(available)
         if type(composer) is not type(self._composer):
             logger.info(f"Changing layout from: {type(self._composer).__name__} to {type(composer).__name__}")
@@ -55,12 +46,9 @@ class DisplayController:
         return composer
 
     def display_screen(self, panels: dict[str, Panel]) -> Image.Image:
-        """Composes the registry's panels, one per API, and puts it on the panel only if it
-        changed: not at all if the picture is the same, as a quick partial refresh if only
-        the arrivals changed, otherwise as a full refresh (which flashes). An API with
-        nothing to draw has a MessagePanel saying why (not configured, couldn't connect,
-        nothing playing) -- unless none has anything, which shows a "nothing to show yet"
-        message instead."""
+        """Composes the panels and paints them only if the picture changed: a partial
+        refresh if only the arrivals changed, otherwise a full one. If every panel is a
+        MessagePanel, shows the "nothing to show yet" screen instead."""
         if all(isinstance(panel, MessagePanel) for panel in panels.values()):
             img, arrivals_box = EmptyPanel().render(TOTAL_WIDTH, TOTAL_HEIGHT), None
         else:
@@ -91,9 +79,8 @@ class DisplayController:
 
     @staticmethod
     def _partial_region(changed, arrivals_box) -> tuple[int, int, int, int] | None:
-        """The byte-aligned box to partially refresh, or None if that isn't enough: no
-        picture to compare with yet, or something outside the arrivals changed. (A wider or
-        narrower arrivals panel shifts everything beside it, so that lands here too.)"""
+        """The byte-aligned box to partially refresh, or None if something outside the
+        arrivals changed (or there's nothing to compare with)."""
         if changed is None or arrivals_box is None:
             return None
         ax0, ay0, ax1, ay1 = arrivals_box
@@ -102,10 +89,9 @@ class DisplayController:
         return (0, ay0, -(-ax1 // 8) * 8, ay1)  # x in whole bytes (8 pixels), as the panel needs
 
     def _paint_whole_screen(self, img: Image.Image) -> bool:
-        """For the screens that replace the picture outright (pairing code, splash) rather
-        than composing panels. False if there's no screen to paint on."""
-        # Whatever was on the screen is about to be replaced, so the next normal screen has
-        # to be painted in full even if it matches one shown before.
+        """For the screens that replace the picture outright (pairing code, splash). False
+        if there's no screen to paint on."""
+        # So the next dashboard is painted in full even if it matches the last one.
         self._shown = None
         self._pending = img
         if not self.target.paint(img):
@@ -114,17 +100,15 @@ class DisplayController:
         return True
 
     def repaint_pending(self) -> None:
-        """Retries a whole-screen picture that couldn't be painted (no panel yet, or the paint
-        failed), so it appears once the panel does instead of waiting for its state to change."""
+        """Retries a whole-screen picture that couldn't be painted, so it appears once the
+        panel does."""
         if self._pending is not None:
             self._paint_whole_screen(self._pending)
 
     def display_pairing_screen(self, panel: PairingCodePanel) -> Image.Image:
         img = panel.render(TOTAL_WIDTH, TOTAL_HEIGHT)
         if not self._paint_whole_screen(img):
-            # Called only when the code changes, so this is once per code. Without it a
-            # Pi with no screen can't be paired at all: nothing else is published or
-            # polled while a code is pending.
+            # Once per code. Without it a Pi with no screen can't be paired at all.
             logger.warning(
                 f"No display to show the pairing code on -- it is {panel.pairing_code} (device {panel.device_id})"
             )
@@ -137,8 +121,7 @@ class DisplayController:
         return img
 
     def display_splash(self, panel: Panel) -> Image.Image:
-        """The "can't reach the server" screen shown at boot. Painted once by the caller,
-        not on every retry -- it's a full refresh."""
+        """The "can't reach the server" screen shown at boot."""
         img = panel.render(TOTAL_WIDTH, TOTAL_HEIGHT)
         self._paint_whole_screen(img)
         return img

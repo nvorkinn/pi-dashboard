@@ -1,8 +1,7 @@
 use serde_json::{Value, json};
 
-/// Entities go `unavailable` in HA if no state arrives for this long. The timer
-/// fires every minute, so this tolerates two missed runs. There's no
-/// last-will message to lean on because the process exits after every publish.
+/// Entities go `unavailable` in HA after this long without state: two missed runs.
+/// There's no last will, since the process exits after every publish.
 const EXPIRE_AFTER_SECS: u64 = 180;
 
 pub fn discovery_topic(device_id: &str) -> String {

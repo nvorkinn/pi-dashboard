@@ -60,7 +60,6 @@ def truncate_to_fit(text: str, font: ImageFont.BaseImageFont, max_width: int) ->
     if font.getlength(text) <= max_width:
         return text
 
-    # Iteratively remove characters and add ellipsis until it fits
     while text and font.getlength(text + "…") > max_width:
         text = text[:-1]
 

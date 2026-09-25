@@ -1,7 +1,5 @@
-"""Where DisplayController's frames actually end up. The controller decides what to paint
-and when (diffing, partial vs full refreshes, pending whole-screen pictures); a target
-only knows how to get one picture onto one kind of screen. Pick one with DISPLAY_TARGET
-(see target_from_env), or pass one to DisplayController directly."""
+"""Where DisplayController's frames end up. The controller decides what to paint and when;
+a target only knows how to get one picture onto one kind of screen."""
 
 import logging
 import os
@@ -17,17 +15,14 @@ logger = logging.getLogger(__name__)
 
 LIB_DIR = str(Path(__file__).resolve().parent / "lib")
 
-# How long to leave it before asking a panel that didn't answer whether it's there yet,
-# so plugging a screen in later just works, without a restart.
+# How often a panel that didn't answer is asked again, so a screen can be plugged in later.
 PANEL_RETRY_INTERVAL_S = 300
 
 Region = tuple[int, int, int, int]
 
 
 class DisplayTarget(ABC):
-    # None until a target has something to say about whether its screen is there; the
-    # EpdTarget then says whether the panel answered. Surfaced as the controller's
-    # panel_connected, which goes into the device's health report.
+    # Whether the screen answered; None until known (or for targets that can't tell).
     connected: bool | None = None
 
     @abstractmethod
@@ -61,8 +56,8 @@ class EpdTarget(DisplayTarget):
 
     def paint(self, img: Image.Image, region: Region | None = None) -> bool:
         if region is None:
-            # No Clear() first: display() overwrites every pixel itself, so Clear() only added
-            # a whole extra black-and-white flash (it is a full refresh of its own).
+            # No Clear() first: display() overwrites every pixel, and Clear() is a full
+            # refresh (an extra flash) of its own.
             if not self._wake_panel():
                 return False
             self.epd.display(self.epd.getbuffer(img))
@@ -75,11 +70,8 @@ class EpdTarget(DisplayTarget):
 
     def _wake_panel(self, init=None) -> bool:
         """Initialises the panel (`init` defaults to the full-refresh init), or returns
-        False if it doesn't answer -- no screen connected (or powered), which init() finds
-        out via the POWER ON handshake, and which can't be told apart from a connected one
-        that's broken. Once a panel's known to be absent it isn't asked again until
-        PANEL_RETRY_INTERVAL_S has passed, so a Pi running without a display neither waits
-        on it every cycle nor spams the log; it's said once when the answer changes."""
+        False if it doesn't answer the POWER ON handshake (absent, unpowered or broken). An
+        absent panel isn't asked again for PANEL_RETRY_INTERVAL_S."""
         if self.connected is False and time.monotonic() < self._next_probe:
             return False
         try:
@@ -103,8 +95,7 @@ class EpdTarget(DisplayTarget):
         self._awake = False
 
     def close(self) -> None:
-        # Every paint ends with the panel asleep and its SPI closed, so this only has work to
-        # do if a paint was interrupted.
+        # Only needed if a paint was interrupted: every paint ends with the panel asleep.
         if self._awake:
             try:
                 self._sleep_panel()
@@ -121,11 +112,7 @@ class PreviewTarget(DisplayTarget):
 
 
 class RemotePiTarget(DisplayTarget):
-    """Dev only: rsyncs each frame to a Pi and has it run dev/pi_display.py on it, so the
-    app can run on the Mac while painting the real panel.
-
-    countdown.service must be stopped by hand on the Pi first (sudo systemctl stop
-    countdown), or it repaints over the frame; start it again when done."""
+    """Dev only: rsyncs each frame to a Pi and runs dev/pi_display.py there (see README)."""
 
     SSH = ["ssh", "-o", "ControlMaster=auto", "-o", "ControlPath=/tmp/pi-dev-%C", "-o", "ControlPersist=120"]
 

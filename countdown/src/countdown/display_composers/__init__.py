@@ -5,8 +5,7 @@ from countdown.display_composers.glow_composer import GlowComposer
 from countdown.display_composers.spotify_composer import SpotifyComposer
 from countdown.display_composers.spotify_glow_composer import SpotifyGlowComposer
 
-# One per combination of Spotify and Glowmarkt; a new layout is a new composer plus an
-# entry here.
+# One per combination of Spotify and Glowmarkt.
 DEFAULT_COMPOSER = SpotifyGlowComposer()
 COMPOSERS: list[AbstractDisplayComposer] = [
     DEFAULT_COMPOSER,
@@ -17,7 +16,5 @@ COMPOSERS: list[AbstractDisplayComposer] = [
 
 
 def choose_composer(available: frozenset[ClientClasses]) -> AbstractDisplayComposer:
-    """The layout that suits a device able to show `available`. The fallback (the full
-    layout, with a message wherever a panel is missing) is only for the screen drawn
-    before the first config arrives."""
+    """The layout that suits a device able to show `available`."""
     return next((composer for composer in COMPOSERS if composer.can_compose(available)), DEFAULT_COMPOSER)

@@ -1,6 +1,5 @@
-"""The targets DisplayController hands its frames to: which one DISPLAY_TARGET picks, the
-raw buffer the panel is sent, and what the dev-only RemotePiTarget runs to reach a Pi.
-EpdTarget's panel handling is covered through the controller in test_display_controller.py."""
+"""The display targets: which one DISPLAY_TARGET picks, the raw panel buffer, and what
+RemotePiTarget runs. EpdTarget is covered through the controller in test_display_controller.py."""
 
 import subprocess
 

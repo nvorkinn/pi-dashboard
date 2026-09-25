@@ -23,10 +23,8 @@ LOCATION_RETRY = timedelta(minutes=15)
 
 
 class NoticeBoardClient(AbstractClient):
-    """Hosts the notice sources -- TfL disruptions for the configured stops; Met Office
-    warnings, floods and road incidents for the postcode; bank holidays and the clocks
-    changing for everyone -- and shows whatever they currently report, most severe first. update() runs every minute; each source is
-    only asked again once its own refresh_interval has passed."""
+    """Polls the notice sources, each on its own refresh_interval, and shows what they
+    currently report, most severe first."""
 
     panel_title = "Notices"
 
@@ -39,8 +37,7 @@ class NoticeBoardClient(AbstractClient):
         if config.tfl.stop_ids:
             self.sources += [TflLineStatusSource(self.session, config.tfl), TflStationSource(self.session, config.tfl)]
         self.tfl_config = config.tfl
-        # Sources that need to know where the device is are added once the postcode
-        # has been looked up (see _ensure_location), which needs the network.
+        # Location-based sources are added once the postcode is looked up (_ensure_location).
         self.location: Postcode | None = None
         self.location_tried: datetime | None = None
         self.unknown_postcode = False
@@ -76,8 +73,7 @@ class NoticeBoardClient(AbstractClient):
             FloodWarningsSource(self.session, location),
             TflRoadSource(self.session, self.tfl_config, location),
         ]
-        # The one sign on a device that the broker's postcode arrived and was placed:
-        # otherwise a quiet board looks the same with or without it.
+        # Otherwise a quiet board gives no sign the postcode was placed.
         area = ", ".join(part for part in (location.region or location.country, location.admin_district) if part)
         logger.info(
             f"Notice board: {location.postcode} is in {area}; Met Office region {met_office.region}, "

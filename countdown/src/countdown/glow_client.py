@@ -18,15 +18,13 @@ def _get_utc_offset(now: datetime | None = None) -> str:
     utc_offset = (now if now.tzinfo else now.astimezone()).utcoffset()
     if utc_offset is None:
         raise ValueError("Could not find a UTC offset")
-    # total_seconds(), not .seconds: a negative timedelta keeps a positive .seconds
-    # (UTC-5 is -1 day + 68400s), which gave "-1140" instead of "300".
+    # total_seconds(), not .seconds: a negative timedelta keeps a positive .seconds.
     return str(round(-utc_offset.total_seconds() / 60))
 
 
 class GlowClient(AbstractClient):
-    # update() runs every minute (the AbstractClient default) because each call
-    # also rotates the page; how often each page actually asks Glow for fresh
-    # readings is set per page instead. The rest of the time it redraws from cache.
+    # update() runs every minute to rotate the page; each page only asks Glow for fresh
+    # readings this often and redraws from cache otherwise.
     refresh_intervals = {0: timedelta(minutes=30), 1: timedelta(hours=3), 2: timedelta(hours=12)}
     panel_title = "Energy"
     base_url = "https://api.glowmarkt.com/api/v0-1"
@@ -54,8 +52,6 @@ class GlowClient(AbstractClient):
         payload = {"username": self.username, "password": self.password, "applicationId": self.app_id}
         response = self.session.post(url, json=payload, timeout=DEFAULT_TIMEOUT)
         response.raise_for_status()
-
-        # Adjust key based on the actual Glowmarkt token response structure
         self.token = response.json().get("token")
 
     def _request(self, method: str, endpoint: str, params: dict[str, str] | None = None):
@@ -70,7 +66,7 @@ class GlowClient(AbstractClient):
         url = f"{self.base_url}{endpoint}"
         response = self.session.request(method, url, params=params, headers=headers, timeout=DEFAULT_TIMEOUT)
 
-        # Handle token expiration (HTTP 401 Unauthorized) gracefully
+        # Token expired: authenticate again and retry once.
         if response.status_code == 401:
             self._authenticate()
             if not self.token:
@@ -95,9 +91,7 @@ class GlowClient(AbstractClient):
         window_start, period, bucket_delta = self._page_config(self.page_index, current)
         open_start = self._truncate(current, period)
 
-        # Align the window start to a bucket boundary too - otherwise it
-        # never matches the (bucket-aligned) keys already sitting in the
-        # cache, and every call looks like a cache miss.
+        # Bucket-aligned, or it never matches the cache's keys.
         window_start = self._truncate(window_start, period)
 
         # Glow aggregates days and months at the offset we send, so buckets cached
@@ -114,8 +108,7 @@ class GlowClient(AbstractClient):
             self._refresh(cache, window_start, open_start, current, period, bucket_delta)
             self.last_fetched[self.page_index] = current
 
-        # Drop anything that's aged out of a sliding window (pages 0 and 1;
-        # page 2's window start is fixed to 1st Jan so nothing ever ages out).
+        # Drop what's aged out of the window (page 2's starts on 1st Jan, so never).
         for stale in [b for b in cache if b < window_start]:
             del cache[stale]
 
@@ -143,9 +136,7 @@ class GlowClient(AbstractClient):
         period: str,
         bucket_delta: timedelta,
     ) -> None:
-        # Walk forward from window_start to open_start to see which closed
-        # buckets we SHOULD have, and whether any of them are missing from
-        # the cache (true on first run, or after the window has slid forward).
+        # The earliest closed bucket missing from the cache, if any.
         missing_from = None
         cursor = window_start
         while cursor < open_start:
@@ -154,11 +145,8 @@ class GlowClient(AbstractClient):
             cursor = self._next_bucket_start(cursor, period, bucket_delta)
 
         if missing_from is not None:
-            # Catch up: fetch everything from the earliest gap through to now.
             fetched = self._get_readings(missing_from, current, period)
         else:
-            # Everything closed is already cached - only ask for the one
-            # bucket that's still live.
             fetched = self._get_readings(open_start, current, period)
 
         self.open_readings.pop(self.page_index, None)
@@ -191,8 +179,7 @@ class GlowClient(AbstractClient):
             return dt.replace(day=1, hour=0, minute=0, second=0, microsecond=0)
 
     def _next_bucket_start(self, dt: datetime, period: str, bucket_delta: timedelta):
-        """Step forward exactly one bucket - months aren't a fixed length,
-        so they need their own bit of arithmetic instead of a timedelta."""
+        """Step forward one bucket; months aren't a fixed timedelta."""
         if period == "P1M":
             if dt.month == 12:
                 return dt.replace(year=dt.year + 1, month=1)
@@ -200,14 +187,7 @@ class GlowClient(AbstractClient):
         return dt + bucket_delta
 
     def _get_readings(self, dt_from: datetime, dt_to: datetime, period: str) -> list[Readings]:
-        """
-        period: "PT1H" (hour), "P1D" (day), or "P1M" (month) - the API's own
-        aggregation does the summing, so a month request genuinely returns
-        ~12 numbers, not raw half-hourly data.
-
-        Returns a list of (datetime, kwh) tuples.
-        """
-
+        """(bucket start, kWh) pairs, summed by Glow per period: "PT1H", "P1D" or "P1M"."""
         response = self.session.get(
             f"{self.base_url}/resource/{self.resource_id}/readings",
             headers={"applicationId": self.app_id, "token": self.token},
@@ -228,8 +208,7 @@ class GlowClient(AbstractClient):
         local_tz = dt_from.tzinfo
         readings = []
         for ts, value in response.json()["data"]:
-            # The API has returned both Unix-epoch-seconds and ISO strings
-            # across different versions/resources in the wild, so handle both.
+            # Glow has sent both epoch seconds and ISO strings.
             if isinstance(ts, (int, float)):
                 wall_clock = datetime.fromtimestamp(ts, tz=UTC)
             else:

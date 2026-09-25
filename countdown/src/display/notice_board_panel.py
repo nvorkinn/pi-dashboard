@@ -23,10 +23,9 @@ class NoticeBoardPanel(Panel):
         self.notices = notices
 
     def render(self, image_width: int, image_height: int) -> Image.Image:
-        """One notice per row: a severity marker (solid for severe, outlined for a warning,
-        a dot for information, a small square for a reminder, a hollow dot for planned works), where it's from, and as
-        much of the text as fits. When there are more current notices than rows, the last
-        row says how many didn't fit; planned works only fill rows that are left over."""
+        """One notice per row: a severity marker, the source and as much of the text as
+        fits. If there are more current notices than rows, the last row says how many
+        didn't fit."""
         img = Image.new("RGBA", (image_width, image_height), (255, 255, 255, 255))
         draw = ImageDraw.Draw(img)
         draw.fontmode = "1"

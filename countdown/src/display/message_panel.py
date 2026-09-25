@@ -9,9 +9,8 @@ TITLE = ImageFont.truetype(str(FONTS_DIR / "Ubuntu-Medium.ttf"), 28)
 
 
 class MessagePanel(Panel):
-    """Stands in for a panel with nothing to draw -- the API isn't configured, couldn't be
-    reached, or has nothing to say (e.g. nothing playing) -- so its area is never blank.
-    Shows `message` above whose area it is: `logo` (a file in images/) if given, else `title`."""
+    """Stands in for a panel with nothing to draw, so its area is never blank. Shows
+    `message` with `logo` (a file in images/) if given, else `title`."""
 
     def __init__(self, title: str, message: str, logo: str | None = None):
         self.title = title

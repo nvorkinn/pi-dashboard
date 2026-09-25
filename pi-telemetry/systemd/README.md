@@ -3,10 +3,16 @@
 Runs pi-telemetry as a one-shot job once a minute via a systemd timer
 (the binary publishes a single telemetry snapshot to MQTT and exits).
 
+Each snapshot has the Pi's total and used memory, CPU count and CPU usage, and
+whether countdown is running ("HAT running"). That last one comes from
+`systemctl is-active countdown` rather than the process list, since no
+process argument is reliably just "countdown".
+
 ## Install
 
-Build a release binary and copy it to the Pi (see the main
-[`README.md`](../README.md)), then run:
+Usually the repo-root [`install.sh`](../../README.md#install) does this for
+you. To do it on its own, copy a pi-telemetry binary (from a release, or built
+yourself) to the Pi, then run:
 
 ```sh
 sudo ./install.sh /path/to/pi-telemetry

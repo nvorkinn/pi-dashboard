@@ -14,14 +14,13 @@ logger = logging.getLogger(__name__)
 GEOCODING_URL = "https://geocoding-api.open-meteo.com/v1/search"
 FORECAST_URL = "https://api.open-meteo.com/v1/forecast"
 
-# Forecasts move slowly; the display loop runs every few seconds
+# Forecasts move slowly.
 REFRESH_INTERVAL = dt.timedelta(minutes=30)
 
 
 class WeatherClient(AbstractClient):
     """Current conditions plus today's outlook from Open-Meteo (keyless, so
-    WeatherConfig.api_key is unused). Construction never touches the network: the
-    location is geocoded lazily on first fetch, and only once."""
+    WeatherConfig.api_key is unused). The location is geocoded once, on first fetch."""
 
     panel_title = "Weather"
 
@@ -40,9 +39,8 @@ class WeatherClient(AbstractClient):
         return self.location != new_config.location
 
     def _update(self) -> Panel:
-        """A MessagePanel when there's nothing to show: no location configured, or one
-        Open-Meteo couldn't find. Network/parse failures raise instead (RequestException /
-        ValidationError), for safe_fetch to fall back to the last good panel."""
+        """A MessagePanel if there's no location or Open-Meteo can't find it. Network and
+        parse failures raise, so the registry keeps the last good panel."""
         if not self.location:
             return self.message_panel("No location set")
 

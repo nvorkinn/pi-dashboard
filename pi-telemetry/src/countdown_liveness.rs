@@ -1,9 +1,7 @@
 use std::process::Command;
 
-/// Whether the countdown app is running, asked of systemd rather than read off the
-/// process list: its unit starts it by a full path to a Python script, so no argument
-/// is ever exactly "countdown", and a name match could be fooled by anything else
-/// that happens to mention it.
+/// Whether the countdown unit is active, asked of systemd: no process argument is
+/// reliably just "countdown", so the process list can't tell.
 pub fn is_countdown_active() -> bool {
     is_unit_active("systemctl", "countdown")
 }
