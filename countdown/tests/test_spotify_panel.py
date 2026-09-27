@@ -1,7 +1,7 @@
 import pytest
 
 import countdown  # noqa: F401, I001  (import order: see test_display_snapshots.py)
-from countdown.core.models import Image
+from countdown.spotify.models import Image
 from countdown.spotify.spotify_panel import _pick_image
 
 

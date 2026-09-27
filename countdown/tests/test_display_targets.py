@@ -6,8 +6,8 @@ import subprocess
 import pytest
 from PIL import Image
 
-import countdown.targets as targets_module
-from countdown.targets import EpdTarget, PreviewTarget, RemotePiTarget, panel_bytes, target_from_env
+import countdown.core.targets as targets_module
+from countdown.core.targets import EpdTarget, PreviewTarget, RemotePiTarget, panel_bytes, target_from_env
 
 
 def test_white_pixels_are_sent_as_zero_bits_and_black_as_one():

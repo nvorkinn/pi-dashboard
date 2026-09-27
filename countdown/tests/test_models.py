@@ -1,16 +1,8 @@
 import pytest
 from pydantic import TypeAdapter
 
-from countdown.core.models import (
-    ArrivalUnion,
-    BusArrival,
-    Entity,
-    MetroStopPoint,
-    Readings,
-    SingleStopPoint,
-    StopPointUnion,
-    TubeArrival,
-)
+from countdown.glow.models import Entity, Readings
+from countdown.tfl.models import ArrivalUnion, BusArrival, MetroStopPoint, SingleStopPoint, StopPointUnion, TubeArrival
 
 BUS_ARRIVAL_JSON = {
     "naptanId": "490000123W",

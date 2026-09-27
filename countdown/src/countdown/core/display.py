@@ -4,14 +4,14 @@ import time
 from PIL import Image, ImageChops
 
 from countdown.core.api_registry import ClientClasses
+from countdown.core.panel import Panel
+from countdown.core.targets import DisplayTarget, target_from_env
 from countdown.display_composers import DEFAULT_COMPOSER, choose_composer
 from countdown.display_composers.abstract_display_composer import AbstractDisplayComposer
 from countdown.system_screens.empty_panel import EmptyPanel
 from countdown.system_screens.message_panel import MessagePanel
 from countdown.system_screens.pairing_code_panel import PairingCodePanel
-from countdown.core.panel import Panel
 from countdown.system_screens.setup_panel import SetupPanel
-from countdown.core.targets import DisplayTarget, target_from_env
 from countdown.utils.utils import TOTAL_HEIGHT, TOTAL_WIDTH
 
 logger = logging.getLogger(__name__)

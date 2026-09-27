@@ -1,7 +1,7 @@
 from PIL import Image, ImageDraw
 
-from countdown.core.models import BusArrival, SingleStopPoint
 from countdown.tfl.abstract_arrival_panel import ROW_GAP, AbstractArrivalPanel
+from countdown.tfl.models import BusArrival, SingleStopPoint
 
 
 class BusArrivalPanel(AbstractArrivalPanel):

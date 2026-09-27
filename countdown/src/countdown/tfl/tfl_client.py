@@ -4,9 +4,12 @@ from typing import TypeVar
 
 from pydantic import TypeAdapter
 
-from countdown.core.abstract_client import AbstractClient, DEFAULT_TIMEOUT
 from countdown.config_server.config_manager import TflConfig
-from countdown.core.models import (
+from countdown.core.abstract_client import DEFAULT_TIMEOUT, AbstractClient
+from countdown.core.panel import Panel
+from countdown.tfl.bus_arrival_panel import BusArrivalPanel
+from countdown.tfl.combined_arrival_panel import CombinedArrivalPanel
+from countdown.tfl.models import (
     ArrivalUnion,
     BusArrival,
     MetroStopPoint,
@@ -15,9 +18,6 @@ from countdown.core.models import (
     StopPointUnion,
     TubeArrival,
 )
-from countdown.tfl.bus_arrival_panel import BusArrivalPanel
-from countdown.tfl.combined_arrival_panel import CombinedArrivalPanel
-from countdown.core.panel import Panel
 from countdown.tfl.tube_arrival_panel import TubeArrivalPanel
 
 logger = logging.getLogger(__name__)

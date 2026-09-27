@@ -3,8 +3,8 @@ from typing import override
 from PIL import Image
 
 from countdown.core.api_registry import ClientClasses
-from countdown.display_composers.abstract_display_composer import GAP, AbstractDisplayComposer, Box
 from countdown.core.panel import Panel
+from countdown.display_composers.abstract_display_composer import GAP, AbstractDisplayComposer, Box
 from countdown.utils.utils import TOTAL_HEIGHT, TOTAL_WIDTH
 
 

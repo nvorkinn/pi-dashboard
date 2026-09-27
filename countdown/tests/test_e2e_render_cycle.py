@@ -18,16 +18,16 @@ import responses
 from config_factory import make_config
 from PIL import Image
 
-from countdown import display_loop
 from countdown.config_server.broker_client import BrokerClient
 from countdown.config_server.config_manager import AppConfig
+from countdown.core import display_loop
+from countdown.core.display_loop import DisplayLoop
 from countdown.display_composers.base_composer import BaseComposer
 from countdown.display_composers.glow_composer import GlowComposer
-from countdown.core.display_loop import DisplayLoop
-from countdown.tfl.combined_arrival_panel import CombinedArrivalPanel
 from countdown.glow.energy_panel import EnergyPanel
 from countdown.spotify.spotify_panel import SpotifyPanel
 from countdown.spotify.spotify_top_panel import SpotifyTopPanel
+from countdown.tfl.combined_arrival_panel import CombinedArrivalPanel
 from countdown.weather.weather_panel import WeatherPanel
 
 TEST_BROKER_URL = "https://broker.example.com"

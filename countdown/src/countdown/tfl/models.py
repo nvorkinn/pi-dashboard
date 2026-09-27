@@ -1,9 +1,9 @@
 from abc import ABC
-from datetime import datetime, timedelta
+from datetime import datetime
 from enum import StrEnum
 from typing import Annotated, Literal
 
-from pydantic import BaseModel, BeforeValidator, Field, HttpUrl, field_validator
+from pydantic import BaseModel, Field, field_validator
 
 
 class Mode(StrEnum):
@@ -11,9 +11,6 @@ class Mode(StrEnum):
     TUBE = "tube"
     NATIONAL_RAIL = "national-rail"
     INTERNATIONAL_RAIL = "international-rail"
-
-
-readings_type = tuple[list[float] | None, list[float] | None, list[float] | None]
 
 
 class Arrival(BaseModel, ABC):
@@ -110,15 +107,6 @@ class StopPointResponse(BaseModel):
     stop_points: list[StopPoint] = Field(alias="stopPoints")
 
 
-class Resource(BaseModel):
-    name: str
-    resourceId: str
-
-
-class Entity(BaseModel):
-    resources: list[Resource]
-
-
 class ValidityPeriod(BaseModel):
     from_date: datetime = Field(alias="fromDate")
     to_date: datetime = Field(alias="toDate")
@@ -163,19 +151,6 @@ class RoadDisruption(BaseModel):
     end_date_time: datetime | None = Field(alias="endDateTime", default=None)
 
 
-class FloodWarning(BaseModel):
-    """One item from the Environment Agency's /flood-monitoring/id/floods."""
-
-    description: str
-    severity: str
-    # 1 severe flood warning, 2 flood warning, 3 flood alert, 4 no longer in force.
-    severity_level: int = Field(alias="severityLevel")
-
-
-class FloodWarningsResponse(BaseModel):
-    items: list[FloodWarning] = []
-
-
 class Postcode(BaseModel):
     """The parts of postcodes.io's /postcodes/{postcode} the notice board uses."""
 
@@ -202,84 +177,3 @@ class Outcode(BaseModel):
 
 class OutcodeResponse(BaseModel):
     result: Outcode
-
-
-class Readings(BaseModel):
-    data: list[tuple[int, float]]
-
-
-class GeocodingResult(BaseModel):
-    latitude: float
-    longitude: float
-    name: str
-
-
-class GeocodingResponse(BaseModel):
-    # Open-Meteo leaves "results" out entirely (rather than sending []) when nothing matches
-    results: list[GeocodingResult] = []
-
-
-class CurrentConditions(BaseModel):
-    temperature: float = Field(alias="temperature_2m")
-    weather_code: int  # WMO code, see display.weather_panel.ICON_MAP
-    is_day: bool
-
-
-class DailyForecast(BaseModel):
-    """Open-Meteo returns one parallel list per variable, one entry per day (today first)."""
-
-    temperature_max: list[float] = Field(alias="temperature_2m_max")
-    temperature_min: list[float] = Field(alias="temperature_2m_min")
-    precipitation_probability_max: list[int | None]
-
-
-class ForecastResponse(BaseModel):
-    current: CurrentConditions
-    daily: DailyForecast
-
-
-class Weather(BaseModel):
-    """What the weather panel shows: right now, plus today's outlook."""
-
-    temperature: float
-    weather_code: int
-    is_day: bool
-    high: float
-    low: float
-    precipitation_probability: int | None = None
-
-
-MillisecondTimedelta = Annotated[
-    timedelta, BeforeValidator(lambda v: timedelta(milliseconds=v) if isinstance(v, (int, float)) else v)
-]
-
-
-class Image(BaseModel):
-    width: int
-    height: int
-    url: HttpUrl
-
-
-class Album(BaseModel):
-    images: list[Image]
-    name: str
-
-
-class Artist(BaseModel):
-    name: str
-
-
-class Track(BaseModel):
-    album: Album
-    artists: list[Artist]
-    name: str
-    duration_ms: MillisecondTimedelta
-
-
-class Queue(BaseModel):
-    currently_playing: Track | None
-    queue: list[Track]
-
-
-class TopResponse[T: (Track, Artist)](BaseModel):
-    items: list[T]

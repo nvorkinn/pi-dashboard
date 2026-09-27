@@ -57,9 +57,12 @@ def test_registers_and_persists_credentials_on_first_run(isolated_cwd, monkeypat
     register_response = _response({"device_id": "device-123"})
     post_mock = MagicMock(return_value=register_response)
 
-    # Patch the session before construction (build_retrying_session() creates a fresh
+    # Patch the session before construction (_build_retrying_session() creates a fresh
     # session each time), at the spot AbstractClient.__init__ actually calls it.
-    monkeypatch.setattr("countdown.core.abstract_client.build_retrying_session", lambda: MagicMock(post=post_mock))
+    monkeypatch.setattr(
+        "countdown.core.abstract_client.AbstractClient._build_retrying_session",
+        staticmethod(lambda: MagicMock(post=post_mock)),
+    )
 
     client = BrokerClient(BROKER_URL)
     asyncio.run(client.initialise())  # registration happens here, not in __init__

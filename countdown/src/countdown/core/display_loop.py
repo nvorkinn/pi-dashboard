@@ -6,11 +6,11 @@ from datetime import UTC, datetime
 import pydantic
 import requests
 
-from countdown.core.api_registry import ApiRegistry
 from countdown.config_server.broker_client import BrokerClient
 from countdown.config_server.config_manager import (
     AppConfig,
 )
+from countdown.core.api_registry import ApiRegistry
 from countdown.core.display import DisplayController
 from countdown.system_screens.pairing_code_panel import PairingCodePanel
 from countdown.system_screens.setup_panel import SetupPanel

@@ -5,8 +5,8 @@ from datetime import datetime, timedelta
 from zoneinfo import ZoneInfo
 
 from countdown.core.abstract_client import DEFAULT_TIMEOUT
-from countdown.core.models import Postcode
 from countdown.notices.notice import Notice, NoticeSource, Severity
+from countdown.tfl.models import Postcode
 
 logger = logging.getLogger(__name__)
 

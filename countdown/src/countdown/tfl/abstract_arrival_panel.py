@@ -2,8 +2,8 @@ from abc import ABC, abstractmethod
 
 from PIL import Image, ImageDraw, ImageFont
 
-from countdown.core.models import ArrivalUnion
 from countdown.core.panel import Panel
+from countdown.tfl.models import ArrivalUnion
 from countdown.utils.utils import UBUNTU_BOLD, UBUNTU_CONDENSED, UBUNTU_MEDIUM
 
 # One departure per row: a route badge (square-cornered -- on a 1-bit screen only straight

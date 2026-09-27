@@ -1,6 +1,6 @@
 from typing import override
 
-from countdown.core.models import TopResponse, Track
+from countdown.spotify.models import TopResponse, Track
 from countdown.spotify.spotify_abstract_top_panel import AbstractSpotifyTopSubPanel
 
 

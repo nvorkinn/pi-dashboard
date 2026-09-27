@@ -5,10 +5,10 @@ import pytest
 import requests
 import responses
 
-from countdown.weather import weather_client
 from countdown.config_server.config_manager import WeatherConfig
-from countdown.core.models import Weather
+from countdown.glow.models import Weather
 from countdown.notices.location import is_postcode
+from countdown.weather import weather_client
 from countdown.weather.weather_client import FORECAST_URL, GEOCODING_URL, WeatherClient
 
 GEOCODING_JSON = {"results": [{"name": "London", "latitude": 51.5, "longitude": -0.12, "country": "United Kingdom"}]}

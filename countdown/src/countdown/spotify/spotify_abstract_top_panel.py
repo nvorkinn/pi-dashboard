@@ -3,8 +3,8 @@ from typing import TypeVar
 
 from PIL import Image, ImageDraw
 
-from countdown.core.models import Artist, TopResponse, Track
 from countdown.core.panel import Panel
+from countdown.spotify.models import Artist, TopResponse, Track
 from countdown.spotify.spotify_panel import truncate_to_fit
 from countdown.utils.utils import UBUNTU_MEDIUM_15
 

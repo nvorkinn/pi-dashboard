@@ -1,7 +1,7 @@
 from PIL import Image, ImageDraw
 
-from countdown.notices.notice import Notice, Severity
 from countdown.core.panel import Panel
+from countdown.notices.notice import Notice, Severity
 from countdown.spotify.spotify_panel import truncate_to_fit
 from countdown.utils.utils import GOOGLE_REGULAR, GOOGLE_SEMI
 

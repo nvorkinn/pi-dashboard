@@ -3,9 +3,9 @@ import io
 import requests
 from PIL import Image, ImageDraw, ImageFont
 
-from countdown.core.models import Album, Artist, Queue
-from countdown.core.models import Image as AlbumImage
 from countdown.core.panel import Panel
+from countdown.spotify.models import Album, Artist, Queue
+from countdown.spotify.models import Image as AlbumImage
 from countdown.utils.utils import UBUNTU_BOLD_20, UBUNTU_MEDIUM_15, UBUNTU_MEDIUM_20
 
 

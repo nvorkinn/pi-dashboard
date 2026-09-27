@@ -8,13 +8,13 @@ from datetime import UTC, datetime
 
 import requests
 
-from countdown.core.abstract_client import ClientStatus
-from countdown.core.api_registry import ApiRegistry
 from countdown.config_server.broker_client import BrokerClient
 from countdown.config_server.config_manager import AppConfig
-from countdown.home_assistant.device_status import DeviceStatus
-from countdown.core.display_loop import DisplayLoop
+from countdown.core.abstract_client import ClientStatus
+from countdown.core.api_registry import ApiRegistry
 from countdown.core.display import DisplayController
+from countdown.core.display_loop import DisplayLoop
+from countdown.home_assistant.device_status import DeviceStatus
 from countdown.system_screens.pairing_code_panel import PairingCodePanel
 from countdown.system_screens.splash_panel import SplashPanel
 
