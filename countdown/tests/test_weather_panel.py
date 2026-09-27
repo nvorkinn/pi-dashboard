@@ -1,6 +1,6 @@
 import pytest
 
-from countdown.glow.models import Weather
+from countdown.weather.models import Weather
 from countdown.weather.weather_panel import FALLBACK_ICON, ICON_MAP, WeatherPanel, icon_for
 
 
