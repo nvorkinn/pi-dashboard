@@ -4,8 +4,8 @@ import logging
 from countdown.config_server.config_manager import WeatherConfig
 from countdown.core.abstract_client import DEFAULT_TIMEOUT, AbstractClient
 from countdown.core.panel import Panel
-from countdown.glow.models import ForecastResponse, GeocodingResponse, Weather
 from countdown.notices.location import is_postcode, postcode_coordinates
+from countdown.weather.models import ForecastResponse, GeocodingResponse, Weather
 from countdown.weather.weather_panel import WeatherPanel
 
 logger = logging.getLogger(__name__)

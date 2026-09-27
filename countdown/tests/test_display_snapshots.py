@@ -17,7 +17,6 @@ from countdown.core.display import DisplayController
 from countdown.core.panel import Panel
 from countdown.glow.energy_panel import EnergyPanel
 from countdown.glow.glow_client import GlowClient
-from countdown.glow.models import Weather
 from countdown.notices.notice import Notice, Severity
 from countdown.notices.notice_board_client import NoticeBoardClient
 from countdown.notices.notice_board_panel import NoticeBoardPanel
@@ -33,6 +32,7 @@ from countdown.tfl.combined_arrival_panel import CombinedArrivalPanel
 from countdown.tfl.models import BusArrival, MetroStopPoint, SingleStopPoint, TubeArrival
 from countdown.tfl.tfl_client import TflClient
 from countdown.tfl.tube_arrival_panel import TubeArrivalPanel
+from countdown.weather.models import Weather
 from countdown.weather.weather_client import WeatherClient
 from countdown.weather.weather_panel import WeatherPanel
 
