@@ -57,6 +57,27 @@ newer tag to update doesn't ask again -- except `GITHUB_TOKEN` still needs to
 be in your environment for that first `curl`, since it happens before this
 script (and its cache) exists.
 
+## Updates
+
+`install.sh` also installs `check_update.sh` (as
+`/usr/local/sbin/pi-dashboard-check-update`) and a systemd timer that runs
+it hourly from 02:00 to 06:00, then every three hours (09:00, 12:00, ...,
+00:00). If the GitHub release marked "latest" isn't what's installed, it
+downloads that release's `install.sh` and runs it with the cached token and
+device id.
+
+The release workflow creates every release as a pre-release, so nothing
+reaches the Pis until you promote it:
+
+    gh release edit v1.2.0 --prerelease=false --latest
+
+(or tick "Set as the latest release" on its release page). To roll back,
+mark an older release as latest the same way.
+
+    systemctl list-timers pi-dashboard-update.timer
+    journalctl -u pi-dashboard-update
+    sudo pi-dashboard-check-update   # check now
+
 ## Releasing
 
 Push a `v*` tag on a commit that's on `main`; `.github/workflows/release.yml`
