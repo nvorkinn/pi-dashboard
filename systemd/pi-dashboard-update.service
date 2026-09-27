@@ -1,5 +1,5 @@
 [Unit]
-Description=Update pi-dashboard to the newest -stable release
+Description=Update pi-dashboard to the latest release
 Wants=network-online.target
 After=network-online.target
 

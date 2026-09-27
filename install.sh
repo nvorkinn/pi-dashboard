@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Provisions a Pi with both countdown and pi-telemetry, from one tagged release:
 # decrypts each app's secrets and runs each app's own installer, and schedules
-# check_update.sh to keep the Pi on the newest -stable release. See README.md.
+# check_update.sh to keep the Pi on the latest release. See README.md.
 #
 # Usage:
 #   curl -fsSL -H "Authorization: Bearer $GITHUB_TOKEN" \
@@ -101,11 +101,6 @@ if ! command -v age >/dev/null 2>&1; then
     curl -fsSL "https://github.com/FiloSottile/age/releases/download/$AGE_TAG/age-$AGE_TAG-linux-arm64.tar.gz" \
         | tar -xz -C "$TMP_DIR"
     install -m 755 "$TMP_DIR/age/age" /usr/local/bin/age
-fi
-
-if ! command -v git >/dev/null 2>&1; then
-    echo "Installing git (check_update.sh fetches tags with it)..."
-    apt-get update && apt-get install -y --no-install-recommends git
 fi
 
 echo "Fetching release contents ($TAG)..."

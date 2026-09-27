@@ -62,14 +62,17 @@ script (and its cache) exists.
 `install.sh` also installs `check_update.sh` (as
 `/usr/local/sbin/pi-dashboard-check-update`) and a systemd timer that runs
 it hourly from 02:00 to 06:00, then every three hours (09:00, 12:00, ...,
-00:00). It fetches the repo's tags, picks the most recently created one
-ending in `-stable`, and if that isn't what's installed, downloads that
-release's `install.sh` and runs it with the cached token and device id.
+00:00). If the GitHub release marked "latest" isn't what's installed, it
+downloads that release's `install.sh` and runs it with the cached token and
+device id.
 
-To promote a release, push a `-stable` tag (e.g. `v1.2.0-stable`) on a
-commit on `main`; the release workflow builds a release for it like any
-other tag. Because tags are ordered by creation time, tagging an older
-commit `-stable` later rolls the Pis back to it.
+The release workflow creates every release as a pre-release, so nothing
+reaches the Pis until you promote it:
+
+    gh release edit v1.2.0 --prerelease=false --latest
+
+(or tick "Set as the latest release" on its release page). To roll back,
+mark an older release as latest the same way.
 
     systemctl list-timers pi-dashboard-update.timer
     journalctl -u pi-dashboard-update

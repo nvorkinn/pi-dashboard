@@ -35,7 +35,6 @@ jobs:
       - name: Stamp version
         run: |
           version="${GITHUB_REF_NAME#v}"
-          version="${version%-stable}"  # not a valid Python version suffix
           (cd countdown && uv version --frozen "$version")
       - name: Install lgpio build dependencies
         run: sudo apt-get update && sudo apt-get install -y --no-install-recommends swig liblgpio-dev
@@ -57,7 +56,6 @@ jobs:
       - name: Stamp version
         run: |
           version="${GITHUB_REF_NAME#v}"
-          version="${version%-stable}"  # not a valid Python version suffix
           sed -i -E '0,/^version = ".*"/s//version = "'"$version"'"/' pi-telemetry/Cargo.toml
       - uses: dtolnay/rust-toolchain@stable
         with:
@@ -101,4 +99,4 @@ jobs:
             "${{ env.BIN_NAME }}-${{ env.TARGET }}" \
             secrets.zip \
             install.sh \
-            --title "$GITHUB_REF_NAME" --generate-notes
+            --title "$GITHUB_REF_NAME" --generate-notes --prerelease
