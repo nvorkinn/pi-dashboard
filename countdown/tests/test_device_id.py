@@ -1,6 +1,6 @@
 import pytest
 
-from countdown.device_id import resolve_device_id
+from countdown.utils.device_id import resolve_device_id
 
 # pi-telemetry's device_id.rs, ported -- must resolve identically, or the two
 # processes end up as two separate HA devices for the same host.

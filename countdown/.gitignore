@@ -15,7 +15,7 @@ downloads/
 eggs/
 .eggs/
 lib/
-!src/display/lib/
+!src/countdown/lib/
 lib64/
 parts/
 sdist/

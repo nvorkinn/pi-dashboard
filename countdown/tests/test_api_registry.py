@@ -5,15 +5,15 @@ import logging
 import pytest
 from config_factory import make_config
 
-from countdown.abstract_client import AbstractClient, ClientStatus
-from countdown.api_registry import ApiRegistry, ClientClasses, FailedClient
-from countdown.config_manager import TflConfig, WeatherConfig
-from countdown.glow_client import GlowClient
-from countdown.notice_board_client import NoticeBoardClient
-from countdown.spotify_client import SpotifyClient
-from countdown.tfl_client import TflClient
-from countdown.weather_client import WeatherClient
-from display.message_panel import MessagePanel
+from countdown.core.abstract_client import AbstractClient, ClientStatus
+from countdown.core.api_registry import ApiRegistry, ClientClasses, FailedClient
+from countdown.config_server.config_manager import TflConfig, WeatherConfig
+from countdown.glow.glow_client import GlowClient
+from countdown.notices.notice_board_client import NoticeBoardClient
+from countdown.spotify.spotify_client import SpotifyClient
+from countdown.tfl.tfl_client import TflClient
+from countdown.weather.weather_client import WeatherClient
+from countdown.system_screens.message_panel import MessagePanel
 
 
 class FakeClient(AbstractClient):

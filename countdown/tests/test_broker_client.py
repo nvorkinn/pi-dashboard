@@ -7,12 +7,12 @@ import requests
 import responses
 from pydantic import ValidationError
 
-from countdown import broker_client as broker_client_module
-from countdown.broker_client import CREDENTIALS_FILE, BrokerClient
-from countdown.config_manager import AppConfig
-from countdown.http import DEFAULT_TIMEOUT
+from countdown.config_server import broker_client as broker_client_module
+from countdown.config_server.broker_client import CREDENTIALS_FILE, BrokerClient
+from countdown.config_server.config_manager import AppConfig
 
 BROKER_URL = "https://broker.example.com"
+DEFAULT_TIMEOUT = 10
 
 
 def _app_config(pairing_code: str | None) -> AppConfig:
@@ -59,7 +59,7 @@ def test_registers_and_persists_credentials_on_first_run(isolated_cwd, monkeypat
 
     # Patch the session before construction (build_retrying_session() creates a fresh
     # session each time), at the spot AbstractClient.__init__ actually calls it.
-    monkeypatch.setattr("countdown.abstract_client.build_retrying_session", lambda: MagicMock(post=post_mock))
+    monkeypatch.setattr("countdown.core.abstract_client.build_retrying_session", lambda: MagicMock(post=post_mock))
 
     client = BrokerClient(BROKER_URL)
     asyncio.run(client.initialise())  # registration happens here, not in __init__

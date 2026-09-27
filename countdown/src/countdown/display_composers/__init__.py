@@ -1,4 +1,4 @@
-from countdown.api_registry import ClientClasses
+from countdown.core.api_registry import ClientClasses
 from countdown.display_composers.abstract_display_composer import AbstractDisplayComposer
 from countdown.display_composers.base_composer import BaseComposer
 from countdown.display_composers.glow_composer import GlowComposer

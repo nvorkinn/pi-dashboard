@@ -8,12 +8,12 @@ import pytest
 from PIL import Image
 
 # countdown has to be imported before display.display, or it's a circular import.
-import countdown.api_registry  # noqa: F401
-import display.display as display_module
-import display.targets as targets_module
-from display.display import FULL_REFRESH_INTERVAL_S, DisplayController
-from display.panel import Panel
-from display.targets import EpdTarget, PreviewTarget
+import countdown.core.api_registry  # noqa: F401
+from countdown import display as display_module
+import countdown.targets as targets_module
+from countdown.core.display import FULL_REFRESH_INTERVAL_S, DisplayController
+from countdown.core.panel import Panel
+from countdown.targets import EpdTarget, PreviewTarget
 
 
 class FakeEpd:
@@ -89,7 +89,7 @@ def test_no_panel_means_no_painting_and_no_preview_window(no_preview):
 
 
 def test_the_pairing_screen_is_skipped_too_without_a_panel(no_preview):
-    from display.pairing_code_panel import PairingCodePanel
+    from countdown.system_screens.pairing_code_panel import PairingCodePanel
 
     epd = FakeEpd(answers=False)
     controller = controller_with(epd)
@@ -193,7 +193,7 @@ def test_shutdown_survives_the_closed_spi_seen_on_the_pi(no_preview, clock, capl
 
 def test_the_pairing_code_goes_to_the_log_when_there_is_no_panel_to_show_it(no_preview, caplog):
     caplog.set_level(logging.INFO)
-    from display.pairing_code_panel import PairingCodePanel
+    from countdown.system_screens.pairing_code_panel import PairingCodePanel
 
     controller = controller_with(FakeEpd(answers=False))
 
@@ -204,7 +204,7 @@ def test_the_pairing_code_goes_to_the_log_when_there_is_no_panel_to_show_it(no_p
 
 def test_the_pairing_code_is_not_logged_when_the_panel_shows_it(no_preview, caplog):
     caplog.set_level(logging.INFO)
-    from display.pairing_code_panel import PairingCodePanel
+    from countdown.system_screens.pairing_code_panel import PairingCodePanel
 
     controller = controller_with(FakeEpd(answers=True))
 
@@ -363,7 +363,7 @@ def test_a_frame_that_never_reached_a_missing_panel_is_painted_once_one_appears(
 
 
 def test_the_pairing_screen_replaces_the_picture_so_the_next_frame_is_repainted_in_full(no_preview, clock):
-    from display.pairing_code_panel import PairingCodePanel
+    from countdown.system_screens.pairing_code_panel import PairingCodePanel
 
     epd = FakeEpd(answers=True)
     controller = controller_with(epd)
@@ -393,7 +393,7 @@ def test_with_nothing_to_show_it_says_so_instead_of_a_blank_screen(no_preview, c
 
 
 def test_the_splash_is_one_full_paint_without_a_clear_and_resets_what_is_remembered(no_preview, clock):
-    from display.splash_panel import SplashPanel
+    from countdown.system_screens.splash_panel import SplashPanel
 
     epd = FakeEpd(answers=True)
     controller = controller_with(epd)
@@ -409,7 +409,7 @@ def test_the_splash_is_one_full_paint_without_a_clear_and_resets_what_is_remembe
 
 
 def test_the_splash_on_a_pi_with_no_panel_is_skipped_quietly(no_preview, clock):
-    from display.splash_panel import SplashPanel
+    from countdown.system_screens.splash_panel import SplashPanel
 
     epd = FakeEpd(answers=False)
 
@@ -420,7 +420,7 @@ def test_the_splash_on_a_pi_with_no_panel_is_skipped_quietly(no_preview, clock):
 
 
 def test_the_setup_screen_is_one_full_paint_and_resets_what_is_remembered(no_preview, clock):
-    from display.setup_panel import SetupPanel
+    from countdown.system_screens.setup_panel import SetupPanel
 
     epd = FakeEpd(answers=True)
     controller = controller_with(epd)
@@ -437,7 +437,7 @@ def test_the_setup_screen_is_one_full_paint_and_resets_what_is_remembered(no_pre
 
 def test_the_setup_checklist_goes_to_the_log_when_there_is_no_panel(no_preview, clock, caplog):
     caplog.set_level(logging.INFO)
-    from display.setup_panel import SetupPanel
+    from countdown.system_screens.setup_panel import SetupPanel
 
     controller = controller_with(FakeEpd(answers=False))
 
@@ -447,7 +447,7 @@ def test_the_setup_checklist_goes_to_the_log_when_there_is_no_panel(no_preview, 
 
 
 def _pairing_panel():
-    from display.pairing_code_panel import PairingCodePanel
+    from countdown.system_screens.pairing_code_panel import PairingCodePanel
 
     return PairingCodePanel("ABC123", "device-1", has_changed=True)
 
@@ -480,7 +480,7 @@ def test_repaint_pending_does_not_pester_a_panel_that_is_still_absent(no_preview
 
 
 def test_a_whole_screen_paint_that_failed_midway_is_retried(no_preview, clock):
-    from display.splash_panel import SplashPanel
+    from countdown.system_screens.splash_panel import SplashPanel
 
     epd = FakeEpd(answers=True)
     controller = controller_with(epd)

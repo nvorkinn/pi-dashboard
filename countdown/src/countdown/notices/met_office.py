@@ -4,8 +4,8 @@ import xml.etree.ElementTree as ET
 from datetime import datetime, timedelta
 from zoneinfo import ZoneInfo
 
-from countdown.http import DEFAULT_TIMEOUT
-from countdown.models import Postcode
+from countdown.core.abstract_client import DEFAULT_TIMEOUT
+from countdown.core.models import Postcode
 from countdown.notices.notice import Notice, NoticeSource, Severity
 
 logger = logging.getLogger(__name__)

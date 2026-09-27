@@ -1,0 +1,92 @@
+import json
+import os
+from collections.abc import Callable
+from dataclasses import dataclass
+from pathlib import Path
+
+from countdown.core.abstract_client import AbstractClient, DEFAULT_TIMEOUT
+from countdown.config_server.config_manager import SpotifyConfig
+from countdown.core.models import Artist, Queue, TopResponse, Track
+from countdown.core.panel import Panel
+from countdown.spotify.spotify_panel import SpotifyPanel
+from countdown.spotify.spotify_top_artists_panel import SpotifyTopArtistsPanel
+from countdown.spotify.spotify_top_panel import SpotifyTopPanel
+from countdown.spotify.spotify_top_tracks_panel import SpotifyTopTracksPanel
+
+CREDENTIALS_FILE = Path(".auth_broker_device")
+
+
+@dataclass(frozen=True)
+class PageConfig:
+    """One of the pages the Spotify area rotates through. A page with nothing to show
+    (update_function returns None) gives way to the next one."""
+
+    update_function: Callable[[SpotifyClient, PageConfig], Panel | None]
+
+
+@dataclass(frozen=True)
+class TopPageConfig(PageConfig):
+    update_function: Callable[[SpotifyClient, TopPageConfig], Panel | None]
+    params: dict[str, str]
+    period: str
+
+
+class SpotifyClient(AbstractClient):
+    """Now playing and top tracks/artists, via auth-broker, which calls Spotify server-side
+    so this device never holds a token. Uses BrokerClient's saved device credentials."""
+
+    panel_title = "Spotify"
+    panel_logo = "spotify_logo.png"
+
+    def __init__(self, config: SpotifyConfig):
+        super().__init__(config)
+        self.page = -1
+        self.base_url = os.environ["BROKER_URL"]
+        if CREDENTIALS_FILE.exists():
+            data = json.loads(CREDENTIALS_FILE.read_text())
+            self.device_id: str = data["device_id"]
+            self.device_secret: str = data["device_secret"]
+
+    def _initialise(self) -> None:
+        pass
+
+    def _request(self, method: str, path: str, **kwargs) -> bytes:
+        headers = {"Authorization": f"Bearer {self.device_secret}"}
+        response = self.session.request(
+            method, f"{self.base_url}{path}", headers=headers, timeout=DEFAULT_TIMEOUT, **kwargs
+        )
+        response.raise_for_status()
+        return response.content
+
+    def _update(self) -> Panel:
+        """The next page in PAGES, or the one after if that has nothing to show."""
+        for _ in range(2):
+            self.page = (self.page + 1) % len(PAGES)
+            page_config = PAGES[self.page]
+            panel = page_config.update_function(self, page_config)
+            if panel:
+                return panel
+        return self.message_panel("Nothing playing on:")
+
+    def update_player(self, _page_config: PageConfig) -> Panel | None:
+        """What's playing and what's up next, or None if nothing is playing."""
+        queue = Queue.model_validate_json(self._request("GET", f"/api/devices/{self.device_id}/queue"))
+        if queue.currently_playing is None:
+            return None
+        return SpotifyPanel(queue)
+
+    def update_top(self, page_config: TopPageConfig) -> Panel:
+        params = {**page_config.params, "limit": 5}
+        top_tracks_bytes = self._request("GET", f"/api/devices/{self.device_id}/top/tracks", params=params)
+        top_tracks_panel = SpotifyTopTracksPanel(TopResponse[Track].model_validate_json(top_tracks_bytes))
+        top_artists_bytes = self._request("GET", f"/api/devices/{self.device_id}/top/artists", params=params)
+        top_artists_panel = SpotifyTopArtistsPanel(TopResponse[Artist].model_validate_json(top_artists_bytes))
+        return SpotifyTopPanel(page_config.period, top_tracks_panel, top_artists_panel)
+
+
+PAGES: tuple[PageConfig, ...] = (
+    PageConfig(SpotifyClient.update_player),
+    TopPageConfig(SpotifyClient.update_top, {"time_range": "long_term"}, "12 months"),
+    PageConfig(SpotifyClient.update_player),
+    TopPageConfig(SpotifyClient.update_top, {"time_range": "short_term"}, "4 weeks"),
+)

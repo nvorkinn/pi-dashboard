@@ -2,7 +2,7 @@ import pytest
 from config_factory import make_config
 from pydantic import ValidationError
 
-from countdown.config_manager import AppConfig
+from countdown.config_server.config_manager import AppConfig
 
 # The `isolated_cwd` fixture used below is defined once, autouse, in tests/conftest.py.
 

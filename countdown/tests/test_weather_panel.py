@@ -1,7 +1,7 @@
 import pytest
 
-from countdown.models import Weather
-from display.weather_panel import FALLBACK_ICON, ICON_MAP, WeatherPanel, icon_for
+from countdown.core.models import Weather
+from countdown.weather.weather_panel import FALLBACK_ICON, ICON_MAP, WeatherPanel, icon_for
 
 
 def make_weather(**overrides) -> Weather:

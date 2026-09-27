@@ -10,10 +10,10 @@ import requests
 import responses
 from requests.adapters import HTTPAdapter
 
-from countdown import glow_client
-from countdown.abstract_client import ClientStatus
-from countdown.config_manager import GlowmarktConfig
-from countdown.glow_client import GlowClient, _get_utc_offset
+from countdown.glow import glow_client
+from countdown.core.abstract_client import ClientStatus
+from countdown.config_server.config_manager import GlowmarktConfig
+from countdown.glow.glow_client import GlowClient, _get_utc_offset
 from countdown.http import DEFAULT_TIMEOUT
 
 BASE_URL = GlowClient.base_url

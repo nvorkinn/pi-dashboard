@@ -1,7 +1,7 @@
 from datetime import datetime, timedelta
 
-from countdown.http import DEFAULT_TIMEOUT
-from countdown.models import FloodWarningsResponse, Postcode
+from countdown.core.abstract_client import DEFAULT_TIMEOUT
+from countdown.core.models import FloodWarningsResponse, Postcode
 from countdown.notices.notice import Notice, NoticeSource, Severity
 
 FLOODS_URL = "https://environment.data.gov.uk/flood-monitoring/id/floods"
