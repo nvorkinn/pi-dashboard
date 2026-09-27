@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
 # Provisions a Pi with both countdown and pi-telemetry, from one tagged release:
-# decrypts each app's secrets and runs each app's own installer. See README.md.
+# decrypts each app's secrets and runs each app's own installer, and schedules
+# check_update.sh to keep the Pi on the newest -stable release. See README.md.
 #
 # Usage:
 #   curl -fsSL -H "Authorization: Bearer $GITHUB_TOKEN" \
@@ -35,6 +36,8 @@ STATE_DIR="/etc/pi-setup"
 TOKEN_FILE="$STATE_DIR/github-token"
 KEY_FILE="$STATE_DIR/age-key.txt"
 DEVICE_ID_FILE="$STATE_DIR/device-id"
+INSTALL_USER_FILE="$STATE_DIR/install-user"
+INSTALLED_TAG_FILE="$STATE_DIR/installed-tag"
 
 umask 077
 mkdir -p "$STATE_DIR"
@@ -50,6 +53,15 @@ if [ -f "$DEVICE_ID_FILE" ] && [ "$(cat "$DEVICE_ID_FILE")" != "$DEVICE_ID" ]; t
 fi
 echo "$DEVICE_ID" > "$DEVICE_ID_FILE"
 echo "Device id: $DEVICE_ID"
+
+# The apps are installed for whoever ran sudo. check_update.sh runs this from a
+# systemd timer, without sudo, so it reuses the user from the first install.
+if [ -n "${SUDO_USER:-}" ]; then
+    echo "$SUDO_USER" > "$INSTALL_USER_FILE"
+elif [ -f "$INSTALL_USER_FILE" ]; then
+    SUDO_USER="$(cat "$INSTALL_USER_FILE")"
+fi
+export SUDO_USER="${SUDO_USER:-root}"
 
 if [ -n "${GITHUB_TOKEN:-}" ]; then
     :
@@ -89,6 +101,11 @@ if ! command -v age >/dev/null 2>&1; then
     curl -fsSL "https://github.com/FiloSottile/age/releases/download/$AGE_TAG/age-$AGE_TAG-linux-arm64.tar.gz" \
         | tar -xz -C "$TMP_DIR"
     install -m 755 "$TMP_DIR/age/age" /usr/local/bin/age
+fi
+
+if ! command -v git >/dev/null 2>&1; then
+    echo "Installing git (check_update.sh fetches tags with it)..."
+    apt-get update && apt-get install -y --no-install-recommends git
 fi
 
 echo "Fetching release contents ($TAG)..."
@@ -170,6 +187,17 @@ chmod +x "$TMP_DIR/$TELEMETRY_ASSET"
 set_device_id "$TELEMETRY_ENV_FILE"
 
 echo
-echo "Done. countdown and pi-telemetry are both installed."
+echo "== updates =="
+install -m 755 "$TMP_DIR/src/check_update.sh" /usr/local/sbin/pi-dashboard-check-update
+install -m 644 "$TMP_DIR/src/systemd/pi-dashboard-update.service" \
+    "$TMP_DIR/src/systemd/pi-dashboard-update.timer" /etc/systemd/system/
+systemctl daemon-reload
+systemctl enable --now pi-dashboard-update.timer
+
+echo "$TAG" > "$INSTALLED_TAG_FILE"
+
+echo
+echo "Done. countdown and pi-telemetry are both installed ($TAG)."
 echo "  systemctl status countdown"
 echo "  systemctl status pi-telemetry.timer"
+echo "  systemctl list-timers pi-dashboard-update.timer"

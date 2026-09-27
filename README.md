@@ -57,6 +57,24 @@ newer tag to update doesn't ask again -- except `GITHUB_TOKEN` still needs to
 be in your environment for that first `curl`, since it happens before this
 script (and its cache) exists.
 
+## Updates
+
+`install.sh` also installs `check_update.sh` (as
+`/usr/local/sbin/pi-dashboard-check-update`) and a systemd timer that runs
+it hourly from 02:00 to 06:00, then every three hours (09:00, 12:00, ...,
+00:00). It fetches the repo's tags, picks the most recently created one
+ending in `-stable`, and if that isn't what's installed, downloads that
+release's `install.sh` and runs it with the cached token and device id.
+
+To promote a release, push a `-stable` tag (e.g. `v1.2.0-stable`) on a
+commit on `main`; the release workflow builds a release for it like any
+other tag. Because tags are ordered by creation time, tagging an older
+commit `-stable` later rolls the Pis back to it.
+
+    systemctl list-timers pi-dashboard-update.timer
+    journalctl -u pi-dashboard-update
+    sudo pi-dashboard-check-update   # check now
+
 ## Releasing
 
 Push a `v*` tag on a commit that's on `main`; `.github/workflows/release.yml`
