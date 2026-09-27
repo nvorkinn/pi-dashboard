@@ -50,6 +50,11 @@ main() {
     gh release download "$tag" --repo "$REPO" --pattern install.sh --dir "$tmp_dir"
 
     bash "$tmp_dir/install.sh" "$tag" "$(cat "$DEVICE_ID_FILE")"
+
+    # install.sh records this too, but releases from before check_update.sh
+    # existed don't, and rolling back to one would otherwise reinstall it on
+    # every run.
+    echo "$tag" > "$INSTALLED_TAG_FILE"
 }
 
 main "$@"
