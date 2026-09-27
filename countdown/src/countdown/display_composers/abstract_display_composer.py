@@ -2,10 +2,10 @@ from abc import ABC, abstractmethod
 
 from PIL import Image
 
-from countdown.api_registry import ClientClasses
-from display.combined_arrival_panel import CombinedArrivalPanel
-from display.panel import Panel
-from display.utils import TOTAL_WIDTH
+from countdown.core.api_registry import ClientClasses
+from countdown.tfl.combined_arrival_panel import CombinedArrivalPanel
+from countdown.core.panel import Panel
+from countdown.utils.utils import TOTAL_WIDTH
 
 # Where every layout puts the arrivals panel, the part of the screen that changes every
 # minute and so the only part worth a partial refresh.

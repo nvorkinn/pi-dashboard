@@ -3,7 +3,7 @@ from zoneinfo import ZoneInfo
 
 from pydantic import BaseModel, Field
 
-from countdown.http import DEFAULT_TIMEOUT
+from countdown.core.abstract_client import DEFAULT_TIMEOUT
 from countdown.notices.notice import Notice, NoticeSource, Severity
 
 UK_TIME = ZoneInfo("Europe/London")

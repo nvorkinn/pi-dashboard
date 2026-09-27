@@ -17,7 +17,7 @@
             "name": "Clear Waveshare ePaper Screen",
             "type": "debugpy",
             "request": "launch",
-            "program": "${workspaceFolder}/src/display/clear_screen.py",
+            "program": "${workspaceFolder}/src/countdown/utils/clear_screen.py",
             "args": [
                 "--verbose"
             ],

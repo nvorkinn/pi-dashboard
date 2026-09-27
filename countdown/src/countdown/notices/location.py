@@ -2,8 +2,8 @@ import re
 
 import requests
 
-from countdown.http import DEFAULT_TIMEOUT
-from countdown.models import OutcodeResponse, Postcode, PostcodeResponse
+from countdown.core.abstract_client import DEFAULT_TIMEOUT
+from countdown.core.models import OutcodeResponse, Postcode, PostcodeResponse
 
 POSTCODES_URL = "https://api.postcodes.io/postcodes"
 OUTCODES_URL = "https://api.postcodes.io/outcodes"

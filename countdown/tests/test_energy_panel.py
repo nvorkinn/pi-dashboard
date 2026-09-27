@@ -1,7 +1,7 @@
 import pytest
 
 import countdown  # noqa: F401, I001 -- see test_display_snapshots.py for why this comes first
-from display.energy_panel import EnergyPanel
+from countdown.glow.energy_panel import EnergyPanel
 
 
 @pytest.mark.parametrize(

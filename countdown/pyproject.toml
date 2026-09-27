@@ -16,6 +16,7 @@ dependencies = [
     "pydantic-tfl-api>=3.1.0",
     "requests>=2.32.5",
     "spidev>=3.8; sys_platform == 'linux'",
+    "urllib3==2.8.0",
 ]
 
 [project.scripts]
@@ -48,10 +49,11 @@ skip_empty = true
 [tool.ruff]
 target-version = "py314"
 line-length = 120
-extend-exclude = ["src/display/lib"]  # vendored Waveshare driver
+extend-exclude = ["src/countdown/lib"]  # vendored Waveshare driver
 
 [tool.ruff.lint]
-select = ["E4", "E7", "E9", "F", "I", "UP", "B", "SIM"]
+select = ["E7", "E9", "F", "UP", "B", "SIM"]
+ignore = ["F401"]
 
 [tool.pyproject-runner.tasks]
 

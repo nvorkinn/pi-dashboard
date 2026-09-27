@@ -1,4 +1,4 @@
-from countdown.app import main
+from countdown.core.app import main
 
 if __name__ == "__main__":
     main()

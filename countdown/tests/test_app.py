@@ -9,9 +9,9 @@ from config_factory import make_config
 from pydantic import BaseModel, ValidationError
 
 from countdown import app
-from countdown.abstract_client import ClientStatus
-from countdown.config_manager import AppConfig
-from countdown.display_loop import safe_fetch
+from countdown.core.abstract_client import ClientStatus
+from countdown.config_server.config_manager import AppConfig
+from countdown.core.display_loop import safe_fetch
 
 
 def test_safe_fetch_returns_func_result_on_success():

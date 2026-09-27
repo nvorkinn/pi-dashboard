@@ -6,9 +6,9 @@ import requests
 import responses
 from config_factory import make_config
 
-from countdown.config_manager import NoticeBoardConfig, TflConfig
-from countdown.models import Postcode
-from countdown.notice_board_client import NoticeBoardClient
+from countdown.config_server.config_manager import NoticeBoardConfig, TflConfig
+from countdown.core.models import Postcode
+from countdown.notices.notice_board_client import NoticeBoardClient
 from countdown.notices.calendar import (
     BANK_HOLIDAYS_URL,
     BankHolidaySource,
@@ -19,8 +19,8 @@ from countdown.notices.location import POSTCODES_URL
 from countdown.notices.met_office import MetOfficeWarningsSource, parse_warnings, region_for
 from countdown.notices.notice import Notice, NoticeSource, Severity
 from countdown.notices.tfl import TFL_URL, TflLineStatusSource, TflRoadSource, TflStationSource
-from display.message_panel import MessagePanel
-from display.notice_board_panel import NoticeBoardPanel
+from countdown.system_screens.message_panel import MessagePanel
+from countdown.notices.notice_board_panel import NoticeBoardPanel
 
 NOW = datetime(2026, 9, 25, 12, 0, tzinfo=UTC)
 SOUTHWARK = Postcode(
@@ -462,7 +462,7 @@ def clock(monkeypatch):
         def now(cls, tz=None):
             return Clock.now
 
-    import countdown.notice_board_client as board_module
+    import countdown.notices.notice_board_client as board_module
 
     monkeypatch.setattr(board_module, "datetime", FrozenDatetime)
     return Clock

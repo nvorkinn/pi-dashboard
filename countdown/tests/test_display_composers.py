@@ -1,7 +1,7 @@
 import pytest
 
 import countdown  # noqa: F401, I001 -- see test_display_snapshots.py for why this comes first
-from countdown.api_registry import ClientClasses
+from countdown.core.api_registry import ClientClasses
 from countdown.display_composers import COMPOSERS, choose_composer
 from countdown.display_composers.base_composer import BaseComposer
 from countdown.display_composers.glow_composer import GlowComposer

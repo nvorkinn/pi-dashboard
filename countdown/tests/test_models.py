@@ -1,7 +1,7 @@
 import pytest
 from pydantic import TypeAdapter
 
-from countdown.models import (
+from countdown.core.models import (
     ArrivalUnion,
     BusArrival,
     Entity,
