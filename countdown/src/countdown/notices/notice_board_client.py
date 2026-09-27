@@ -3,7 +3,6 @@ from datetime import UTC, datetime, timedelta
 
 from countdown.config_server.config_manager import NoticeBoardConfig
 from countdown.core.abstract_client import AbstractClient
-from countdown.core.models import Postcode
 from countdown.notices.calendar import BankHolidaySource, ClockChangeSource
 from countdown.notices.floods import FloodWarningsSource
 from countdown.notices.location import lookup_postcode
@@ -12,6 +11,7 @@ from countdown.notices.notice import Notice, NoticeSource
 from countdown.notices.notice_board_panel import NoticeBoardPanel
 from countdown.notices.tfl import TflLineStatusSource, TflRoadSource, TflStationSource
 from countdown.system_screens.message_panel import MessagePanel
+from countdown.tfl.models import Postcode
 
 logger = logging.getLogger(__name__)
 

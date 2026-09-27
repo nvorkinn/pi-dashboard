@@ -2,8 +2,8 @@ from collections import defaultdict
 
 from PIL import Image, ImageDraw
 
-from countdown.core.models import MetroStopPoint, TubeArrival
 from countdown.tfl.abstract_arrival_panel import ROW_GAP, AbstractArrivalPanel
+from countdown.tfl.models import MetroStopPoint, TubeArrival
 from countdown.utils.utils import ROUNDEL, TFL_MEDIUM_FONT_10
 
 

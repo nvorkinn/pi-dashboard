@@ -14,20 +14,14 @@ import countdown  # noqa: F401, I001
 import countdown.glow.energy_panel
 from countdown.core.api_registry import ClientClasses
 from countdown.core.display import DisplayController
-from countdown.core.models import (
-    BusArrival,
-    MetroStopPoint,
-    Queue,
-    SingleStopPoint,
-    TubeArrival,
-    Weather,
-)
 from countdown.core.panel import Panel
 from countdown.glow.energy_panel import EnergyPanel
 from countdown.glow.glow_client import GlowClient
+from countdown.glow.models import Weather
 from countdown.notices.notice import Notice, Severity
 from countdown.notices.notice_board_client import NoticeBoardClient
 from countdown.notices.notice_board_panel import NoticeBoardPanel
+from countdown.spotify.models import Queue
 from countdown.spotify.spotify_client import SpotifyClient
 from countdown.spotify.spotify_panel import SpotifyPanel
 from countdown.system_screens.empty_panel import EmptyPanel
@@ -36,6 +30,7 @@ from countdown.system_screens.setup_panel import SetupPanel
 from countdown.system_screens.splash_panel import SplashPanel
 from countdown.tfl.bus_arrival_panel import BusArrivalPanel
 from countdown.tfl.combined_arrival_panel import CombinedArrivalPanel
+from countdown.tfl.models import BusArrival, MetroStopPoint, SingleStopPoint, TubeArrival
 from countdown.tfl.tfl_client import TflClient
 from countdown.tfl.tube_arrival_panel import TubeArrivalPanel
 from countdown.weather.weather_client import WeatherClient

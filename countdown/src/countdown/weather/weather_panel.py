@@ -1,7 +1,7 @@
 from PIL import Image, ImageDraw, ImageFont
 
-from countdown.core.models import Weather
 from countdown.core.panel import Panel
+from countdown.glow.models import Weather
 from countdown.utils.utils import JOSEFIN_REGULAR, JOSEFIN_SMALL, METEOCONS
 
 FALLBACK_ICON = ")"  # "N/A"

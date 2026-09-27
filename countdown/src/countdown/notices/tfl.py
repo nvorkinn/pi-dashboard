@@ -8,8 +8,8 @@ from pydantic import TypeAdapter
 
 from countdown.config_server.config_manager import TflConfig
 from countdown.core.abstract_client import DEFAULT_TIMEOUT
-from countdown.core.models import DisruptedPoint, Line, Postcode, RoadDisruption, StopPointUnion
 from countdown.notices.notice import Notice, NoticeSource, Severity
+from countdown.tfl.models import DisruptedPoint, Line, Postcode, RoadDisruption, StopPointUnion
 from countdown.tfl.tfl_client import _find_stop_child
 
 logger = logging.getLogger(__name__)
