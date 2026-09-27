@@ -5,15 +5,15 @@ import logging
 import pytest
 from config_factory import make_config
 
+from countdown.config_server.config_manager import TflConfig, WeatherConfig
 from countdown.core.abstract_client import AbstractClient, ClientStatus
 from countdown.core.api_registry import ApiRegistry, ClientClasses, FailedClient
-from countdown.config_server.config_manager import TflConfig, WeatherConfig
 from countdown.glow.glow_client import GlowClient
 from countdown.notices.notice_board_client import NoticeBoardClient
 from countdown.spotify.spotify_client import SpotifyClient
+from countdown.system_screens.message_panel import MessagePanel
 from countdown.tfl.tfl_client import TflClient
 from countdown.weather.weather_client import WeatherClient
-from countdown.system_screens.message_panel import MessagePanel
 
 
 class FakeClient(AbstractClient):
@@ -370,7 +370,7 @@ def test_available_leaves_out_glowmarkt_when_its_username_is_cleared(username):
 def test_a_client_missing_what_it_needs_is_not_built_and_comes_back_fresh(monkeypatch):
     """Clearing Glowmarkt's username removes its client altogether (the broker leaves
     `enabled` true); putting it back builds a new one rather than reviving the old."""
-    monkeypatch.setattr(GlowClient, "initialise", lambda self: asyncio.sleep(0))  # no network
+    monkeypatch.setattr(GlowClient, "_initialise", lambda self: asyncio.sleep(0))  # no network
     registry = ApiRegistry()
     with_credentials = make_config(glowmarkt={"username": "me@example.com", "password": "pw"})
 

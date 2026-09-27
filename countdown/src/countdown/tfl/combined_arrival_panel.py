@@ -2,8 +2,8 @@ from math import ceil
 
 from PIL import Image, ImageDraw
 
-from countdown.tfl.abstract_arrival_panel import AbstractArrivalPanel
 from countdown.core.panel import Panel
+from countdown.tfl.abstract_arrival_panel import AbstractArrivalPanel
 
 STOP_WIDTH = 262
 COLUMNS = 2

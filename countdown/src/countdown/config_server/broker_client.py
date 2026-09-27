@@ -4,11 +4,11 @@ import secrets
 import socket
 from pathlib import Path
 
-from countdown.core.abstract_client import AbstractClient, DEFAULT_TIMEOUT
 from countdown.config_server.config_manager import AppConfig
-from countdown.utils.device_id import resolve_device_id
-from countdown.system_screens.pairing_code_panel import PairingCodePanel
+from countdown.core.abstract_client import DEFAULT_TIMEOUT, AbstractClient
 from countdown.core.panel import Panel
+from countdown.system_screens.pairing_code_panel import PairingCodePanel
+from countdown.utils.device_id import resolve_device_id
 
 CREDENTIALS_FILE = Path(".auth_broker_device")
 

@@ -5,9 +5,9 @@ from datetime import datetime, timedelta
 
 import pytest
 
-from countdown import abstract_client
-from countdown.core.abstract_client import AbstractClient, ClientStatus
 from countdown.config_server.config_manager import TflConfig
+from countdown.core import abstract_client
+from countdown.core.abstract_client import AbstractClient, ClientStatus
 
 
 class FakeClient(AbstractClient):

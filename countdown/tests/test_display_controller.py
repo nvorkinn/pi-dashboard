@@ -4,16 +4,16 @@ runs without a display if nothing answers, and asks again now and then."""
 import logging
 from types import SimpleNamespace
 
+import countdown.targets as targets_module
 import pytest
+from countdown.targets import EpdTarget, PreviewTarget
 from PIL import Image
 
 # countdown has to be imported before display.display, or it's a circular import.
 import countdown.core.api_registry  # noqa: F401
 from countdown import display as display_module
-import countdown.targets as targets_module
 from countdown.core.display import FULL_REFRESH_INTERVAL_S, DisplayController
 from countdown.core.panel import Panel
-from countdown.targets import EpdTarget, PreviewTarget
 
 
 class FakeEpd:

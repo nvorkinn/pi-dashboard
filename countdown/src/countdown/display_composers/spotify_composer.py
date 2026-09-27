@@ -3,9 +3,9 @@ from typing import override
 from PIL import Image
 
 from countdown.core.api_registry import ClientClasses
+from countdown.core.panel import Panel
 from countdown.display_composers.abstract_display_composer import GAP, AbstractDisplayComposer, Box
 from countdown.display_composers.spotify_glow_composer import SPOTIFY_HEIGHT
-from countdown.core.panel import Panel
 from countdown.utils.utils import TOTAL_HEIGHT, TOTAL_WIDTH
 
 

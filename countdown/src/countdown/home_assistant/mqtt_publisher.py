@@ -8,9 +8,9 @@ from collections.abc import Mapping, Sequence
 import paho.mqtt.client as mqtt
 
 from countdown.core.abstract_client import AbstractClient, ClientStatus
-from countdown.utils.device_id import resolve_device_id
-from countdown.home_assistant.device_status import STAGES, DeviceStatus
 from countdown.core.panel import Panel
+from countdown.home_assistant.device_status import STAGES, DeviceStatus
+from countdown.utils.device_id import resolve_device_id
 
 logger = logging.getLogger(__name__)
 

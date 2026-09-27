@@ -3,11 +3,10 @@ RemotePiTarget runs. EpdTarget is covered through the controller in test_display
 
 import subprocess
 
-import pytest
-from PIL import Image
-
 import countdown.targets as targets_module
+import pytest
 from countdown.targets import EpdTarget, PreviewTarget, RemotePiTarget, panel_bytes, target_from_env
+from PIL import Image
 
 
 def test_white_pixels_are_sent_as_zero_bits_and_black_as_one():
