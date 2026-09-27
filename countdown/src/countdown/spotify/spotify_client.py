@@ -6,8 +6,8 @@ from pathlib import Path
 
 from countdown.config_server.config_manager import SpotifyConfig
 from countdown.core.abstract_client import DEFAULT_TIMEOUT, AbstractClient
-from countdown.core.models import Artist, Queue, TopResponse, Track
 from countdown.core.panel import Panel
+from countdown.spotify.models import Artist, Queue, TopResponse, Track
 from countdown.spotify.spotify_panel import SpotifyPanel
 from countdown.spotify.spotify_top_artists_panel import SpotifyTopArtistsPanel
 from countdown.spotify.spotify_top_panel import SpotifyTopPanel

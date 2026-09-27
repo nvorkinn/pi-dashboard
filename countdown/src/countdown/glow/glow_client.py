@@ -4,8 +4,9 @@ from pydantic import TypeAdapter
 
 from countdown.config_server.config_manager import GlowmarktConfig
 from countdown.core.abstract_client import DEFAULT_TIMEOUT, AbstractClient
-from countdown.core.models import Entity, Readings
 from countdown.glow.energy_panel import EnergyPanel
+from countdown.glow.models import Readings
+from countdown.tfl.models import Entity
 
 
 def _get_utc_offset(now: datetime | None = None) -> str:
