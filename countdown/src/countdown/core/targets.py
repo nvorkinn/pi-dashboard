@@ -13,7 +13,7 @@ from PIL import Image
 
 logger = logging.getLogger(__name__)
 
-LIB_DIR = str(Path(__file__).resolve().parent / "lib")
+LIB_DIR = str(Path(__file__).resolve().parents[1] / "lib")
 
 # How often a panel that didn't answer is asked again, so a screen can be plugged in later.
 PANEL_RETRY_INTERVAL_S = 300
@@ -121,7 +121,7 @@ class RemotePiTarget(DisplayTarget):
             raise ValueError("RemotePiTarget needs a host (PI_HOST, e.g. nikolai@countdown.local)")
         self.host = host
         self.pi_dir = pi_dir
-        self.dev_dir = Path(__file__).resolve().parents[2] / "dev"
+        self.dev_dir = Path(__file__).resolve().parents[3] / "dev"
 
     def paint(self, img: Image.Image, region: Region | None = None) -> bool:
         frame = self.dev_dir / "out" / "frame.bin"
@@ -139,7 +139,7 @@ class RemotePiTarget(DisplayTarget):
             ],
             check=True,
         )
-        # The interpreter is the release venv's, which has the driver in display/lib.
+        # The interpreter is the release venv's, which has the driver in countdown/lib.
         region_args = f" {' '.join(map(str, region))}" if region else ""
         remote = f'cd {self.pi_dir} && "$(uv tool dir)/countdown/bin/python" pi_display.py frame.bin{region_args}'
         subprocess.run([*self.SSH, self.host, f"bash -lc '{remote}'"], check=True)
