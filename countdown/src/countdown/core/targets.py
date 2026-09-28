@@ -123,27 +123,38 @@ class RemotePiTarget(DisplayTarget):
         self.pi_dir = pi_dir
         self.dev_dir = Path(__file__).resolve().parents[3] / "dev"
 
+    @classmethod
+    def from_env(cls) -> RemotePiTarget:
+        return cls(os.environ.get("PI_HOST", ""), os.environ.get("PI_DIR", "countdown-dev"))
+
     def paint(self, img: Image.Image, region: Region | None = None) -> bool:
         frame = self.dev_dir / "out" / "frame.bin"
         frame.parent.mkdir(exist_ok=True)
         frame.write_bytes(bytes(panel_bytes(img, region)))
+        self._run_pi_display(frame.name, *map(str, region or ()), extra_files=(frame,))
+        return True
+
+    def clear(self) -> None:
+        """Blanks the panel (a full refresh to white)."""
+        self._run_pi_display("--clear")
+
+    def _run_pi_display(self, *args: str, extra_files: tuple[Path, ...] = ()) -> None:
+        """Copies dev/pi_display.py (and `extra_files`) to the Pi and runs it there with `args`."""
         subprocess.run(
             [
                 "rsync",
                 "-az",
                 "-e",
                 " ".join(self.SSH),
-                str(frame),
+                *map(str, extra_files),
                 str(self.dev_dir / "pi_display.py"),
                 f"{self.host}:{self.pi_dir}/",
             ],
             check=True,
         )
         # The interpreter is the release venv's, which has the driver in countdown/lib.
-        region_args = f" {' '.join(map(str, region))}" if region else ""
-        remote = f'cd {self.pi_dir} && "$(uv tool dir)/countdown/bin/python" pi_display.py frame.bin{region_args}'
+        remote = f'cd {self.pi_dir} && "$(uv tool dir)/countdown/bin/python" pi_display.py {" ".join(args)}'
         subprocess.run([*self.SSH, self.host, f"bash -lc '{remote}'"], check=True)
-        return True
 
 
 def _load_epd():
@@ -165,7 +176,7 @@ def target_from_env() -> DisplayTarget:
     if choice == "preview":
         return PreviewTarget()
     if choice == "remote":
-        return RemotePiTarget(os.environ.get("PI_HOST", ""), os.environ.get("PI_DIR", "countdown-dev"))
+        return RemotePiTarget.from_env()
     if choice != "auto":
         raise ValueError(f"Unknown DISPLAY_TARGET {choice!r}: expected epd, preview, remote or auto")
     try:

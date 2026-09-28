@@ -81,6 +81,16 @@ def test_a_remote_partial_paint_passes_the_region_along(remote, tmp_path):
     assert len((tmp_path / "out" / "frame.bin").read_bytes()) == 4  # just the region: 2 bytes x 2 rows
 
 
+def test_clearing_the_remote_panel_runs_the_script_with_clear(remote, tmp_path):
+    target, run = remote
+
+    target.clear()
+
+    rsync, ssh = run.commands
+    assert rsync[-2:] == [str(tmp_path / "pi_display.py"), "pi@countdown.local:countdown-dev/"]
+    assert ssh[-1].endswith("pi_display.py --clear'")
+
+
 def test_a_failed_copy_is_raised_not_swallowed(remote, monkeypatch):
     target, _ = remote
 

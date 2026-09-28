@@ -17,10 +17,10 @@
             "name": "Clear Waveshare ePaper Screen",
             "type": "debugpy",
             "request": "launch",
-            "program": "${workspaceFolder}/src/countdown/utils/clear_screen.py",
-            "args": [
-                "--verbose"
-            ],
+            "program": "${workspaceFolder}/dev/clear_pi.py",
+            "env": {
+                "PI_HOST": "nikolai@countdown.local"
+            },
             "cwd": "${workspaceFolder}",
             "python": "${command:python.interpreterPath}",
             "console": "integratedTerminal"
