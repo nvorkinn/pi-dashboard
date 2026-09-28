@@ -85,7 +85,8 @@ BROKER_URL=https://auth.nikolaivorkinn.com uv run countdown
   to the Pi with `dev/pi_display.py`, which paints it using the driver from the
   installed release. Stop the service on the Pi first
   (`sudo systemctl stop countdown`), or it paints over your frames. Start it
-  again when you're done.
+  again when you're done. `uv run dev/clear_pi.py`, with the same variables,
+  blanks the panel.
 - `auto` (the default): the panel if its driver loads, otherwise the image
   viewer.
 
