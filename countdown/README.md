@@ -60,7 +60,7 @@ puts the arrivals top-left with the weather beside them. The layout also sets
 how many stops are on screen at once (four with neither Spotify nor Glowmarkt,
 otherwise two), and the TfL client pages through the rest.
 
-**Painting** (`display/display.py`, `display/targets.py`). `DisplayController`
+**Painting** (`core/display.py`, `core/targets.py`). `DisplayController`
 only paints when the picture changes. If only the arrivals changed, it does a
 quick partial refresh of their box. Otherwise, or once 10 minutes have passed
 since the last full refresh (partial refreshes leave ghosting), it does a full
