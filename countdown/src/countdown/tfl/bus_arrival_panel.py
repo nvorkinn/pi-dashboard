@@ -16,11 +16,7 @@ class BusArrivalPanel(AbstractArrivalPanel):
     def _create_panel_for_arrivals(self, arrivals: list[BusArrival], max_x: int, max_y: int) -> Image.Image:
         img = Image.new("RGBA", (max_x, max_y), (255, 255, 255, 0))
         y = 0
-        lines_added = []
         for arrival in arrivals:
-            if arrival.line in lines_added:
-                continue
-            lines_added.append(arrival.line)
             arrival_string = self._get_time_text(arrival.time_to_station // 60)
             arrival_panel = self._create_panel_for_stop_arrival(
                 arrival.line, arrival.destination, arrival_string, max_x
