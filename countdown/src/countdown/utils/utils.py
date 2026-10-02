@@ -1,3 +1,4 @@
+import urllib.request
 from pathlib import Path
 
 from PIL import Image, ImageDraw, ImageFont
@@ -9,6 +10,18 @@ GAP = 5  # between panels, and between them and the screen's edge
 PACKAGE_DIR = Path(__file__).resolve().parent.parent
 FONTS_DIR = PACKAGE_DIR / "fonts"
 IMAGES_DIR = PACKAGE_DIR / "images"
+
+
+def _cached_font(url: str, filename: str) -> ImageFont.FreeTypeFont:
+    path = FONTS_DIR / filename
+    if not path.exists():
+        FONTS_DIR.mkdir(parents=True, exist_ok=True)
+        tmp = path.with_suffix(path.suffix + ".part")
+        with urllib.request.urlopen(url, timeout=10) as resp:
+            tmp.write_bytes(resp.read())
+        tmp.replace(path)  # atomic, so a killed download never leaves a broken font
+    return ImageFont.truetype(path)
+
 
 METEOCONS = ImageFont.truetype(str(FONTS_DIR / "meteocons.ttf"), 190)
 JOSEFIN_REGULAR = ImageFont.truetype(str(FONTS_DIR / "JosefinSans-Regular.ttf"), 40)
@@ -22,6 +35,10 @@ UBUNTU_CONDENSED = ImageFont.truetype(str(FONTS_DIR / "UbuntuCondensed-Regular.t
 UBUNTU_BOLD_20 = ImageFont.truetype(str(FONTS_DIR / "Ubuntu-Bold.ttf"), 20)
 GOOGLE_REGULAR = ImageFont.truetype(str(FONTS_DIR / "GoogleSans-Regular.ttf"), 14)
 GOOGLE_SEMI = ImageFont.truetype(str(FONTS_DIR / "GoogleSans-SemiBold.ttf"), 14)
+GOOGLE_SYMBOLS = _cached_font(
+    "https://github.com/google/material-design-icons/raw/refs/heads/master/variablefont/MaterialSymbolsOutlined%5BFILL,GRAD,opsz,wght%5D.ttf",
+    "MaterialSymbolsOutlined[FILL,GRAD,opsz,wght].ttf",
+)
 
 
 def add_border(img: Image.Image) -> None:
