@@ -1,5 +1,7 @@
 [project]
 name = "countdown"
+authors = [{ name = "Nikolai Vorkinn" }]
+
 version = "0.4.2"
 description = "Add your description here"
 readme = "README.md"
