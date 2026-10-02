@@ -1,7 +1,7 @@
 import datetime as dt
 import logging
 
-from countdown.config_server.config_manager import WeatherConfig
+from countdown.config_server.models import WeatherConfig
 from countdown.core.abstract_client import DEFAULT_TIMEOUT, AbstractClient
 from countdown.core.panel import Panel
 from countdown.notices.location import is_postcode, postcode_coordinates

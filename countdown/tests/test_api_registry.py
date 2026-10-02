@@ -5,7 +5,7 @@ import logging
 import pytest
 from config_factory import make_config
 
-from countdown.config_server.config_manager import TflConfig, WeatherConfig
+from countdown.config_server.models import TflConfig, WeatherConfig
 from countdown.core.abstract_client import AbstractClient, ClientStatus
 from countdown.core.api_registry import ApiRegistry, ClientClasses, FailedClient
 from countdown.glow.glow_client import GlowClient

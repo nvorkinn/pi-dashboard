@@ -3,7 +3,7 @@ import logging
 from datetime import timedelta
 from enum import Enum
 
-from countdown.config_server.config_manager import ApiConfig, AppConfig
+from countdown.config_server.models import ApiConfig, AppConfig
 from countdown.core.abstract_client import AbstractClient, ClientStatus
 from countdown.core.panel import Panel
 from countdown.glow.glow_client import GlowClient

@@ -6,7 +6,7 @@ from math import asin, cos, radians, sin, sqrt
 
 from pydantic import TypeAdapter
 
-from countdown.config_server.config_manager import TflConfig
+from countdown.config_server.models import TflConfig
 from countdown.core.abstract_client import DEFAULT_TIMEOUT
 from countdown.notices.notice import Notice, NoticeSource, Severity
 from countdown.tfl.models import DisruptedPoint, Line, Postcode, RoadDisruption, StopPointUnion

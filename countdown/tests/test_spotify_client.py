@@ -6,7 +6,7 @@ import pytest
 import responses
 from pydantic import ValidationError
 
-from countdown.config_server.config_manager import SpotifyConfig
+from countdown.config_server.models import SpotifyConfig
 from countdown.spotify.spotify_client import CREDENTIALS_FILE, SpotifyClient
 from countdown.spotify.spotify_panel import SpotifyPanel
 from countdown.spotify.spotify_top_panel import SpotifyTopPanel

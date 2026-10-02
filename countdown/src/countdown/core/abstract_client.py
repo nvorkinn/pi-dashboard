@@ -9,7 +9,7 @@ import requests
 from requests.adapters import HTTPAdapter
 from urllib3 import Retry
 
-from countdown.config_server.config_manager import ApiConfig
+from countdown.config_server.models import ApiConfig
 from countdown.core.panel import Panel
 from countdown.system_screens.message_panel import MessagePanel
 

@@ -8,7 +8,7 @@ import requests
 from config_factory import make_config
 from pydantic import BaseModel, ValidationError
 
-from countdown.config_server.config_manager import AppConfig
+from countdown.config_server.models import AppConfig
 from countdown.core import app
 from countdown.core.abstract_client import ClientStatus
 from countdown.core.display_loop import safe_fetch

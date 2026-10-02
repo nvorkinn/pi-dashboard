@@ -6,7 +6,7 @@ import requests
 import responses
 from config_factory import make_config
 
-from countdown.config_server.config_manager import NoticeBoardConfig, TflConfig
+from countdown.config_server.models import NoticeBoardConfig, TflConfig
 from countdown.notices.calendar import (
     BANK_HOLIDAYS_URL,
     BankHolidaySource,

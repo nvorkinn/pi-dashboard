@@ -9,7 +9,7 @@ from datetime import UTC, datetime
 import requests
 
 from countdown.config_server.broker_client import BrokerClient
-from countdown.config_server.config_manager import AppConfig
+from countdown.config_server.models import AppConfig
 from countdown.core.abstract_client import ClientStatus
 from countdown.core.api_registry import ApiRegistry
 from countdown.core.display import DisplayController

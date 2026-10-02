@@ -4,7 +4,7 @@ import secrets
 import socket
 from pathlib import Path
 
-from countdown.config_server.config_manager import AppConfig
+from countdown.config_server.models import AppConfig
 from countdown.core.abstract_client import DEFAULT_TIMEOUT, AbstractClient
 from countdown.core.panel import Panel
 from countdown.system_screens.pairing_code_panel import PairingCodePanel

@@ -4,7 +4,7 @@ from typing import TypeVar
 
 from pydantic import TypeAdapter
 
-from countdown.config_server.config_manager import TflConfig
+from countdown.config_server.models import TflConfig
 from countdown.core.abstract_client import DEFAULT_TIMEOUT, AbstractClient
 from countdown.core.panel import Panel
 from countdown.tfl.bus_arrival_panel import BusArrivalPanel
