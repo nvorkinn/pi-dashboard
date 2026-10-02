@@ -4,7 +4,7 @@ from unittest.mock import MagicMock
 import pytest
 from requests.adapters import HTTPAdapter
 
-from countdown.config_server.config_manager import TflConfig
+from countdown.config_server.models import TflConfig
 from countdown.core.abstract_client import DEFAULT_TIMEOUT, ClientStatus
 from countdown.tfl.bus_arrival_panel import BusArrivalPanel
 from countdown.tfl.models import MetroStopPoint, SingleStopPoint

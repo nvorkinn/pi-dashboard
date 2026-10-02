@@ -1,7 +1,7 @@
 import logging
 from datetime import UTC, datetime, timedelta
 
-from countdown.config_server.config_manager import NoticeBoardConfig
+from countdown.config_server.models import NoticeBoardConfig
 from countdown.core.abstract_client import AbstractClient
 from countdown.notices.calendar import BankHolidaySource, ClockChangeSource
 from countdown.notices.floods import FloodWarningsSource

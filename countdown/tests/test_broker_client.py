@@ -9,7 +9,7 @@ from pydantic import ValidationError
 
 from countdown.config_server import broker_client as broker_client_module
 from countdown.config_server.broker_client import CREDENTIALS_FILE, BrokerClient
-from countdown.config_server.config_manager import AppConfig
+from countdown.config_server.models import AppConfig
 
 BROKER_URL = "https://broker.example.com"
 DEFAULT_TIMEOUT = 10

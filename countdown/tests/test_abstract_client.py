@@ -5,7 +5,7 @@ from datetime import datetime, timedelta
 
 import pytest
 
-from countdown.config_server.config_manager import TflConfig
+from countdown.config_server.models import TflConfig
 from countdown.core import abstract_client
 from countdown.core.abstract_client import AbstractClient, ClientStatus
 

@@ -5,7 +5,7 @@ import pytest
 import requests
 import responses
 
-from countdown.config_server.config_manager import WeatherConfig
+from countdown.config_server.models import WeatherConfig
 from countdown.notices.location import is_postcode
 from countdown.weather import weather_client
 from countdown.weather.models import Weather

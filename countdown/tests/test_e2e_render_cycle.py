@@ -19,7 +19,7 @@ from config_factory import make_config
 from PIL import Image
 
 from countdown.config_server.broker_client import BrokerClient
-from countdown.config_server.config_manager import AppConfig
+from countdown.config_server.models import AppConfig
 from countdown.core import display_loop
 from countdown.core.display_loop import DisplayLoop
 from countdown.display_composers.base_composer import BaseComposer

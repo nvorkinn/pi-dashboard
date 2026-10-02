@@ -1,4 +1,4 @@
-from countdown.config_server.config_manager import AppConfig
+from countdown.config_server.models import AppConfig
 
 
 def make_config(**overrides) -> AppConfig:

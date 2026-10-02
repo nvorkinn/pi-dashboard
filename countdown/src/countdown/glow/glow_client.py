@@ -2,7 +2,7 @@ from datetime import UTC, datetime, timedelta
 
 from pydantic import TypeAdapter
 
-from countdown.config_server.config_manager import GlowmarktConfig
+from countdown.config_server.models import GlowmarktConfig
 from countdown.core.abstract_client import DEFAULT_TIMEOUT, AbstractClient
 from countdown.glow.energy_panel import EnergyPanel
 from countdown.glow.models import Entity, Readings

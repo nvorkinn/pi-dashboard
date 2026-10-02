@@ -5,14 +5,13 @@ from PIL import Image
 from countdown.core.api_registry import ClientClasses
 from countdown.core.panel import Panel
 from countdown.tfl.combined_arrival_panel import CombinedArrivalPanel
-from countdown.utils.utils import TOTAL_WIDTH
+from countdown.utils.utils import GAP, TOTAL_WIDTH
 
 # Where every layout puts the arrivals panel, the part of the screen that changes every
 # minute and so the only part worth a partial refresh.
 ARRIVALS_ORIGIN = (5, 5)
 # The arrivals panel is as wide as its stops; a message in its place gets one stop's width.
 ARRIVALS_MESSAGE_WIDTH = 262
-GAP = 5  # between panels, and between them and the screen's edge
 
 Box = tuple[int, int, int, int]
 

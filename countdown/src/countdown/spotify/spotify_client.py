@@ -4,7 +4,7 @@ from collections.abc import Callable
 from dataclasses import dataclass
 from pathlib import Path
 
-from countdown.config_server.config_manager import SpotifyConfig
+from countdown.config_server.models import SpotifyConfig
 from countdown.core.abstract_client import DEFAULT_TIMEOUT, AbstractClient
 from countdown.core.panel import Panel
 from countdown.spotify.models import Artist, Queue, TopResponse, Track
