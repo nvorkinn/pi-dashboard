@@ -2,6 +2,14 @@ version = 1
 revision = 3
 requires-python = ">=3.14"
 
+[manifest]
+members = [
+    "countdown",
+    "countdown-core",
+    "countdown-server",
+    "countdown-standalone",
+]
+
 [[package]]
 name = "annotated-types"
 version = "0.8.0"
@@ -101,20 +109,11 @@ wheels = [
 [[package]]
 name = "countdown"
 version = "0.4.2"
-source = { editable = "." }
+source = { virtual = "." }
 dependencies = [
-    { name = "gpiozero" },
-    { name = "lgpio", marker = "sys_platform == 'linux'" },
-    { name = "np" },
-    { name = "numpy" },
-    { name = "paho-mqtt" },
-    { name = "pathlib" },
-    { name = "pillow" },
-    { name = "pydantic" },
-    { name = "pydantic-tfl-api" },
-    { name = "requests" },
-    { name = "spidev", marker = "sys_platform == 'linux'" },
-    { name = "urllib3" },
+    { name = "countdown-core" },
+    { name = "countdown-server" },
+    { name = "countdown-standalone" },
 ]
 
 [package.dev-dependencies]
@@ -130,18 +129,9 @@ dev = [
 
 [package.metadata]
 requires-dist = [
-    { name = "gpiozero", specifier = ">=2.0.1.post3" },
-    { name = "lgpio", marker = "sys_platform == 'linux'", specifier = ">=0.2.2.0" },
-    { name = "np", specifier = ">=1.0.2" },
-    { name = "numpy", specifier = ">=2.5.3" },
-    { name = "paho-mqtt", specifier = ">=2.1.0" },
-    { name = "pathlib", specifier = ">=1.0.1" },
-    { name = "pillow", specifier = ">=12.3.0" },
-    { name = "pydantic", specifier = ">=2.13.5" },
-    { name = "pydantic-tfl-api", specifier = ">=3.1.0" },
-    { name = "requests", specifier = ">=2.32.5" },
-    { name = "spidev", marker = "sys_platform == 'linux'", specifier = ">=3.8" },
-    { name = "urllib3", specifier = "==2.8.0" },
+    { name = "countdown-core", editable = "core" },
+    { name = "countdown-server", editable = "server" },
+    { name = "countdown-standalone", editable = "standalone" },
 ]
 
 [package.metadata.requires-dev]
@@ -153,6 +143,65 @@ dev = [
     { name = "pytest-mock", specifier = ">=3.15.1" },
     { name = "responses", specifier = ">=0.26.3" },
     { name = "ruff", specifier = ">=0.16.8" },
+]
+
+[[package]]
+name = "countdown-core"
+version = "0.4.2"
+source = { editable = "core" }
+dependencies = [
+    { name = "np" },
+    { name = "numpy" },
+    { name = "paho-mqtt" },
+    { name = "pathlib" },
+    { name = "pillow" },
+    { name = "pydantic" },
+    { name = "pydantic-tfl-api" },
+    { name = "requests" },
+    { name = "urllib3" },
+]
+
+[package.metadata]
+requires-dist = [
+    { name = "np", specifier = ">=1.0.2" },
+    { name = "numpy", specifier = ">=2.5.3" },
+    { name = "paho-mqtt", specifier = ">=2.1.0" },
+    { name = "pathlib", specifier = ">=1.0.1" },
+    { name = "pillow", specifier = ">=12.3.0" },
+    { name = "pydantic", specifier = ">=2.13.5" },
+    { name = "pydantic-tfl-api", specifier = ">=3.1.0" },
+    { name = "requests", specifier = ">=2.32.5" },
+    { name = "urllib3", specifier = "==2.8.0" },
+]
+
+[[package]]
+name = "countdown-server"
+version = "0.4.2"
+source = { editable = "server" }
+dependencies = [
+    { name = "countdown-core" },
+]
+
+[package.metadata]
+requires-dist = [{ name = "countdown-core", editable = "core" }]
+
+[[package]]
+name = "countdown-standalone"
+version = "0.4.2"
+source = { editable = "standalone" }
+dependencies = [
+    { name = "countdown-core" },
+    { name = "gpiozero" },
+    { name = "lgpio", marker = "sys_platform == 'linux'" },
+    { name = "spidev", marker = "sys_platform == 'linux'" },
+]
+
+[package.metadata]
+requires-dist = [
+    { name = "countdown-core", editable = "core" },
+    { name = "gpiozero", specifier = ">=2.0.1.post3" },
+    { name = "lgpio", marker = "sys_platform == 'linux'", specifier = ">=0.2.2.0" },
+    { name = "spidev", marker = "sys_platform == 'linux'", specifier = ">=3.8" },
 ]
 
 [[package]]

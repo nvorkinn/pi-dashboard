@@ -70,15 +70,30 @@ answers, the app runs without a display and checks again every 5 minutes, and a
 whole-screen picture it couldn't paint (pairing code, checklist, splash) is
 retried once the panel appears.
 
+## Packages
+
+This directory is a uv workspace with three packages:
+
+- `core/` (`countdown-core`): the app itself: clients, panels, layouts and the
+  display loop, with no e-paper hardware dependencies. A library only: it has
+  no script of its own, and the other two depend on it.
+- `standalone/` (`countdown-standalone`): what runs on the Pi. It adds the
+  vendored Waveshare driver (`countdown_standalone/lib`) and its GPIO/SPI
+  dependencies, and paints on the panel.
+- `server/` (`countdown-server`): the app without the e-paper driver (work in
+  progress).
+
+`uv sync` installs all three, editable, for development and the tests.
+
 ## Running locally
 
 ```bash
-BROKER_URL=https://auth.nikolaivorkinn.com uv run countdown
+BROKER_URL=https://auth.nikolaivorkinn.com uv run countdown-standalone
 ```
 
 `DISPLAY_TARGET` picks where frames go:
 
-- `epd`: the panel on this Pi.
+- `epd`: the panel on this Pi (`countdown-standalone` only).
 - `preview`: the local image viewer.
 - `remote`: a Pi over ssh. `PI_HOST` (e.g. `nikolai@countdown.local`) is
   required, and `PI_DIR` defaults to `countdown-dev`. Each frame is rsynced
@@ -87,8 +102,9 @@ BROKER_URL=https://auth.nikolaivorkinn.com uv run countdown
   (`sudo systemctl stop countdown`), or it paints over your frames. Start it
   again when you're done. `uv run dev/clear_pi.py`, with the same variables,
   blanks the panel.
-- `auto` (the default): the panel if its driver loads, otherwise the image
-  viewer.
+- `auto` (the default): in `countdown-standalone`, the panel if its driver
+  loads, otherwise the image viewer. Without the driver (`countdown-core` on
+  its own), the image viewer.
 
 `LOG_LEVEL` (e.g. `DEBUG`) overrides the default `INFO`.
 
@@ -139,9 +155,11 @@ it.
 
 ## Deploying to a Raspberry Pi
 
-Each tagged release publishes a wheel and a `countdown.service` unit to
+Each tagged release publishes the `countdown-standalone` and `countdown-core`
+wheels and a `countdown.service` unit to
 GitHub Releases (see `.github/workflows/release.yml` at the repo root; the release is shared with pi-telemetry, so the tag is the repo-wide one). `packaging/install.sh`
-downloads a release, installs it with `uv tool install`, and sets it up as a
+downloads a release, installs it with `uv tool install` (as the
+`countdown-standalone` tool), and sets it up as a
 systemd service.
 
 This repo (`pi-dashboard`) is private, so every fetch it does (including fetching the

@@ -6,30 +6,16 @@ version = "0.4.2"
 description = "Add your description here"
 readme = "README.md"
 requires-python = ">=3.14"
-dependencies = [
-    "gpiozero>=2.0.1.post3",
-    "lgpio>=0.2.2.0; sys_platform == 'linux'",
-    "np>=1.0.2",
-    "numpy>=2.5.3",
-    "paho-mqtt>=2.1.0",
-    "pathlib>=1.0.1",
-    "pillow>=12.3.0",
-    "pydantic>=2.13.5",
-    "pydantic-tfl-api>=3.1.0",
-    "requests>=2.32.5",
-    "spidev>=3.8; sys_platform == 'linux'",
-    "urllib3==2.8.0",
-]
+# The workspace's own packages, so `uv sync` installs them all (editable) for the tests.
+dependencies = ["countdown-core", "countdown-standalone", "countdown-server"]
 
-[project.scripts]
-countdown = "countdown:main"
+[tool.uv]
+package = false
 
-[build-system]
-requires = ["uv_build>=0.12.0,<0.13.0"]
-build-backend = "uv_build"
-
-[tool.uv.build-backend]
-module-name = "countdown"
+[tool.uv.sources]
+countdown-core = { workspace = true }
+countdown-standalone = { workspace = true }
+countdown-server = { workspace = true }
 
 [dependency-groups]
 dev = [
@@ -42,8 +28,11 @@ dev = [
     "ruff>=0.16.8",
 ]
 
+[tool.uv.workspace]
+members = ["core", "standalone", "server"]
+
 [tool.coverage.run]
-source = ["src"]
+source = ["core/src", "standalone/src", "server/src"]
 
 [tool.coverage.report]
 skip_empty = true
@@ -51,7 +40,9 @@ skip_empty = true
 [tool.ruff]
 target-version = "py314"
 line-length = 120
-extend-exclude = ["src/countdown/lib"]  # vendored Waveshare driver
+# So isort knows the workspace packages are first-party.
+src = ["core/src", "standalone/src", "server/src"]
+extend-exclude = ["standalone/src/countdown_standalone/lib"]  # vendored Waveshare driver
 
 [tool.ruff.lint]
 select = ["E4", "E7", "E9", "F", "I", "UP", "B", "SIM"]

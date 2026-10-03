@@ -35,14 +35,19 @@ jobs:
       - name: Stamp version
         run: |
           version="${GITHUB_REF_NAME#v}"
-          (cd countdown && uv version --frozen "$version")
+          # Every workspace member: the root project is virtual, so it isn't built.
+          for package in countdown-core countdown-standalone countdown-server; do
+            (cd countdown && uv version --frozen --package "$package" "$version")
+          done
       - name: Install lgpio build dependencies
         run: sudo apt-get update && sudo apt-get install -y --no-install-recommends swig liblgpio-dev
-      - name: Build countdown wheel
+      - name: Build countdown wheels
         working-directory: countdown
+        # Only what the Pi installs: countdown-standalone and the countdown-core library it depends on.
         run: |
           uv sync --frozen
-          uv build --wheel
+          uv build --wheel --package countdown-core
+          uv build --wheel --package countdown-standalone
       - uses: actions/upload-artifact@v4
         with:
           name: countdown-wheel

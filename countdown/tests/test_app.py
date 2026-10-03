@@ -8,10 +8,11 @@ import requests
 from config_factory import make_config
 from pydantic import BaseModel, ValidationError
 
-from countdown.config_server.models import AppConfig
-from countdown.core import app
-from countdown.core.abstract_client import ClientStatus
-from countdown.core.display_loop import safe_fetch
+from countdown_core.config_server.models import AppConfig
+from countdown_core.core import app
+from countdown_core.core.abstract_client import ClientStatus
+from countdown_core.core.display_loop import safe_fetch
+from countdown_standalone import epd_target
 
 
 def test_safe_fetch_returns_func_result_on_success():
@@ -36,20 +37,21 @@ def test_safe_fetch_returns_fallback_on_validation_error():
 
 
 def test_the_console_script_entry_point_actually_runs_the_app(monkeypatch):
-    """The `countdown` script just calls main() without awaiting it, so main() must run the
-    app itself. Every other test drives run() directly and wouldn't notice."""
+    """The `countdown-standalone` script just calls main() without awaiting it, so main() must
+    run the app itself. Every other test drives run() directly and wouldn't notice."""
     ran = []
 
-    async def fake_run():
-        ran.append(True)
+    async def fake_run(make_target):
+        ran.append(make_target)
 
     monkeypatch.setattr(app, "run", fake_run)
     # Keep the test run's own logging set-up as it is.
     monkeypatch.setattr(app, "configure_logging", lambda: None)
-    (entry_point,) = entry_points(group="console_scripts", name="countdown")
+    (entry_point,) = entry_points(group="console_scripts", name="countdown-standalone")
 
     assert entry_point.load()() is None
-    assert ran == [True]
+    # The panel's target, not countdown_core's preview-only default.
+    assert ran == [epd_target.target_from_env]
 
 
 @pytest.mark.parametrize(
@@ -224,12 +226,12 @@ def test_run_wires_one_device_status_through_the_registry_the_boot_wait_and_the_
 
     fake_display = SimpleNamespace(panel_connected=True, shutdown=lambda: None)
     monkeypatch.setattr(app, "BrokerClient", lambda url: object())
-    monkeypatch.setattr(app, "DisplayController", lambda: fake_display)
+    monkeypatch.setattr(app, "DisplayController", lambda target: fake_display)
     monkeypatch.setattr(app, "DisplayLoop", FakeLoop)
     monkeypatch.setattr(app, "wait_for_config", fake_wait)
     monkeypatch.setattr(app.signal, "signal", lambda *args: None)
 
-    asyncio.run(app.run())
+    asyncio.run(app.run(lambda: None))
 
     registry = seen["registry"]
     assert seen["display"] is fake_display

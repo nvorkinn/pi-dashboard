@@ -15,7 +15,7 @@ downloads/
 eggs/
 .eggs/
 lib/
-!src/countdown/lib/
+!standalone/src/countdown_standalone/lib/
 lib64/
 parts/
 sdist/
@@ -163,7 +163,7 @@ weather_cache.pkl
 .spotify_token_cache
 
 # auth-broker device credentials (device_id + device_secret), generated on first
-# boot -- see src/countdown/broker_client.py
+# boot -- see core/src/countdown_core/config_server/broker_client.py
 .auth_broker_device
 
 # Spyder project settings

@@ -69,22 +69,26 @@ echo "Resolved release $TAG"
 
 echo "Downloading release assets..."
 gh release download "$TAG" --repo "$REPO" --dir "$TMP_DIR" --clobber \
-    --pattern '*.whl' --pattern 'countdown.service'
+    --pattern 'countdown_core-*.whl' --pattern 'countdown_standalone-*.whl' --pattern 'countdown.service'
 # uv tool install parses name/version from the wheel filename, which gh preserves.
-WHEEL_PATH="$(ls "$TMP_DIR"/*.whl)"
+CORE_WHEEL="$(ls "$TMP_DIR"/countdown_core-*.whl)"
+STANDALONE_WHEEL="$(ls "$TMP_DIR"/countdown_standalone-*.whl)"
 # The repo-root install.sh runs with umask 077, which would leave these unreadable
 # by TARGET_USER.
-chmod 644 "$WHEEL_PATH" "$TMP_DIR/countdown.service"
+chmod 644 "$CORE_WHEEL" "$STANDALONE_WHEEL" "$TMP_DIR/countdown.service"
 
 if ! run_as_target "command -v uv" >/dev/null 2>&1; then
     echo "uv not found for $TARGET_USER, installing it..."
     run_as_target "curl -LsSf https://astral.sh/uv/install.sh | sh"
 fi
 
-echo "Installing the countdown wheel with uv tool..."
-run_as_target "uv tool install --force '$WHEEL_PATH'"
+echo "Installing the countdown wheels with uv tool..."
+# countdown-core isn't on an index, so its wheel (from the same release) is handed over alongside.
+run_as_target "uv tool install --force '$STANDALONE_WHEEL' --with '$CORE_WHEEL'"
+# Releases before the core/standalone split installed a tool called just "countdown".
+run_as_target "uv tool uninstall countdown" >/dev/null 2>&1 || true
 
-EXEC_START="$(run_as_target "uv tool dir --bin")/countdown"
+EXEC_START="$(run_as_target "uv tool dir --bin")/countdown-standalone"
 if [ ! -e "$EXEC_START" ]; then
     echo "Expected countdown executable at $EXEC_START but it's missing." >&2
     exit 1

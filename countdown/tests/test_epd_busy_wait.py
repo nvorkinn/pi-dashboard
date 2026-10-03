@@ -9,7 +9,7 @@ from types import ModuleType
 
 import pytest
 
-DRIVER = Path(__file__).parent.parent / "src" / "countdown" / "lib" / "epd7in5_V2.py"
+DRIVER = Path(__file__).parent.parent / "standalone" / "src" / "countdown_standalone" / "lib" / "epd7in5_V2.py"
 
 
 class FakeEpdConfig(ModuleType):

@@ -6,10 +6,10 @@ import pytest
 import responses
 from pydantic import ValidationError
 
-from countdown.config_server.models import SpotifyConfig
-from countdown.spotify.spotify_client import CREDENTIALS_FILE, SpotifyClient
-from countdown.spotify.spotify_panel import SpotifyPanel
-from countdown.spotify.spotify_top_panel import SpotifyTopPanel
+from countdown_core.config_server.models import SpotifyConfig
+from countdown_core.spotify.spotify_client import CREDENTIALS_FILE, SpotifyClient
+from countdown_core.spotify.spotify_panel import SpotifyPanel
+from countdown_core.spotify.spotify_top_panel import SpotifyTopPanel
 
 BROKER_URL = "https://broker.example.com"
 QUEUE_URL = f"{BROKER_URL}/api/devices/device-123/queue"

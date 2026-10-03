@@ -4,12 +4,12 @@ from unittest.mock import MagicMock
 import pytest
 from requests.adapters import HTTPAdapter
 
-from countdown.config_server.models import TflConfig
-from countdown.core.abstract_client import DEFAULT_TIMEOUT, ClientStatus
-from countdown.tfl.bus_arrival_panel import BusArrivalPanel
-from countdown.tfl.models import MetroStopPoint, SingleStopPoint
-from countdown.tfl.tfl_client import TflClient, _find_stop_child
-from countdown.tfl.tube_arrival_panel import TubeArrivalPanel
+from countdown_core.config_server.models import TflConfig
+from countdown_core.core.abstract_client import DEFAULT_TIMEOUT, ClientStatus
+from countdown_core.tfl.bus_arrival_panel import BusArrivalPanel
+from countdown_core.tfl.models import MetroStopPoint, SingleStopPoint
+from countdown_core.tfl.tfl_client import TflClient, _find_stop_child
+from countdown_core.tfl.tube_arrival_panel import TubeArrivalPanel
 
 BUS_STOP_JSON = {
     "naptanId": "490000123W",
