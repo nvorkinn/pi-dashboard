@@ -1,5 +1,6 @@
-"""The display targets: which one DISPLAY_TARGET picks, the raw panel buffer, and what
-RemotePiTarget runs. EpdTarget is covered through the controller in test_display_controller.py."""
+"""The display targets: which one DISPLAY_TARGET picks (in countdown_core, and in
+countdown_standalone, which adds the panel), the raw panel buffer, and what RemotePiTarget
+runs. EpdTarget is covered through the controller in test_display_controller.py."""
 
 import subprocess
 from pathlib import Path
@@ -7,8 +8,10 @@ from pathlib import Path
 import pytest
 from PIL import Image
 
-import countdown.core.targets as targets_module
-from countdown.core.targets import EpdTarget, PreviewTarget, RemotePiTarget, panel_bytes, target_from_env
+import countdown_standalone.epd_target as epd_module
+from countdown_core.core import targets
+from countdown_core.core.targets import PreviewTarget, RemotePiTarget, panel_bytes
+from countdown_standalone.epd_target import EpdTarget, target_from_env
 
 
 def test_white_pixels_are_sent_as_zero_bits_and_black_as_one():
@@ -113,7 +116,7 @@ def test_the_remote_target_sends_the_real_dev_script():
 
 
 def test_the_driver_is_looked_for_where_the_package_ships_it():
-    assert (Path(targets_module.LIB_DIR) / "epd7in5_V2.py").is_file()
+    assert (Path(epd_module.LIB_DIR) / "epd7in5_V2.py").is_file()
 
 
 class FakeEpd:
@@ -133,7 +136,7 @@ def no_driver():
 
 def test_auto_uses_the_panel_when_the_driver_loads(env):
     epd = FakeEpd()
-    env.setattr(targets_module, "_load_epd", lambda: epd)
+    env.setattr(epd_module, "_load_epd", lambda: epd)
 
     target = target_from_env()
 
@@ -142,14 +145,14 @@ def test_auto_uses_the_panel_when_the_driver_loads(env):
 
 
 def test_auto_falls_back_to_the_preview_without_a_driver(env):
-    env.setattr(targets_module, "_load_epd", no_driver)
+    env.setattr(epd_module, "_load_epd", no_driver)
 
     assert isinstance(target_from_env(), PreviewTarget)
 
 
 def test_asking_for_the_panel_explicitly_fails_without_a_driver(env):
     env.setenv("DISPLAY_TARGET", "epd")
-    env.setattr(targets_module, "_load_epd", no_driver)
+    env.setattr(epd_module, "_load_epd", no_driver)
 
     with pytest.raises(ImportError):
         target_from_env()
@@ -157,7 +160,7 @@ def test_asking_for_the_panel_explicitly_fails_without_a_driver(env):
 
 def test_preview_is_chosen_without_touching_the_driver(env):
     env.setenv("DISPLAY_TARGET", " Preview ")
-    env.setattr(targets_module, "_load_epd", no_driver)
+    env.setattr(epd_module, "_load_epd", no_driver)
 
     assert isinstance(target_from_env(), PreviewTarget)
 
@@ -185,3 +188,22 @@ def test_an_unknown_target_is_refused(env):
 
     with pytest.raises(ValueError, match="hdmi"):
         target_from_env()
+
+
+def test_core_previews_by_default(env):
+    assert isinstance(targets.target_from_env(), PreviewTarget)
+
+
+def test_core_has_no_panel_to_offer(env):
+    """countdown_core has no driver, so only countdown_standalone knows DISPLAY_TARGET=epd."""
+    env.setenv("DISPLAY_TARGET", "epd")
+
+    with pytest.raises(ValueError, match="epd"):
+        targets.target_from_env()
+
+
+def test_core_sends_frames_to_a_remote_pi(env):
+    env.setenv("DISPLAY_TARGET", "remote")
+    env.setenv("PI_HOST", "pi@countdown.local")
+
+    assert isinstance(targets.target_from_env(), RemotePiTarget)

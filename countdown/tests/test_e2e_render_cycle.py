@@ -18,17 +18,17 @@ import responses
 from config_factory import make_config
 from PIL import Image
 
-from countdown.config_server.broker_client import BrokerClient
-from countdown.config_server.models import AppConfig
-from countdown.core import display_loop
-from countdown.core.display_loop import DisplayLoop
-from countdown.display_composers.base_composer import BaseComposer
-from countdown.display_composers.glow_composer import GlowComposer
-from countdown.glow.energy_panel import EnergyPanel
-from countdown.spotify.spotify_panel import SpotifyPanel
-from countdown.spotify.spotify_top_panel import SpotifyTopPanel
-from countdown.tfl.combined_arrival_panel import CombinedArrivalPanel
-from countdown.weather.weather_panel import WeatherPanel
+from countdown_core.config_server.broker_client import BrokerClient
+from countdown_core.config_server.models import AppConfig
+from countdown_core.core import display_loop
+from countdown_core.core.display_loop import DisplayLoop
+from countdown_core.display_composers.base_composer import BaseComposer
+from countdown_core.display_composers.glow_composer import GlowComposer
+from countdown_core.glow.energy_panel import EnergyPanel
+from countdown_core.spotify.spotify_panel import SpotifyPanel
+from countdown_core.spotify.spotify_top_panel import SpotifyTopPanel
+from countdown_core.tfl.combined_arrival_panel import CombinedArrivalPanel
+from countdown_core.weather.weather_panel import WeatherPanel
 
 TEST_BROKER_URL = "https://broker.example.com"
 GLOWMARKT_URL = "https://api.glowmarkt.com/api/v0-1"

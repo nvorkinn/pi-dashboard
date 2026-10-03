@@ -2,7 +2,7 @@ import pprint
 
 import requests
 
-from countdown.ruter.ruter_client import RuterClient
+from countdown_core.ruter.ruter_client import RuterClient
 
 
 def test_ruter_client():

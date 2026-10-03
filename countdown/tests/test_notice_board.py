@@ -6,21 +6,21 @@ import requests
 import responses
 from config_factory import make_config
 
-from countdown.config_server.models import NoticeBoardConfig, TflConfig
-from countdown.notices.calendar import (
+from countdown_core.config_server.models import NoticeBoardConfig, TflConfig
+from countdown_core.notices.calendar import (
     BANK_HOLIDAYS_URL,
     BankHolidaySource,
     ClockChangeSource,
 )
-from countdown.notices.floods import FLOODS_URL, FloodWarningsSource
-from countdown.notices.location import POSTCODES_URL
-from countdown.notices.met_office import MetOfficeWarningsSource, parse_warnings, region_for
-from countdown.notices.notice import Notice, NoticeSource, Severity
-from countdown.notices.notice_board_client import NoticeBoardClient
-from countdown.notices.notice_board_panel import NoticeBoardPanel
-from countdown.notices.tfl import TFL_URL, TflLineStatusSource, TflRoadSource, TflStationSource
-from countdown.system_screens.message_panel import MessagePanel
-from countdown.tfl.models import Postcode
+from countdown_core.notices.floods import FLOODS_URL, FloodWarningsSource
+from countdown_core.notices.location import POSTCODES_URL
+from countdown_core.notices.met_office import MetOfficeWarningsSource, parse_warnings, region_for
+from countdown_core.notices.notice import Notice, NoticeSource, Severity
+from countdown_core.notices.notice_board_client import NoticeBoardClient
+from countdown_core.notices.notice_board_panel import NoticeBoardPanel
+from countdown_core.notices.tfl import TFL_URL, TflLineStatusSource, TflRoadSource, TflStationSource
+from countdown_core.system_screens.message_panel import MessagePanel
+from countdown_core.tfl.models import Postcode
 
 NOW = datetime(2026, 9, 25, 12, 0, tzinfo=UTC)
 SOUTHWARK = Postcode(
@@ -462,7 +462,7 @@ def clock(monkeypatch):
         def now(cls, tz=None):
             return Clock.now
 
-    import countdown.notices.notice_board_client as board_module
+    import countdown_core.notices.notice_board_client as board_module
 
     monkeypatch.setattr(board_module, "datetime", FrozenDatetime)
     return Clock
@@ -573,7 +573,7 @@ def test_board_logs_where_the_postcode_is(api, clock, caplog):
     client = NoticeBoardClient(NoticeBoardConfig(postcode="SE17 3LL"))
     client._refresh = lambda source, now: None
 
-    with caplog.at_level("INFO", logger="countdown.notices.notice_board_client"), pytest.raises(RuntimeError):
+    with caplog.at_level("INFO", logger="countdown_core.notices.notice_board_client"), pytest.raises(RuntimeError):
         update(client)
 
     assert (

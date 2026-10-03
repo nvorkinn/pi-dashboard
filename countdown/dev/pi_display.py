@@ -6,8 +6,8 @@ import importlib.util
 import sys
 from pathlib import Path
 
-# The driver ships inside the installed release (countdown/lib), not as a top-level module.
-sys.path.insert(1, str(Path(importlib.util.find_spec("countdown").submodule_search_locations[0]) / "lib"))
+# The driver ships inside the installed release (countdown_standalone/lib), not as a top-level module.
+sys.path.insert(1, str(Path(importlib.util.find_spec("countdown_standalone").submodule_search_locations[0]) / "lib"))
 import epd7in5_V2  # noqa: E402
 
 epd = epd7in5_V2.EPD()

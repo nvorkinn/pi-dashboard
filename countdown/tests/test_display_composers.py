@@ -1,12 +1,12 @@
+import countdown_core  # noqa: F401, I001 -- see test_display_snapshots.py for why this comes first
 import pytest
 
-import countdown  # noqa: F401, I001 -- see test_display_snapshots.py for why this comes first
-from countdown.core.api_registry import ClientClasses
-from countdown.display_composers import COMPOSERS, choose_composer
-from countdown.display_composers.base_composer import BaseComposer
-from countdown.display_composers.glow_composer import GlowComposer
-from countdown.display_composers.spotify_composer import SpotifyComposer
-from countdown.display_composers.spotify_glow_composer import SpotifyGlowComposer
+from countdown_core.core.api_registry import ClientClasses
+from countdown_core.display_composers import COMPOSERS, choose_composer
+from countdown_core.display_composers.base_composer import BaseComposer
+from countdown_core.display_composers.glow_composer import GlowComposer
+from countdown_core.display_composers.spotify_composer import SpotifyComposer
+from countdown_core.display_composers.spotify_glow_composer import SpotifyGlowComposer
 
 EVERYTHING = frozenset(ClientClasses)
 

@@ -9,32 +9,32 @@ import pytest
 import responses
 from PIL import Image
 
-# `countdown` must be imported before any display.* module, or it's a circular import.
-import countdown  # noqa: F401, I001
-import countdown.glow.energy_panel
-from countdown.core.api_registry import ClientClasses
-from countdown.core.display import DisplayController
-from countdown.core.panel import Panel
-from countdown.glow.energy_panel import EnergyPanel
-from countdown.glow.glow_client import GlowClient
-from countdown.notices.notice import Notice, Severity
-from countdown.notices.notice_board_client import NoticeBoardClient
-from countdown.notices.notice_board_panel import NoticeBoardPanel
-from countdown.spotify.models import Queue
-from countdown.spotify.spotify_client import SpotifyClient
-from countdown.spotify.spotify_panel import SpotifyPanel
-from countdown.system_screens.empty_panel import EmptyPanel
-from countdown.system_screens.pairing_code_panel import PairingCodePanel
-from countdown.system_screens.setup_panel import SetupPanel
-from countdown.system_screens.splash_panel import SplashPanel
-from countdown.tfl.bus_arrival_panel import BusArrivalPanel
-from countdown.tfl.combined_arrival_panel import CombinedArrivalPanel
-from countdown.tfl.models import BusArrival, MetroStopPoint, SingleStopPoint, TubeArrival
-from countdown.tfl.tfl_client import TflClient
-from countdown.tfl.tube_arrival_panel import TubeArrivalPanel
-from countdown.weather.models import Weather
-from countdown.weather.weather_client import WeatherClient
-from countdown.weather.weather_panel import WeatherPanel
+# `countdown_core` must be imported before any display.* module, or it's a circular import.
+import countdown_core  # noqa: F401, I001
+import countdown_core.glow.energy_panel
+from countdown_core.core.api_registry import ClientClasses
+from countdown_core.core.display import DisplayController
+from countdown_core.core.panel import Panel
+from countdown_core.glow.energy_panel import EnergyPanel
+from countdown_core.glow.glow_client import GlowClient
+from countdown_core.notices.notice import Notice, Severity
+from countdown_core.notices.notice_board_client import NoticeBoardClient
+from countdown_core.notices.notice_board_panel import NoticeBoardPanel
+from countdown_core.spotify.models import Queue
+from countdown_core.spotify.spotify_client import SpotifyClient
+from countdown_core.spotify.spotify_panel import SpotifyPanel
+from countdown_core.system_screens.empty_panel import EmptyPanel
+from countdown_core.system_screens.pairing_code_panel import PairingCodePanel
+from countdown_core.system_screens.setup_panel import SetupPanel
+from countdown_core.system_screens.splash_panel import SplashPanel
+from countdown_core.tfl.bus_arrival_panel import BusArrivalPanel
+from countdown_core.tfl.combined_arrival_panel import CombinedArrivalPanel
+from countdown_core.tfl.models import BusArrival, MetroStopPoint, SingleStopPoint, TubeArrival
+from countdown_core.tfl.tfl_client import TflClient
+from countdown_core.tfl.tube_arrival_panel import TubeArrivalPanel
+from countdown_core.weather.models import Weather
+from countdown_core.weather.weather_client import WeatherClient
+from countdown_core.weather.weather_panel import WeatherPanel
 
 _CONTROLLER = DisplayController()
 EVERYTHING = frozenset(ClientClasses)
@@ -59,7 +59,7 @@ class _FrozenDatetime(dt.datetime):
 
 @pytest.fixture(autouse=True)
 def _freeze_time(monkeypatch):
-    monkeypatch.setattr(countdown.glow.energy_panel, "datetime", _FrozenDatetime)
+    monkeypatch.setattr(countdown_core.glow.energy_panel, "datetime", _FrozenDatetime)
 
 
 @pytest.fixture(autouse=True)
@@ -276,13 +276,17 @@ def test_screen_with_four_stops_and_neither_spotify_nor_energy(snapshot):
 
 
 def test_splash_screen_when_the_broker_cannot_be_reached(snapshot):
-    img = SplashPanel().render(countdown.core.display.TOTAL_WIDTH, countdown.core.display.TOTAL_HEIGHT)
+    img = SplashPanel().render(countdown_core.core.display.TOTAL_WIDTH, countdown_core.core.display.TOTAL_HEIGHT)
     # Large glyphs: CI (Ubuntu) and macOS differ by ~0.011 here with identical layout.
     snapshot.assert_matches("screen_splash", img, threshold=0.02)
 
 
 def test_empty_screen_stays_clear_of_the_screen_edges():
-    img = EmptyPanel().render(countdown.core.display.TOTAL_WIDTH, countdown.core.display.TOTAL_HEIGHT).convert("L")
+    img = (
+        EmptyPanel()
+        .render(countdown_core.core.display.TOTAL_WIDTH, countdown_core.core.display.TOTAL_HEIGHT)
+        .convert("L")
+    )
     width, height = img.size
 
     for edge in [(0, 0, 40, height), (width - 40, 0, width, height)]:
@@ -291,7 +295,7 @@ def test_empty_screen_stays_clear_of_the_screen_edges():
 
 def test_setup_checklist_screen(snapshot):
     img = SetupPanel(["a weather location", "a bus or tube stop"]).render(
-        countdown.core.display.TOTAL_WIDTH, countdown.core.display.TOTAL_HEIGHT
+        countdown_core.core.display.TOTAL_WIDTH, countdown_core.core.display.TOTAL_HEIGHT
     )
     snapshot.assert_matches("screen_setup_checklist", img, threshold=0.02)
 
@@ -299,7 +303,9 @@ def test_setup_checklist_screen(snapshot):
 @pytest.mark.parametrize("missing", [["a weather location"], ["a weather location", "a bus or tube stop"], ["x"] * 4])
 def test_setup_checklist_stays_on_the_screen(missing):
     img = (
-        SetupPanel(missing).render(countdown.core.display.TOTAL_WIDTH, countdown.core.display.TOTAL_HEIGHT).convert("L")
+        SetupPanel(missing)
+        .render(countdown_core.core.display.TOTAL_WIDTH, countdown_core.core.display.TOTAL_HEIGHT)
+        .convert("L")
     )
     width, height = img.size
 
@@ -314,7 +320,11 @@ def test_setup_checklist_stays_on_the_screen(missing):
 
 def test_splash_text_stays_clear_of_the_screen_edges():
     """The text is big; a longer line or a bigger font must not run off the panel."""
-    img = SplashPanel().render(countdown.core.display.TOTAL_WIDTH, countdown.core.display.TOTAL_HEIGHT).convert("L")
+    img = (
+        SplashPanel()
+        .render(countdown_core.core.display.TOTAL_WIDTH, countdown_core.core.display.TOTAL_HEIGHT)
+        .convert("L")
+    )
     width, height = img.size
 
     for edge in [(0, 0, 20, height), (width - 20, 0, width, height)]:
@@ -325,7 +335,7 @@ def test_screen_with_no_panels_at_all_says_there_is_nothing_to_show(snapshot):
     """First cycle after boot, a paired device nobody's set up yet, or every API failing:
     a message saying so, not a blank white screen that looks broken (or a crash)."""
     img = _CONTROLLER.display_screen({})
-    assert img.size == (countdown.core.display.TOTAL_WIDTH, countdown.core.display.TOTAL_HEIGHT)
+    assert img.size == (countdown_core.core.display.TOTAL_WIDTH, countdown_core.core.display.TOTAL_HEIGHT)
     # Text-only and large: CI renders it ~1% differently from macOS (see screen_splash).
     snapshot.assert_matches("screen_nothing_to_show", img, threshold=0.02)
 
@@ -357,7 +367,7 @@ def test_weather_panel_rainy_night(snapshot):
 
 def test_pairing_code_screen(snapshot):
     img = PairingCodePanel("C4FFEZ", "7218485b654f", has_changed=True).render(
-        countdown.core.display.TOTAL_WIDTH, countdown.core.display.TOTAL_HEIGHT
+        countdown_core.core.display.TOTAL_WIDTH, countdown_core.core.display.TOTAL_HEIGHT
     )
     snapshot.assert_matches("screen_pairing_code", img, threshold=0.02)
 
@@ -366,7 +376,7 @@ def test_pairing_code_screen(snapshot):
 def test_pairing_code_stays_on_the_screen_whatever_its_length(code):
     img = (
         PairingCodePanel(code, "7218485b654f", has_changed=True)
-        .render(countdown.core.display.TOTAL_WIDTH, countdown.core.display.TOTAL_HEIGHT)
+        .render(countdown_core.core.display.TOTAL_WIDTH, countdown_core.core.display.TOTAL_HEIGHT)
         .convert("L")
     )
     width, height = img.size
@@ -377,7 +387,7 @@ def test_pairing_code_stays_on_the_screen_whatever_its_length(code):
 
 def test_pairing_screen_without_a_code_draws_no_boxes():
     img = PairingCodePanel(None, "7218485b654f", has_changed=True).render(
-        countdown.core.display.TOTAL_WIDTH, countdown.core.display.TOTAL_HEIGHT
+        countdown_core.core.display.TOTAL_WIDTH, countdown_core.core.display.TOTAL_HEIGHT
     )
 
     assert img.convert("L").crop((0, 232, 800, 342)).getextrema() == (255, 255)
