@@ -44,7 +44,7 @@ jobs:
     - name: Set up Python
       uses: actions/setup-python@v5
       with:
-        python-version: "3.12"
+        python-version: "3.14"
 
     - name: Install system dependencies
       # libfribidi0 turns on Pillow's Raqm text layout, which the golden images are drawn with.

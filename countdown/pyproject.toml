@@ -45,7 +45,18 @@ src = ["core/src", "standalone/src", "server/src"]
 extend-exclude = ["standalone/src/countdown_standalone/lib"]  # vendored Waveshare driver
 
 [tool.ruff.lint]
-select = ["E4", "E7", "E9", "F", "I", "UP", "B", "SIM"]
+select = ["E4", "E7", "E9", "F", "I", "UP", "B", "SIM", "TID251"]
+
+# countdown-core must stay free of the e-paper hardware: the apps depend on it, never the other
+# way round. The ban only applies inside core/ (see per-file-ignores).
+[tool.ruff.lint.flake8-tidy-imports.banned-api]
+"countdown_standalone".msg = "countdown-core can't depend on countdown-standalone; pass what it needs in from there"
+"countdown_server".msg = "countdown-core can't depend on countdown-server; pass what it needs in from there"
+"epd7in5_V2".msg = "The e-paper driver belongs to countdown-standalone"
+"epdconfig".msg = "The e-paper driver belongs to countdown-standalone"
+
+[tool.ruff.lint.per-file-ignores]
+"!core/**" = ["TID251"]
 
 [tool.pyproject-runner.tasks]
 
