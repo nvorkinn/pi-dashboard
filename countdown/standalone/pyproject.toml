@@ -1,7 +1,7 @@
 [project]
 name = "countdown-standalone"
 version = "0.4.2"
-requires-python = ">=3.12"
+requires-python = ">=3.14"
 dependencies = [
     "countdown-core",
     "spidev>=3.8; sys_platform == 'linux'",
