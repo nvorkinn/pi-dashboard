@@ -4,6 +4,7 @@ import logging
 
 import pytest
 from config_factory import make_config
+from test_utils import REGISTRATION
 
 from countdown_core.config_server.models import TflConfig, WeatherConfig
 from countdown_core.core.abstract_client import AbstractClient, ClientStatus
@@ -20,7 +21,7 @@ class FakeClient(AbstractClient):
     """Scriptable stand-in: each update() returns/raises the next item in `results`."""
 
     def __init__(self, *results):
-        super().__init__()
+        super().__init__(REGISTRATION)
         self.results = list(results)
         self.initialised = False
         self.updates = 0
@@ -36,8 +37,19 @@ class FakeClient(AbstractClient):
         return result
 
 
+@pytest.fixture
+def unbuildable_spotify(monkeypatch):
+    """Makes building the Spotify client raise, as a constructor that can't get what it needs would."""
+
+    def broken(self, registration, config):
+        AbstractClient.__init__(self, registration, config)  # so its __del__ can still close the session
+        raise ValueError("can't build")
+
+    monkeypatch.setattr(SpotifyClient, "__init__", broken)
+
+
 def registry_with(**clients: AbstractClient) -> ApiRegistry:
-    registry = ApiRegistry()
+    registry = ApiRegistry(REGISTRATION)
     registry.clients.update(clients)
     return registry
 
@@ -58,11 +70,10 @@ def test_api_names_match_the_config_field_names():
         assert hasattr(config, member.api_name)
 
 
-def test_on_config_update_registers_the_enabled_clients(monkeypatch):
-    monkeypatch.setenv("BROKER_URL", "https://broker.example.com")
+def test_on_config_update_registers_the_enabled_clients():
     config = make_config()
     config.spotify.enabled = True
-    registry = ApiRegistry()
+    registry = ApiRegistry(REGISTRATION)
 
     asyncio.run(registry.on_config_update(config))
 
@@ -77,7 +88,7 @@ def test_on_config_update_registers_the_enabled_clients(monkeypatch):
 def test_on_config_update_skips_disabled_clients():
     config = make_config()  # spotify is off until the broker says otherwise
     config.weather.enabled = False
-    registry = ApiRegistry()
+    registry = ApiRegistry(REGISTRATION)
 
     asyncio.run(registry.on_config_update(config))
 
@@ -95,18 +106,17 @@ def test_on_config_update_initialises_new_clients_even_if_one_fails(monkeypatch)
 
     monkeypatch.setattr(TflClient, "initialise", broken)
     monkeypatch.setattr(WeatherClient, "initialise", healthy)
-    registry = ApiRegistry()
+    registry = ApiRegistry(REGISTRATION)
 
     asyncio.run(registry.on_config_update(make_config()))
 
     assert initialised == [registry.clients["weather"]]
 
 
-def test_on_config_update_survives_a_client_that_cannot_be_built(monkeypatch):
-    """SpotifyClient needs BROKER_URL and saved credentials to even be constructed."""
+def test_on_config_update_survives_a_client_that_cannot_be_built(unbuildable_spotify):
     config = make_config()
-    config.spotify.enabled = True  # BROKER_URL is unset in tests, so this raises KeyError
-    registry = ApiRegistry()
+    config.spotify.enabled = True
+    registry = ApiRegistry(REGISTRATION)
 
     asyncio.run(registry.on_config_update(config))
 
@@ -115,7 +125,7 @@ def test_on_config_update_survives_a_client_that_cannot_be_built(monkeypatch):
 
 
 def test_unchanged_config_keeps_the_existing_clients_and_their_panels():
-    registry = ApiRegistry()
+    registry = ApiRegistry(REGISTRATION)
     asyncio.run(registry.on_config_update(make_config()))
     before = dict(registry.clients)
     registry.panels["tfl"] = "arrivals"
@@ -127,7 +137,7 @@ def test_unchanged_config_keeps_the_existing_clients_and_their_panels():
 
 
 def test_a_changed_config_replaces_only_that_client_and_drops_its_stale_panel():
-    registry = ApiRegistry()
+    registry = ApiRegistry(REGISTRATION)
     asyncio.run(registry.on_config_update(make_config()))
     old_tfl, old_weather = registry.clients["tfl"], registry.clients["weather"]
     registry.panels.update(tfl="old arrivals", weather="sunny")
@@ -143,7 +153,7 @@ def test_a_changed_config_replaces_only_that_client_and_drops_its_stale_panel():
 
 
 def test_a_client_that_is_switched_off_is_dropped_with_its_panel():
-    registry = ApiRegistry()
+    registry = ApiRegistry(REGISTRATION)
     asyncio.run(registry.on_config_update(make_config()))
     registry.panels["weather"] = "sunny"
     off = make_config()
@@ -158,7 +168,7 @@ def test_a_client_that_is_switched_off_is_dropped_with_its_panel():
 def test_a_change_the_client_says_is_irrelevant_does_not_rebuild_it():
     """Open-Meteo is keyless, so WeatherClient ignores api_key changes -- rebuilding
     would only throw away its cached coordinates and forecast."""
-    registry = ApiRegistry()
+    registry = ApiRegistry(REGISTRATION)
     asyncio.run(registry.on_config_update(make_config()))
     weather = registry.clients["weather"]
     changed = make_config()
@@ -302,10 +312,10 @@ def test_update_all_never_lets_one_clients_failure_escape(bad):
     assert asyncio.run(registry.update_all())["weather"] == "fine"
 
 
-def test_a_client_that_could_not_be_built_shows_as_an_error_in_the_health_payload():
+def test_a_client_that_could_not_be_built_shows_as_an_error_in_the_health_payload(unbuildable_spotify):
     config = make_config()
-    config.spotify.enabled = True  # BROKER_URL is unset in tests, so building it raises
-    registry = ApiRegistry()
+    config.spotify.enabled = True
+    registry = ApiRegistry(REGISTRATION)
 
     asyncio.run(registry.on_config_update(config))
 
@@ -314,11 +324,11 @@ def test_a_client_that_could_not_be_built_shows_as_an_error_in_the_health_payloa
     assert payload["problem"] is True
 
 
-def test_a_client_that_could_not_be_built_is_reported_again_by_update_all_without_raising(caplog):
+def test_a_client_that_could_not_be_built_is_reported_again_by_update_all_without_raising(unbuildable_spotify, caplog):
     caplog.set_level(logging.INFO)
     config = make_config()
     config.spotify.enabled = True
-    registry = ApiRegistry()
+    registry = ApiRegistry(REGISTRATION)
     asyncio.run(registry.on_config_update(config))
     caplog.clear()
 
@@ -329,7 +339,7 @@ def test_a_client_that_could_not_be_built_is_reported_again_by_update_all_withou
 
 
 def test_a_failed_client_is_rebuilt_when_its_config_changes_and_dropped_when_switched_off():
-    failed = FailedClient(make_config().spotify, KeyError("BROKER_URL"))
+    failed = FailedClient(REGISTRATION, make_config().spotify, ValueError("can't build"))
 
     assert failed.needs_refresh(make_config(spotify={"enabled": True}).spotify)
 
@@ -342,14 +352,16 @@ def test_a_failed_client_is_rebuilt_when_its_config_changes_and_dropped_when_swi
 def test_available_is_the_built_clients_that_are_not_disabled():
     disabled = FakeClient()
     disabled.status = ClientStatus.DISABLED
-    registry = registry_with(tfl=FakeClient(), glowmarkt=disabled, weather=FailedClient(WeatherConfig(), ValueError()))
+    registry = registry_with(
+        tfl=FakeClient(), glowmarkt=disabled, weather=FailedClient(REGISTRATION, WeatherConfig(), ValueError())
+    )
 
     # A failing client keeps its area (to say so); a disabled or missing one doesn't.
     assert registry.available() == frozenset({ClientClasses.TFL, ClientClasses.WEATHER})
 
 
 def test_available_leaves_out_glowmarkt_without_credentials_and_spotify_when_off():
-    registry = ApiRegistry()
+    registry = ApiRegistry(REGISTRATION)
 
     asyncio.run(registry.on_config_update(make_config()))
 
@@ -360,7 +372,7 @@ def test_available_leaves_out_glowmarkt_without_credentials_and_spotify_when_off
 def test_available_leaves_out_glowmarkt_when_its_username_is_cleared(username):
     """The broker keeps glowmarkt.enabled true when the owner clears the credentials, so
     it's the credentials themselves that decide."""
-    registry = ApiRegistry()
+    registry = ApiRegistry(REGISTRATION)
 
     asyncio.run(registry.on_config_update(make_config(glowmarkt={"username": username, "password": "pw"})))
 
@@ -371,7 +383,7 @@ def test_a_client_missing_what_it_needs_is_not_built_and_comes_back_fresh(monkey
     """Clearing Glowmarkt's username removes its client altogether (the broker leaves
     `enabled` true); putting it back builds a new one rather than reviving the old."""
     monkeypatch.setattr(GlowClient, "_initialise", lambda self: asyncio.sleep(0))  # no network
-    registry = ApiRegistry()
+    registry = ApiRegistry(REGISTRATION)
     with_credentials = make_config(glowmarkt={"username": "me@example.com", "password": "pw"})
 
     asyncio.run(registry.on_config_update(with_credentials))
@@ -386,7 +398,7 @@ def test_a_client_missing_what_it_needs_is_not_built_and_comes_back_fresh(monkey
 
 
 def test_show_stops_tells_the_tfl_client_how_many_to_fetch():
-    registry = registry_with(tfl=TflClient(TflConfig()))
+    registry = registry_with(tfl=TflClient(REGISTRATION, TflConfig()))
 
     registry.show_stops(4)
 

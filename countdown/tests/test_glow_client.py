@@ -9,6 +9,7 @@ import pytest
 import requests
 import responses
 from requests.adapters import HTTPAdapter
+from test_utils import REGISTRATION
 
 from countdown_core.config_server.models import GlowmarktConfig
 from countdown_core.core.abstract_client import DEFAULT_TIMEOUT, ClientStatus
@@ -35,7 +36,7 @@ def glowmarkt_api():
 
 
 def make_client() -> GlowClient:
-    return GlowClient(GlowmarktConfig(username="me@example.com", password="hunter2"))
+    return GlowClient(REGISTRATION, GlowmarktConfig(username="me@example.com", password="hunter2"))
 
 
 def make_initialised_client() -> GlowClient:

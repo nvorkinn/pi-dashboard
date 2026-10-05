@@ -13,6 +13,7 @@ from countdown_core.notices.notice_board_client import NoticeBoardClient
 from countdown_core.spotify.spotify_client import SpotifyClient
 from countdown_core.tfl.tfl_client import TflClient
 from countdown_core.weather.weather_client import WeatherClient
+from countdown_credentials.registration import Registration
 
 logger = logging.getLogger(__name__)
 
@@ -35,8 +36,8 @@ class FailedClient(AbstractClient):
 
     poll_interval = timedelta(hours=1)
 
-    def __init__(self, config: ApiConfig, error: Exception):
-        super().__init__(config)
+    def __init__(self, registration: Registration, config: ApiConfig, error: Exception):
+        super().__init__(registration, config)
         self.error = error
         self.status = ClientStatus.ERROR
 
@@ -48,12 +49,15 @@ class FailedClient(AbstractClient):
 
 
 class ApiRegistry:
-    def __init__(self, status: DeviceStatus | None = None):
+    def __init__(self, registration: Registration, status: DeviceStatus | None = None):
+        self.registration = registration  # handed to every client
         self.clients: dict[str, AbstractClient] = {}
         self.panels: dict[str, Panel | None] = {}  # None only from a DISABLED client
         self.status = status or DeviceStatus()
         # Shares self.clients (mutated in place, never reassigned) to read their statuses.
-        self.pub = MqttPublisher.from_env(self.clients, [member.api_name for member in ClientClasses], self.status)
+        self.pub = MqttPublisher.from_env(
+            registration, self.clients, [member.api_name for member in ClientClasses], self.status
+        )
 
     async def on_config_update(self, config: AppConfig) -> None:
         """Brings the clients in line with `config`, rebuilding only those whose
@@ -72,10 +76,10 @@ class ApiRegistry:
                 # The old panel came from the old config, so it goes too.
                 self._drop(name)
                 try:
-                    to_initialise[name] = self.clients[name] = clazz(client_config)
+                    to_initialise[name] = self.clients[name] = clazz(self.registration, client_config)
                 except Exception as e:
                     logger.exception(f"Error building {name} client: {e}")
-                    self.clients[name] = FailedClient(client_config, e)
+                    self.clients[name] = FailedClient(self.registration, client_config, e)
 
         outcomes = await asyncio.gather(*[c.initialise() for c in to_initialise.values()], return_exceptions=True)
         for name, outcome in zip(to_initialise, outcomes, strict=True):

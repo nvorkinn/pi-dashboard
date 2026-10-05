@@ -3,9 +3,7 @@ lives here and not in countdown_core."""
 
 import logging
 import os
-import sys
 import time
-from pathlib import Path
 
 from PIL import Image
 
@@ -13,8 +11,6 @@ from countdown_core.core import targets
 from countdown_core.core.targets import DisplayTarget, PreviewTarget, Region, panel_bytes
 
 logger = logging.getLogger(__name__)
-
-LIB_DIR = str(Path(__file__).resolve().parent / "lib")
 
 # How often a panel that didn't answer is asked again, so a screen can be plugged in later.
 PANEL_RETRY_INTERVAL_S = 300
@@ -79,8 +75,7 @@ class EpdTarget(DisplayTarget):
 
 
 def _load_epd():
-    sys.path.insert(1, LIB_DIR)
-    import epd7in5_V2
+    from countdown_epd import epd7in5_V2
 
     return epd7in5_V2.EPD()
 

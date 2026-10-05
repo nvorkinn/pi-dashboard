@@ -1,17 +1,14 @@
-import json
 import os
-import secrets
 import socket
-from pathlib import Path
 
 from countdown_core.config_server.models import AppConfig
 from countdown_core.core.abstract_client import DEFAULT_TIMEOUT, AbstractClient
 from countdown_core.core.panel import Panel
 from countdown_core.system_screens.pairing_code_panel import PairingCodePanel
-from countdown_core.utils.device_id import resolve_device_id
+from countdown_credentials.device_id import resolve_device_id
+from countdown_credentials.registration import RendererRegistration
 
-CREDENTIALS_FILE = Path(".auth_broker_device")
-# Sent as the JSON body of every broker call (registration adds the device_secret to it).
+# Sent as the JSON body of every broker call.
 ROLE_BODY = {"role": "renderer"}
 
 
@@ -25,33 +22,20 @@ def _device_name_header() -> dict[str, str]:
 
 
 class BrokerClient(AbstractClient):
-    """Talks to auth-broker (https://github.com/nvorkinn/auth-broker). Registers on first
-    run and persists the credentials to CREDENTIALS_FILE, so later runs just load them."""
+    """Talks to auth-broker (https://github.com/nvorkinn/auth-broker) for the device's config,
+    as the device `registration` registered."""
 
-    def __init__(self, base_url: str):
-        super().__init__()
-        self.base_url = base_url.rstrip("/")
+    def __init__(self, registration: RendererRegistration):
+        super().__init__(registration)
+        self.device_id = registration.device_id
+        self.base_url = registration.broker_url
+        self.session.auth = registration.auth
 
     def _initialise(self) -> None:
-        if CREDENTIALS_FILE.exists():
-            data = json.loads(CREDENTIALS_FILE.read_text())
-            self.device_id: str = data["device_id"]
-            self.device_secret: str = data["device_secret"]
-            return
-
-        self.device_secret = secrets.token_urlsafe(24)
-        response = self.session.post(
-            f"{self.base_url}/api/devices/register",
-            json={"device_secret": self.device_secret, **ROLE_BODY},
-            timeout=DEFAULT_TIMEOUT,
-        )
-        response.raise_for_status()
-        self.device_id = response.json()["device_id"]
-        CREDENTIALS_FILE.write_text(json.dumps({"device_id": self.device_id, "device_secret": self.device_secret}))
-        return
+        pass  # the registrar has done the work
 
     def _request(self, method: str, path: str, **kwargs):
-        headers = {"Authorization": f"Bearer {self.device_secret}", **_device_name_header()}
+        headers = _device_name_header()
         response = self.session.request(
             method, f"{self.base_url}{path}", headers=headers, json=ROLE_BODY, timeout=DEFAULT_TIMEOUT, **kwargs
         )

@@ -4,6 +4,7 @@ import datetime as dt
 import pytest
 import requests
 import responses
+from test_utils import REGISTRATION
 
 from countdown_core.config_server.models import WeatherConfig
 from countdown_core.notices.location import is_postcode
@@ -24,7 +25,7 @@ FORECAST_JSON = {
 
 
 def make_client(location: str = "London") -> WeatherClient:
-    return WeatherClient(WeatherConfig(api_key="", location=location))
+    return WeatherClient(REGISTRATION, WeatherConfig(api_key="", location=location))
 
 
 @responses.activate
@@ -119,7 +120,7 @@ def test_failed_fetch_raises_and_is_retried_next_cycle():
 
 
 def test_needs_refresh_only_when_the_location_changes():
-    client = WeatherClient(WeatherConfig(api_key="old", location="London"))
+    client = WeatherClient(REGISTRATION, WeatherConfig(api_key="old", location="London"))
 
     assert not client.needs_refresh(WeatherConfig(api_key="new", location="London"))  # keyless API
     assert client.needs_refresh(WeatherConfig(api_key="old", location="Paris"))

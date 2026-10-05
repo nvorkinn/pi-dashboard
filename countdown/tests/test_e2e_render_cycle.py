@@ -8,9 +8,7 @@ and the loop carries on with the config it was built with."""
 import asyncio
 import datetime
 import io
-import json
 import logging
-from pathlib import Path
 from types import SimpleNamespace
 
 import pytest
@@ -29,6 +27,7 @@ from countdown_core.spotify.spotify_panel import SpotifyPanel
 from countdown_core.spotify.spotify_top_panel import SpotifyTopPanel
 from countdown_core.tfl.combined_arrival_panel import CombinedArrivalPanel
 from countdown_core.weather.weather_panel import WeatherPanel
+from countdown_credentials.registration import RendererRegistration
 
 TEST_BROKER_URL = "https://broker.example.com"
 GLOWMARKT_URL = "https://api.glowmarkt.com/api/v0-1"
@@ -141,16 +140,8 @@ def _make_config() -> AppConfig:
     return config
 
 
-def _seed_credentials() -> None:
-    # BrokerClient registers itself in initialise() if no credentials file exists --
-    # seed one so tests load it instead of making a real (unmocked) network call.
-    Path(".auth_broker_device").write_text(json.dumps({"device_id": "test-device", "device_secret": "test-secret"}))
-
-
 def _build_loop(config: AppConfig, monkeypatch, pairing_code: str | None = None) -> DisplayLoop:
-    _seed_credentials()
-    monkeypatch.setenv("BROKER_URL", TEST_BROKER_URL)  # SpotifyClient reads this
-    broker = BrokerClient(TEST_BROKER_URL)
+    broker = BrokerClient(RendererRegistration(TEST_BROKER_URL, "test-secret", "test-device"))
     asyncio.run(broker.initialise())
     # Via get_pairing_code_panel, to seed the broker's cache like fetch_app_config() does.
     pairing_code_panel = broker.get_pairing_code_panel(AppConfig.model_validate(_app_config_json(pairing_code)))

@@ -26,7 +26,6 @@ from countdown_core.spotify.spotify_panel import SpotifyPanel
 from countdown_core.system_screens.empty_panel import EmptyPanel
 from countdown_core.system_screens.pairing_code_panel import PairingCodePanel
 from countdown_core.system_screens.setup_panel import SetupPanel
-from countdown_core.system_screens.splash_panel import SplashPanel
 from countdown_core.tfl.bus_arrival_panel import BusArrivalPanel
 from countdown_core.tfl.combined_arrival_panel import CombinedArrivalPanel
 from countdown_core.tfl.models import BusArrival, MetroStopPoint, SingleStopPoint, TubeArrival
@@ -275,12 +274,6 @@ def test_screen_with_four_stops_and_neither_spotify_nor_energy(snapshot):
     snapshot.assert_matches("screen_four_stops", img)
 
 
-def test_splash_screen_when_the_broker_cannot_be_reached(snapshot):
-    img = SplashPanel().render(countdown_core.core.display.TOTAL_WIDTH, countdown_core.core.display.TOTAL_HEIGHT)
-    # Large glyphs: CI (Ubuntu) and macOS differ by ~0.011 here with identical layout.
-    snapshot.assert_matches("screen_splash", img, threshold=0.02)
-
-
 def test_empty_screen_stays_clear_of_the_screen_edges():
     img = (
         EmptyPanel()
@@ -318,25 +311,12 @@ def test_setup_checklist_stays_on_the_screen(missing):
         assert img.crop(edge).getextrema() == (255, 255)
 
 
-def test_splash_text_stays_clear_of_the_screen_edges():
-    """The text is big; a longer line or a bigger font must not run off the panel."""
-    img = (
-        SplashPanel()
-        .render(countdown_core.core.display.TOTAL_WIDTH, countdown_core.core.display.TOTAL_HEIGHT)
-        .convert("L")
-    )
-    width, height = img.size
-
-    for edge in [(0, 0, 20, height), (width - 20, 0, width, height)]:
-        assert img.crop(edge).getextrema() == (255, 255)  # nothing but white
-
-
 def test_screen_with_no_panels_at_all_says_there_is_nothing_to_show(snapshot):
     """First cycle after boot, a paired device nobody's set up yet, or every API failing:
     a message saying so, not a blank white screen that looks broken (or a crash)."""
     img = _CONTROLLER.display_screen({})
     assert img.size == (countdown_core.core.display.TOTAL_WIDTH, countdown_core.core.display.TOTAL_HEIGHT)
-    # Text-only and large: CI renders it ~1% differently from macOS (see screen_splash).
+    # Text-only and large: CI renders it ~1% differently from macOS.
     snapshot.assert_matches("screen_nothing_to_show", img, threshold=0.02)
 
 

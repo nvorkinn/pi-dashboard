@@ -19,6 +19,7 @@ from countdown_core.tfl.models import (
     TubeArrival,
 )
 from countdown_core.tfl.tube_arrival_panel import TubeArrivalPanel
+from countdown_credentials.registration import Registration
 
 logger = logging.getLogger(__name__)
 
@@ -50,9 +51,9 @@ T = TypeVar("T", BusArrival, TubeArrival)
 class TflClient(AbstractClient):
     panel_title = "Arrivals"
 
-    def __init__(self, config: TflConfig):
+    def __init__(self, registration: Registration, config: TflConfig):
         """Never touches the network: stops are resolved in _initialise()."""
-        super().__init__(config)
+        super().__init__(registration, config)
         self.stops: list[SingleStopPoint | MetroStopPoint] = []
         self.current_stop = 0
         self.params = {"app_key": config.app_key} if config.app_key else {}

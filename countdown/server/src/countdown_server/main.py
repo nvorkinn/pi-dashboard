@@ -1,10 +1,14 @@
 import logging
 
+from countdown_core import main
+from countdown_server.server_target import ServerTarget
+
 logger = logging.getLogger(__name__)
 
 
 def run() -> None:
-    logger.error("Not yet implemented")
+    """The `countdown-server` console script: the app, rendering for a separate screen (countdown-client)."""
+    main(ServerTarget, standalone=False)
 
 
 if __name__ == "__main__":

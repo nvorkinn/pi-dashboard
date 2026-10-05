@@ -8,8 +8,9 @@ import responses
 from pydantic import ValidationError
 
 from countdown_core.config_server import broker_client as broker_client_module
-from countdown_core.config_server.broker_client import CREDENTIALS_FILE, BrokerClient
+from countdown_core.config_server.broker_client import BrokerClient
 from countdown_core.config_server.models import AppConfig
+from countdown_credentials.registration import RendererRegistration
 
 BROKER_URL = "https://broker.example.com"
 DEFAULT_TIMEOUT = 10
@@ -34,59 +35,28 @@ def _response(json_data: dict | None = None) -> MagicMock:
     return response
 
 
-def _seed_credentials(device_id: str = "device-123", device_secret: str = "shh") -> None:
-    CREDENTIALS_FILE.write_text(json.dumps({"device_id": device_id, "device_secret": device_secret}))
-
-
-def _initialised_client() -> BrokerClient:
-    """A client with credentials loaded from a seeded file (so no registration call)."""
-    client = BrokerClient(BROKER_URL)
+def _initialised_client(device_id: str = "device-123", device_secret: str = "shh") -> BrokerClient:
+    client = BrokerClient(RendererRegistration(BROKER_URL, device_secret, device_id))
     asyncio.run(client.initialise())
     return client
 
 
-def test_construction_makes_no_requests_and_loads_no_credentials(isolated_cwd):
-    _seed_credentials()
+@responses.activate
+def test_initialising_makes_no_requests(isolated_cwd):
 
-    client = BrokerClient(BROKER_URL)
+    _initialised_client()  # responses would raise ConnectionError for any request
 
-    assert not hasattr(client, "device_id")  # credentials are loaded by initialise(), not __init__
-
-
-def test_registers_and_persists_credentials_on_first_run(isolated_cwd, monkeypatch):
-    register_response = _response({"device_id": "device-123"})
-    post_mock = MagicMock(return_value=register_response)
-
-    # Patch the session before construction (_build_retrying_session() creates a fresh
-    # session each time), at the spot AbstractClient.__init__ actually calls it.
-    monkeypatch.setattr(
-        "countdown_core.core.abstract_client.AbstractClient._build_retrying_session",
-        staticmethod(lambda: MagicMock(post=post_mock)),
-    )
-
-    client = BrokerClient(BROKER_URL)
-    asyncio.run(client.initialise())  # registration happens here, not in __init__
-
-    assert client.device_id == "device-123"
-    post_mock.assert_called_once()
-    assert post_mock.call_args.kwargs["json"] == {"device_secret": client.device_secret, "role": "renderer"}
-    assert post_mock.call_args.kwargs["timeout"] == DEFAULT_TIMEOUT
-
-    saved = json.loads(CREDENTIALS_FILE.read_text())
-    assert saved == {"device_id": "device-123", "device_secret": client.device_secret}
+    assert len(responses.calls) == 0
 
 
-def test_reuses_credentials_file_without_registering_again(isolated_cwd):
-    _seed_credentials("existing-device", "existing-secret")
+def test_talks_to_the_registrations_broker_as_its_device(isolated_cwd):
+    client = _initialised_client("existing-device", "existing-secret")
 
-    client = _initialised_client()
-
+    assert client.base_url == BROKER_URL
     assert client.device_id == "existing-device"
-    assert client.device_secret == "existing-secret"
 
 
-def test_request_sends_bearer_auth_header(isolated_cwd):
-    _seed_credentials()
+def test_request_returns_the_json_with_a_timeout(isolated_cwd):
     client = _initialised_client()
 
     response = _response({"ok": True})
@@ -96,14 +66,12 @@ def test_request_sends_bearer_auth_header(isolated_cwd):
     result = client._request("GET", "/some/path")
 
     assert result == {"ok": True}
-    assert request_mock.call_args.kwargs["headers"]["Authorization"] == "Bearer shh"
     assert request_mock.call_args.kwargs["timeout"] == DEFAULT_TIMEOUT
 
 
 @responses.activate
 def test_get_config_sends_the_secret_as_a_bearer_token_and_the_role_in_the_body(isolated_cwd):
-    _seed_credentials("test-device", "test-secret")
-    client = _initialised_client()
+    client = _initialised_client("test-device", "test-secret")
     responses.add(responses.GET, f"{BROKER_URL}/api/config", json=_app_config(None).model_dump())
 
     client.get_config()
@@ -115,7 +83,6 @@ def test_get_config_sends_the_secret_as_a_bearer_token_and_the_role_in_the_body(
 
 def test_request_sends_device_name_header_from_device_id_env(isolated_cwd, monkeypatch):
     monkeypatch.setenv("DEVICE_ID", "Sister HAT")
-    _seed_credentials()
     client = _initialised_client()
     request_mock = MagicMock(return_value=_response({}))
     client.session.request = request_mock
@@ -127,7 +94,6 @@ def test_request_sends_device_name_header_from_device_id_env(isolated_cwd, monke
 
 def test_request_sends_device_name_header_from_hostname_when_device_id_unset(isolated_cwd, monkeypatch):
     monkeypatch.setattr(broker_client_module.socket, "gethostname", lambda: "vorkin-rbpi-z2w")
-    _seed_credentials()
     client = _initialised_client()
     request_mock = MagicMock(return_value=_response({}))
     client.session.request = request_mock
@@ -141,7 +107,6 @@ def test_request_omits_device_name_header_when_unresolvable(isolated_cwd, monkey
     """Never allowed to fail the request itself -- a dev box with an unresolvable
     hostname and no DEVICE_ID just doesn't send the (purely cosmetic) header."""
     monkeypatch.setattr(broker_client_module.socket, "gethostname", lambda: "")
-    _seed_credentials()
     client = _initialised_client()
     request_mock = MagicMock(return_value=_response({}))
     client.session.request = request_mock
@@ -152,7 +117,6 @@ def test_request_omits_device_name_header_when_unresolvable(isolated_cwd, monkey
 
 
 def test_get_config_parses_response(isolated_cwd):
-    _seed_credentials()
     client = _initialised_client()
     client.session.request = MagicMock(
         return_value=_response(
@@ -180,7 +144,6 @@ def test_get_config_parses_response(isolated_cwd):
 def test_get_config_accepts_null_glowmarkt_credentials(isolated_cwd):
     """The common case: a device whose owner hasn't set up Glowmarkt on the
     broker. Sent as null, not omitted -- must parse, not raise."""
-    _seed_credentials()
     client = _initialised_client()
     client.session.request = MagicMock(
         return_value=_response(
@@ -204,7 +167,6 @@ def test_get_config_accepts_null_glowmarkt_credentials(isolated_cwd):
 
 
 def test_get_pairing_code_panel_wraps_code_and_device_id(isolated_cwd):
-    _seed_credentials()
     client = _initialised_client()
 
     panel = client.get_pairing_code_panel(_app_config("ABC123"))
@@ -215,7 +177,6 @@ def test_get_pairing_code_panel_wraps_code_and_device_id(isolated_cwd):
 
 def test_get_pairing_code_panel_has_changed_false_on_repeat(isolated_cwd):
     """A paired device gets `pairing_code=None` on every poll; has_changed must stay False."""
-    _seed_credentials()
     client = _initialised_client()
 
     first = client.get_pairing_code_panel(_app_config(None))
@@ -226,7 +187,6 @@ def test_get_pairing_code_panel_has_changed_false_on_repeat(isolated_cwd):
 
 
 def test_get_pairing_code_panel_has_changed_true_when_code_changes(isolated_cwd):
-    _seed_credentials()
     client = _initialised_client()
 
     client.get_pairing_code_panel(_app_config("ABC123"))
@@ -239,8 +199,7 @@ def test_get_pairing_code_panel_has_changed_true_when_code_changes(isolated_cwd)
 
 @responses.activate
 def test_fetch_app_config_uses_real_broker_response(isolated_cwd):
-    _seed_credentials("test-device", "test-secret")
-    client = _initialised_client()
+    client = _initialised_client("test-device", "test-secret")
     responses.add(
         responses.GET,
         f"{BROKER_URL}/api/config",
@@ -268,9 +227,8 @@ def test_fetch_app_config_uses_real_broker_response(isolated_cwd):
 @responses.activate
 def test_fetch_app_config_raises_when_broker_unreachable(isolated_cwd):
     """No empty fallback: with no config there's nothing sensible to run, so the caller
-    (app.wait_for_config) shows a splash and retries."""
-    _seed_credentials("test-device", "test-secret")
-    client = _initialised_client()
+    (app.wait_for_config) retries."""
+    client = _initialised_client("test-device", "test-secret")
     # /config deliberately left unmocked -- responses raises ConnectionError for it.
 
     with pytest.raises(requests.exceptions.ConnectionError):
@@ -279,8 +237,7 @@ def test_fetch_app_config_raises_when_broker_unreachable(isolated_cwd):
 
 @responses.activate
 def test_fetch_app_config_raises_when_response_is_invalid(isolated_cwd):
-    _seed_credentials("test-device", "test-secret")
-    client = _initialised_client()
+    client = _initialised_client("test-device", "test-secret")
     responses.add(responses.GET, f"{BROKER_URL}/api/config", json={"interval": "soon"})
 
     with pytest.raises(ValidationError):
@@ -290,8 +247,7 @@ def test_fetch_app_config_raises_when_response_is_invalid(isolated_cwd):
 @responses.activate
 def test_a_failed_fetch_does_not_mark_the_pairing_code_as_seen(isolated_cwd):
     """The first *successful* fetch is still the one that reports has_changed."""
-    _seed_credentials("test-device", "test-secret")
-    client = _initialised_client()
+    client = _initialised_client("test-device", "test-secret")
     with pytest.raises(requests.exceptions.ConnectionError):
         client.fetch_app_config()
     responses.add(

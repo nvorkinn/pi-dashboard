@@ -7,9 +7,10 @@ import responses
 from pydantic import ValidationError
 
 from countdown_core.config_server.models import SpotifyConfig
-from countdown_core.spotify.spotify_client import CREDENTIALS_FILE, SpotifyClient
+from countdown_core.spotify.spotify_client import SpotifyClient
 from countdown_core.spotify.spotify_panel import SpotifyPanel
 from countdown_core.spotify.spotify_top_panel import SpotifyTopPanel
+from countdown_credentials.registration import RendererRegistration
 
 BROKER_URL = "https://broker.example.com"
 QUEUE_URL = f"{BROKER_URL}/api/spotify/queue"
@@ -36,12 +37,8 @@ def mock_top():
 
 
 @pytest.fixture
-def client(isolated_cwd, monkeypatch) -> SpotifyClient:
-    """A SpotifyClient for a device that's already registered with the broker (the
-    BrokerClient owns registration; this one only reads the credentials it saved)."""
-    monkeypatch.setenv("BROKER_URL", BROKER_URL)
-    CREDENTIALS_FILE.write_text(json.dumps({"device_id": "device-123", "device_secret": "shh"}))
-    return SpotifyClient(SpotifyConfig(enabled=True))
+def client() -> SpotifyClient:
+    return SpotifyClient(RendererRegistration(BROKER_URL, "shh", "device-123"), SpotifyConfig(enabled=True))
 
 
 @responses.activate

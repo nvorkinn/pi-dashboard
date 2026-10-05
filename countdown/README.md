@@ -6,15 +6,16 @@ configured remotely through [auth-broker](https://github.com/nvorkinn/auth-broke
 
 ## How it works
 
-**Boot** (`app.py`). The app reads `BROKER_URL`, sets up the display and waits
-for a valid config from the broker. On first run it registers itself with the
-broker and saves its credentials to `.auth_broker_device` in the working
-directory. The app can't run without that config, so there's no empty fallback.
-If the broker can't be reached or sends back something invalid (no network yet,
-broker down, first-time registration failing), a "How embarrassing..." splash is
-painted once and the app keeps retrying, backing off from 30 seconds to 5
-minutes. Once it's running, a failed config refresh just keeps the config it
-already has.
+**Boot** (`app.py`). The app reads `BROKER_URL` and registers with the broker
+before it does anything else (`countdown_credentials/registration.py`), standalone
+and split alike. On first run that saves its credentials to `.auth_broker_device`
+in the working directory; later runs just load them. A split renderer also waits
+there until a screen has been matched with it. Then it sets up the display and
+waits for a valid config. The app can't run without that config, so there's no
+empty fallback: if the broker can't be reached or sends back something invalid,
+it keeps retrying, backing off from 30 seconds to 5 minutes. Nothing is painted
+until it has a config. Once it's running, a failed config refresh just keeps the
+config it already has.
 
 **The loop** (`display_loop.py`). Every `interval` seconds (set in the config),
 the device is in one of three stages:
@@ -67,7 +68,7 @@ since the last full refresh (partial refreshes leave ghosting), it does a full
 refresh. If every API only has a message to show, a "Nothing to show yet" screen
 replaces the dashboard. Frames go to a display target (see below). If no panel
 answers, the app runs without a display and checks again every 5 minutes, and a
-whole-screen picture it couldn't paint (pairing code, checklist, splash) is
+whole-screen picture it couldn't paint (pairing code, checklist) is
 retried once the panel appears.
 
 ## Packages

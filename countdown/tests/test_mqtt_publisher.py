@@ -8,6 +8,7 @@ import paho.mqtt.client as mqtt
 import pytest
 from paho.mqtt.packettypes import PacketTypes
 from paho.mqtt.reasoncodes import ReasonCode
+from test_utils import REGISTRATION
 
 from countdown_core.core.abstract_client import AbstractClient, ClientStatus
 from countdown_core.home_assistant import mqtt_publisher
@@ -65,7 +66,7 @@ class FakeMqttClient:
 
 class StubClient(AbstractClient):
     def __init__(self, status: ClientStatus):
-        super().__init__()
+        super().__init__(REGISTRATION)
         self.status = status
 
     def _initialise(self) -> None:
@@ -85,7 +86,7 @@ def fake_paho(monkeypatch):
 
 def publisher(clients=None, host: str | None = "broker.local", **kwargs) -> MqttPublisher:
     clients = {} if clients is None else clients
-    return MqttPublisher(clients, API_NAMES, device_id="sister-hat", broker_host=host, **kwargs)
+    return MqttPublisher(REGISTRATION, clients, API_NAMES, device_id="sister-hat", broker_host=host, **kwargs)
 
 
 # --- topics and discovery: must sit beside pi-telemetry's, not on top of it ----------
@@ -260,7 +261,7 @@ def test_from_env_reads_the_same_variables_as_pi_telemetry(monkeypatch):
     monkeypatch.setenv("MQTT_BROKER_PASSWORD", "secret")
     monkeypatch.setenv("DEVICE_ID", "Sister HAT")
 
-    pub = MqttPublisher.from_env({}, API_NAMES)
+    pub = MqttPublisher.from_env(REGISTRATION, {}, API_NAMES)
 
     assert (pub.broker_host, pub.port, pub.username, pub.password) == ("192.168.0.181", 1885, "ha", "secret")
     assert pub.device_id == "sister-hat"
@@ -269,7 +270,7 @@ def test_from_env_reads_the_same_variables_as_pi_telemetry(monkeypatch):
 def test_from_env_is_disabled_with_no_host_and_falls_back_to_the_default_port(monkeypatch):
     monkeypatch.setenv("MQTT_BROKER_PORT", "not-a-port")
 
-    pub = MqttPublisher.from_env({}, API_NAMES)
+    pub = MqttPublisher.from_env(REGISTRATION, {}, API_NAMES)
 
     assert pub.is_disabled()
     assert pub.port == 1883
@@ -278,16 +279,16 @@ def test_from_env_is_disabled_with_no_host_and_falls_back_to_the_default_port(mo
 def test_from_env_never_needs_a_device_id_while_disabled(monkeypatch):
     monkeypatch.setattr(mqtt_publisher.socket, "gethostname", lambda: "")
 
-    assert MqttPublisher.from_env({}, API_NAMES).is_disabled()
+    assert MqttPublisher.from_env(REGISTRATION, {}, API_NAMES).is_disabled()
 
     monkeypatch.setenv("MQTT_BROKER_HOST", "broker.local")
     with pytest.raises(ValueError):
-        MqttPublisher.from_env({}, API_NAMES)
+        MqttPublisher.from_env(REGISTRATION, {}, API_NAMES)
 
 
 def test_it_says_so_when_it_is_switched_off(caplog):
     caplog.set_level(logging.INFO)
-    MqttPublisher.from_env({}, API_NAMES)
+    MqttPublisher.from_env(REGISTRATION, {}, API_NAMES)
 
     assert "MQTT_BROKER_HOST is not set" in caplog.text
 
@@ -307,7 +308,7 @@ def test_it_stays_quiet_about_being_off_when_a_host_is_set(monkeypatch, caplog):
     caplog.set_level(logging.INFO)
     monkeypatch.setenv("MQTT_BROKER_HOST", "broker.local")
 
-    MqttPublisher.from_env({}, API_NAMES)
+    MqttPublisher.from_env(REGISTRATION, {}, API_NAMES)
 
     assert "not set" not in caplog.text
 

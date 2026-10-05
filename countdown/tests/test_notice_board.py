@@ -5,6 +5,7 @@ import pytest
 import requests
 import responses
 from config_factory import make_config
+from test_utils import REGISTRATION
 
 from countdown_core.config_server.models import NoticeBoardConfig, TflConfig
 from countdown_core.notices.calendar import (
@@ -469,7 +470,7 @@ def clock(monkeypatch):
 
 
 def board_with(*sources: NoticeSource) -> NoticeBoardClient:
-    client = NoticeBoardClient(NoticeBoardConfig(tfl=TflConfig(stop_ids=["940GZZLUKNG"])))
+    client = NoticeBoardClient(REGISTRATION, NoticeBoardConfig(tfl=TflConfig(stop_ids=["940GZZLUKNG"])))
     client.sources = list(sources)
     return client
 
@@ -543,7 +544,7 @@ def test_board_errors_rather_than_claiming_all_clear_when_no_source_answered(clo
 
 
 def test_board_with_nothing_configured_still_has_bank_holidays_and_the_clocks():
-    client = NoticeBoardClient(NoticeBoardConfig(postcode=None))
+    client = NoticeBoardClient(REGISTRATION, NoticeBoardConfig(postcode=None))
 
     assert not client.is_disabled()
     assert [type(s) for s in client.sources] == [ClockChangeSource, BankHolidaySource]
@@ -553,7 +554,7 @@ def test_board_with_nothing_configured_still_has_bank_holidays_and_the_clocks():
 def test_board_adds_local_sources_once_the_postcode_is_found(api, clock):
     result = SOUTHWARK.model_dump()
     api.add(responses.GET, f"{POSTCODES_URL}/SE17%203LL", json={"result": result})
-    client = NoticeBoardClient(NoticeBoardConfig(postcode="SE17 3LL"))
+    client = NoticeBoardClient(REGISTRATION, NoticeBoardConfig(postcode="SE17 3LL"))
     client._refresh = lambda source, now: None  # only the lookup is under test here
 
     with pytest.raises(RuntimeError):  # sources added, but none has answered yet
@@ -570,7 +571,7 @@ def test_board_adds_local_sources_once_the_postcode_is_found(api, clock):
 
 def test_board_logs_where_the_postcode_is(api, clock, caplog):
     api.add(responses.GET, f"{POSTCODES_URL}/SE17%203LL", json={"result": SOUTHWARK.model_dump()})
-    client = NoticeBoardClient(NoticeBoardConfig(postcode="SE17 3LL"))
+    client = NoticeBoardClient(REGISTRATION, NoticeBoardConfig(postcode="SE17 3LL"))
     client._refresh = lambda source, now: None
 
     with caplog.at_level("INFO", logger="countdown_core.notices.notice_board_client"), pytest.raises(RuntimeError):
@@ -586,14 +587,14 @@ def test_board_with_an_unknown_postcode_says_so(api, clock):
     api.add(responses.GET, f"{POSTCODES_URL}/ZZ1%201ZZ", status=404, json={"error": "Invalid postcode"})
     api.add(responses.GET, BANK_HOLIDAYS_URL, json=BANK_HOLIDAYS)
 
-    panel = update(NoticeBoardClient(NoticeBoardConfig(postcode="ZZ1 1ZZ")))
+    panel = update(NoticeBoardClient(REGISTRATION, NoticeBoardConfig(postcode="ZZ1 1ZZ")))
 
     assert panel.message == "Unknown postcode"
 
 
 def test_board_retries_a_postcode_lookup_that_failed(api, clock):
     api.add(responses.GET, f"{POSTCODES_URL}/SE17%203LL", status=503)
-    client = NoticeBoardClient(NoticeBoardConfig(postcode="SE17 3LL"))
+    client = NoticeBoardClient(REGISTRATION, NoticeBoardConfig(postcode="SE17 3LL"))
     client.session = requests.Session()  # no retries, so the 503 comes straight back
 
     with pytest.raises(RuntimeError):

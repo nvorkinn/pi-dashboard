@@ -12,6 +12,7 @@ from countdown_core.notices.notice_board_panel import NoticeBoardPanel
 from countdown_core.notices.tfl import TflLineStatusSource, TflRoadSource, TflStationSource
 from countdown_core.system_screens.message_panel import MessagePanel
 from countdown_core.tfl.models import Postcode
+from countdown_credentials.registration import Registration
 
 logger = logging.getLogger(__name__)
 
@@ -28,8 +29,8 @@ class NoticeBoardClient(AbstractClient):
 
     panel_title = "Notices"
 
-    def __init__(self, config: NoticeBoardConfig):
-        super().__init__(config)
+    def __init__(self, registration: Registration, config: NoticeBoardConfig):
+        super().__init__(registration, config)
         self.postcode = config.postcode
         self.sources: list[NoticeSource] = [ClockChangeSource(self.session)]
         if not config.postcode:

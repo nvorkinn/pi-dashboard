@@ -28,7 +28,7 @@ class DisplayController:
         # yet, or the last paint failed).
         self._shown: Image.Image | None = None
         self._last_full_refresh = 0.0
-        # A whole-screen picture (pairing code, checklist, splash) the screen couldn't take yet.
+        # A whole-screen picture (pairing code, checklist) the screen couldn't take yet.
         self._pending: Image.Image | None = None
         self._composer = DEFAULT_COMPOSER
 
@@ -89,7 +89,7 @@ class DisplayController:
         return 0, ay0, -(-ax1 // 8) * 8, ay1  # x in whole bytes (8 pixels), as the panel needs
 
     def _paint_whole_screen(self, img: Image.Image) -> bool:
-        """For the screens that replace the picture outright (pairing code, splash). False
+        """For the screens that replace the picture outright (pairing code, checklist). False
         if there's no screen to paint on."""
         # So the next dashboard is painted in full even if it matches the last one.
         self._shown = None
@@ -118,12 +118,6 @@ class DisplayController:
         img = panel.render(TOTAL_WIDTH, TOTAL_HEIGHT)
         if not self._paint_whole_screen(img):
             logger.warning(f"No display to show the setup checklist on -- still needed: {', '.join(panel.missing)}")
-        return img
-
-    def display_splash(self, panel: Panel) -> Image.Image:
-        """The "can't reach the server" screen shown at boot."""
-        img = panel.render(TOTAL_WIDTH, TOTAL_HEIGHT)
-        self._paint_whole_screen(img)
         return img
 
     def shutdown(self) -> None:
