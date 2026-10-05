@@ -12,9 +12,9 @@ from countdown_core.spotify.spotify_panel import SpotifyPanel
 from countdown_core.spotify.spotify_top_panel import SpotifyTopPanel
 
 BROKER_URL = "https://broker.example.com"
-QUEUE_URL = f"{BROKER_URL}/api/queue"
-TOP_TRACKS_URL = f"{BROKER_URL}/api/top/tracks"
-TOP_ARTISTS_URL = f"{BROKER_URL}/api/top/artists"
+QUEUE_URL = f"{BROKER_URL}/api/spotify/queue"
+TOP_TRACKS_URL = f"{BROKER_URL}/api/spotify/top/tracks"
+TOP_ARTISTS_URL = f"{BROKER_URL}/api/spotify/top/artists"
 
 
 def track(name: str) -> dict:
@@ -64,7 +64,7 @@ def test_update_sends_the_device_secret_as_a_bearer_token(client):
 
     request = responses.calls[0].request
     assert request.headers["Authorization"] == "Bearer shh"
-    assert json.loads(request.body) == {"device_secret": "shh", "role": "renderer"}
+    assert request.body is None  # the secret goes in the header only
 
 
 @responses.activate

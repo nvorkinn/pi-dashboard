@@ -4,7 +4,6 @@ from collections.abc import Callable
 from dataclasses import dataclass
 from pathlib import Path
 
-from countdown_core.config_server.broker_client import device_auth_body
 from countdown_core.config_server.models import SpotifyConfig
 from countdown_core.core.abstract_client import DEFAULT_TIMEOUT, AbstractClient
 from countdown_core.core.panel import Panel
@@ -54,12 +53,7 @@ class SpotifyClient(AbstractClient):
     def _request(self, method: str, path: str, **kwargs) -> bytes:
         headers = {"Authorization": f"Bearer {self.device_secret}"}
         response = self.session.request(
-            method,
-            f"{self.base_url}{path}",
-            headers=headers,
-            json=device_auth_body(self.device_secret),
-            timeout=DEFAULT_TIMEOUT,
-            **kwargs,
+            method, f"{self.base_url}{path}", headers=headers, timeout=DEFAULT_TIMEOUT, **kwargs
         )
         response.raise_for_status()
         return response.content
@@ -76,16 +70,16 @@ class SpotifyClient(AbstractClient):
 
     def update_player(self, _page_config: PageConfig) -> Panel | None:
         """What's playing and what's up next, or None if nothing is playing."""
-        queue = Queue.model_validate_json(self._request("GET", "/api/queue"))
+        queue = Queue.model_validate_json(self._request("GET", "/api/spotify/queue"))
         if queue.currently_playing is None:
             return None
         return SpotifyPanel(queue)
 
     def update_top(self, page_config: TopPageConfig) -> Panel:
         params = {**page_config.params, "limit": 5}
-        top_tracks_bytes = self._request("GET", "/api/top/tracks", params=params)
+        top_tracks_bytes = self._request("GET", "/api/spotify/top/tracks", params=params)
         top_tracks_panel = SpotifyTopTracksPanel(TopResponse[Track].model_validate_json(top_tracks_bytes))
-        top_artists_bytes = self._request("GET", "/api/top/artists", params=params)
+        top_artists_bytes = self._request("GET", "/api/spotify/top/artists", params=params)
         top_artists_panel = SpotifyTopArtistsPanel(TopResponse[Artist].model_validate_json(top_artists_bytes))
         return SpotifyTopPanel(page_config.period, top_tracks_panel, top_artists_panel)
 

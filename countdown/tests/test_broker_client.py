@@ -101,14 +101,16 @@ def test_request_sends_bearer_auth_header(isolated_cwd):
 
 
 @responses.activate
-def test_get_config_identifies_the_device_by_its_secret_not_its_path(isolated_cwd):
+def test_get_config_identifies_the_device_by_its_bearer_token_alone(isolated_cwd):
     _seed_credentials("test-device", "test-secret")
     client = _initialised_client()
     responses.add(responses.GET, f"{BROKER_URL}/api/config", json=_app_config(None).model_dump())
 
     client.get_config()
 
-    assert json.loads(responses.calls[0].request.body) == {"device_secret": "test-secret", "role": "renderer"}
+    request = responses.calls[0].request
+    assert request.headers["Authorization"] == "Bearer test-secret"
+    assert request.body is None  # the secret goes in the body only when registering
 
 
 def test_request_sends_device_name_header_from_device_id_env(isolated_cwd, monkeypatch):
