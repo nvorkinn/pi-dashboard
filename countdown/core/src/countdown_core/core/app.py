@@ -64,7 +64,21 @@ async def wait_for_config(
 
 
 async def run(make_target: MakeTarget, standalone: bool) -> None:
-    # Reporting to Home Assistant starts first, from the host's own settings, so a device still
+    display: DisplayController | None = None
+
+    # Set up first, so a stop request works through the (possibly long) waits to register and for a
+    # config too. In a container, where the app is PID 1, SIGTERM would otherwise be ignored outright.
+    def handle_shutdown(_signum, _frame):
+        logger.info("Shutting down gracefully...")
+        if display is not None:
+            # Sleep the e-paper to prevent burn-in.
+            display.shutdown()
+        sys.exit(0)
+
+    signal.signal(signal.SIGINT, handle_shutdown)
+    signal.signal(signal.SIGTERM, handle_shutdown)
+
+    # Reporting to Home Assistant starts next, from the host's own settings, so a device still
     # waiting on the broker says so.
     status = DeviceStatus()
     publisher = MqttPublisher.from_env(API_NAMES, status)
@@ -77,17 +91,6 @@ async def run(make_target: MakeTarget, standalone: bool) -> None:
     registration = await registrar.register()
 
     display = DisplayController(make_target(registration))
-
-    # Set up before the (possibly long) wait for a config, so a stop request works then too.
-    def handle_shutdown(_signum, _frame):
-        logger.info("Shutting down gracefully...")
-        # Sleep the e-paper to prevent burn-in.
-        display.shutdown()
-        sys.exit(0)
-
-    signal.signal(signal.SIGINT, handle_shutdown)
-    signal.signal(signal.SIGTERM, handle_shutdown)
-
     status.display = display
     registry = ApiRegistry(registration, publisher)
 

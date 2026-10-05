@@ -1,5 +1,6 @@
 import asyncio
 import logging
+import signal
 from importlib.metadata import entry_points
 from types import SimpleNamespace
 
@@ -171,7 +172,14 @@ def booted(monkeypatch):
     async def fake_register(registrar):
         seen["order"].append("register")
         seen["registrar"] = registrar
+        if seen.get("stop_while_registering"):
+            seen["handlers"][signal.SIGTERM](signal.SIGTERM, None)
         return REGISTRATION
+
+    def fake_signal(signum, handler):
+        if not seen["handlers"]:
+            seen["order"].append("signals")
+        seen["handlers"][signum] = handler
 
     async def fake_wait(broker):
         seen["order"].append("config")
@@ -186,17 +194,21 @@ def booted(monkeypatch):
         seen["target_registration"] = registration
         return "the target"
 
-    fake_display = SimpleNamespace(panel_connected=True, shutdown=lambda: None)
+    fake_display = SimpleNamespace(panel_connected=True, shutdown=lambda: seen["order"].append("panel asleep"))
     monkeypatch.setattr(app.MqttPublisher, "start", fake_start)
     monkeypatch.setattr(RendererRegistrar, "register", fake_register)
     monkeypatch.setattr(app, "DisplayController", lambda target: seen.update(target=target) or fake_display)
     monkeypatch.setattr(app, "DisplayLoop", FakeLoop)
     monkeypatch.setattr(app, "wait_for_config", fake_wait)
-    monkeypatch.setattr(app.signal, "signal", lambda *args: None)
+    monkeypatch.setattr(app.signal, "signal", fake_signal)
+    seen["handlers"] = {}
 
-    def boot(standalone=True):
+    def boot(standalone=True, stop_while_registering=False):
+        seen["stop_while_registering"] = stop_while_registering
         asyncio.run(app.run(make_target, standalone=standalone))
         return seen
+
+    boot.seen = seen  # for a boot that's stopped part-way, which returns nothing
 
     return boot
 
@@ -204,7 +216,34 @@ def booted(monkeypatch):
 def test_run_reports_to_home_assistant_from_the_start_and_does_nothing_else_until_registered(booted):
     seen = booted()
 
-    assert seen["order"] == ["publish", "register", "target", "config", "loop"]
+    assert seen["order"] == ["signals", "publish", "register", "target", "config", "loop"]
+
+
+@pytest.mark.parametrize("signum", [signal.SIGINT, signal.SIGTERM])
+def test_run_handles_stop_requests_before_anything_else(booted, signum):
+    """In a container the app is PID 1, which ignores SIGTERM outright unless it has a handler."""
+    seen = booted()
+
+    assert seen["order"][0] == "signals"
+    assert signum in seen["handlers"]
+
+
+def test_stopping_while_registering_exits_with_no_display_to_sleep(booted):
+    with pytest.raises(SystemExit) as stopped:
+        booted(stop_while_registering=True)
+
+    assert stopped.value.code == 0
+    assert booted.seen["order"] == ["signals", "publish", "register"]  # no display made, so none to sleep
+
+
+def test_stopping_once_there_is_a_display_puts_the_panel_to_sleep(booted):
+    seen = booted()
+
+    with pytest.raises(SystemExit) as stopped:
+        seen["handlers"][signal.SIGTERM](signal.SIGTERM, None)
+
+    assert stopped.value.code == 0
+    assert seen["order"][-1] == "panel asleep"
 
 
 @pytest.mark.parametrize("standalone", [True, False])
