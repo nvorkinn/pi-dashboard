@@ -12,6 +12,9 @@ on:
       - "pi-telemetry/**"
       - ".github/workflows/pi-telemetry-ci.yml"
 
+permissions:
+  contents: read
+
 env:
   CARGO_TERM_COLOR: always
 

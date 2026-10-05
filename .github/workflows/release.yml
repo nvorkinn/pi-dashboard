@@ -11,6 +11,10 @@ env:
   TARGET: aarch64-unknown-linux-gnu
   SERVER_IMAGE: ghcr.io/nvorkinn/countdown-server
 
+# Jobs that need more (packages, releases) ask for it themselves.
+permissions:
+  contents: read
+
 jobs:
   verify-tag:
     runs-on: ubuntu-latest
