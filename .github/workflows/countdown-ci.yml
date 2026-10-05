@@ -55,6 +55,13 @@ jobs:
 
     - name: Run tests
       run: uv run pytest --cov --cov-report=term-missing --cov-report=xml
+        
+    - name: Upload coverage to Codecov
+      uses: codecov/codecov-action@v7
+      with:
+        token: ${{ secrets.CODECOV_TOKEN }}
+        files: countdown/coverage.xml
+        disable_search: true
 
     - name: Upload snapshot failure artifacts
       if: failure()

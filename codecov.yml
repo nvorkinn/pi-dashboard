@@ -1,0 +1,21 @@
+# Each app's CI only runs when its own files change, so carry the other app's
+# last upload forward instead of reporting it as missing.
+flag_management:
+  default_rules:
+    carryforward: true
+  individual_flags:
+    - name: countdown
+      paths:
+        - countdown/
+    - name: pi-telemetry
+      paths:
+        - pi-telemetry/
+
+coverage:
+  status:
+    project:
+      default:
+        informational: true
+    patch:
+      default:
+        informational: true

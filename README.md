@@ -1,5 +1,7 @@
 # pi-dashboard
 
+[![codecov](https://codecov.io/gh/nvorkinn/pi-dashboard/graph/badge.svg)](https://codecov.io/gh/nvorkinn/pi-dashboard)
+
 A Raspberry Pi e-paper dashboard and the telemetry that goes with it, in one
 repo:
 
