@@ -49,9 +49,9 @@ members = [
 ]
 
 [tool.coverage.run]
+# Not countdown-epd (epd/src): it's only the vendored Waveshare driver.
 source = [
     "credentials/src",
-    "epd/src",
     "core/src",
     "standalone/src",
     "server/src",
