@@ -10,6 +10,9 @@ on:
       - "countdown/**"
       - ".github/workflows/countdown-ci.yml"
 
+permissions:
+  contents: read
+
 defaults:
   run:
     working-directory: countdown
