@@ -11,6 +11,8 @@ from countdown_core.system_screens.pairing_code_panel import PairingCodePanel
 from countdown_core.utils.device_id import resolve_device_id
 
 CREDENTIALS_FILE = Path(".auth_broker_device")
+# Sent as the JSON body of every broker call (registration adds the device_secret to it).
+ROLE_BODY = {"role": "renderer"}
 
 
 def _device_name_header() -> dict[str, str]:
@@ -40,7 +42,7 @@ class BrokerClient(AbstractClient):
         self.device_secret = secrets.token_urlsafe(24)
         response = self.session.post(
             f"{self.base_url}/api/devices/register",
-            json={"device_secret": self.device_secret, "role": "renderer"},
+            json={"device_secret": self.device_secret, **ROLE_BODY},
             timeout=DEFAULT_TIMEOUT,
         )
         response.raise_for_status()
@@ -51,7 +53,7 @@ class BrokerClient(AbstractClient):
     def _request(self, method: str, path: str, **kwargs):
         headers = {"Authorization": f"Bearer {self.device_secret}", **_device_name_header()}
         response = self.session.request(
-            method, f"{self.base_url}{path}", headers=headers, timeout=DEFAULT_TIMEOUT, **kwargs
+            method, f"{self.base_url}{path}", headers=headers, json=ROLE_BODY, timeout=DEFAULT_TIMEOUT, **kwargs
         )
         response.raise_for_status()
         return response.json()

@@ -4,6 +4,7 @@ from collections.abc import Callable
 from dataclasses import dataclass
 from pathlib import Path
 
+from countdown_core.config_server.broker_client import ROLE_BODY
 from countdown_core.config_server.models import SpotifyConfig
 from countdown_core.core.abstract_client import DEFAULT_TIMEOUT, AbstractClient
 from countdown_core.core.panel import Panel
@@ -53,7 +54,7 @@ class SpotifyClient(AbstractClient):
     def _request(self, method: str, path: str, **kwargs) -> bytes:
         headers = {"Authorization": f"Bearer {self.device_secret}"}
         response = self.session.request(
-            method, f"{self.base_url}{path}", headers=headers, timeout=DEFAULT_TIMEOUT, **kwargs
+            method, f"{self.base_url}{path}", headers=headers, json=ROLE_BODY, timeout=DEFAULT_TIMEOUT, **kwargs
         )
         response.raise_for_status()
         return response.content
