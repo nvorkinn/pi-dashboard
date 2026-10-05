@@ -60,7 +60,7 @@ jobs:
       uses: codecov/codecov-action@v7
       with:
         token: ${{ secrets.CODECOV_TOKEN }}
-        files: coverage.xml
+        files: countdown/coverage.xml
         disable_search: true
 
     - name: Upload snapshot failure artifacts

@@ -26,20 +26,25 @@ jobs:
 
     steps:
     - uses: actions/checkout@v7
+
     - uses: dtolnay/rust-toolchain@stable
       with:
         components: llvm-tools-preview
+
     - uses: taiki-e/install-action@v2
       with:
         tool: cargo-llvm-cov
+
     - name: Build
       run: cargo build --verbose
+
     - name: Run tests with coverage
-      run: cargo llvm-cov --verbose --lcov --output-path lcov.info
+      run: cargo llvm-cov --verbose --cobertura --output-path coverage.xml
+
     - name: Upload coverage to Codecov
       uses: codecov/codecov-action@v7
       with:
         token: ${{ secrets.CODECOV_TOKEN }}
-        files: pi-telemetry/lcov.info
+        files: pi-telemetry/coverage.xml
         flags: pi-telemetry
         fail_ci_if_error: true
