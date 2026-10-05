@@ -7,6 +7,7 @@ from countdown_core.core.panel import Panel
 from countdown_core.notices.location import is_postcode, postcode_coordinates
 from countdown_core.weather.models import ForecastResponse, GeocodingResponse, Weather
 from countdown_core.weather.weather_panel import WeatherPanel
+from countdown_credentials.registration import Registration
 
 logger = logging.getLogger(__name__)
 
@@ -23,8 +24,8 @@ class WeatherClient(AbstractClient):
 
     panel_title = "Weather"
 
-    def __init__(self, config: WeatherConfig):
-        super().__init__(config)
+    def __init__(self, registration: Registration, config: WeatherConfig):
+        super().__init__(registration, config)
         self.location = config.location
         self._coordinates: tuple[float, float] | None = None
         self._panel: Panel | None = None

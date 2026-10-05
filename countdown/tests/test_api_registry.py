@@ -4,6 +4,7 @@ import logging
 
 import pytest
 from config_factory import make_config
+from test_utils import REGISTRATION
 
 from countdown_core.config_server.models import TflConfig, WeatherConfig
 from countdown_core.core.abstract_client import AbstractClient, ClientStatus
@@ -14,14 +15,13 @@ from countdown_core.spotify.spotify_client import SpotifyClient
 from countdown_core.system_screens.message_panel import MessagePanel
 from countdown_core.tfl.tfl_client import TflClient
 from countdown_core.weather.weather_client import WeatherClient
-from countdown_credentials.registration import RendererRegistration
 
 
 class FakeClient(AbstractClient):
     """Scriptable stand-in: each update() returns/raises the next item in `results`."""
 
     def __init__(self, *results):
-        super().__init__()
+        super().__init__(REGISTRATION)
         self.results = list(results)
         self.initialised = False
         self.updates = 0
@@ -37,15 +37,12 @@ class FakeClient(AbstractClient):
         return result
 
 
-REGISTRATION = RendererRegistration("https://broker.example.com", "shh", "device-123")
-
-
 @pytest.fixture
 def unbuildable_spotify(monkeypatch):
     """Makes building the Spotify client raise, as a constructor that can't get what it needs would."""
 
-    def broken(self, config, registration):
-        AbstractClient.__init__(self, config)  # so its __del__ can still close the session
+    def broken(self, registration, config):
+        AbstractClient.__init__(self, registration, config)  # so its __del__ can still close the session
         raise ValueError("can't build")
 
     monkeypatch.setattr(SpotifyClient, "__init__", broken)
@@ -342,7 +339,7 @@ def test_a_client_that_could_not_be_built_is_reported_again_by_update_all_withou
 
 
 def test_a_failed_client_is_rebuilt_when_its_config_changes_and_dropped_when_switched_off():
-    failed = FailedClient(make_config().spotify, ValueError("can't build"))
+    failed = FailedClient(REGISTRATION, make_config().spotify, ValueError("can't build"))
 
     assert failed.needs_refresh(make_config(spotify={"enabled": True}).spotify)
 
@@ -355,7 +352,9 @@ def test_a_failed_client_is_rebuilt_when_its_config_changes_and_dropped_when_swi
 def test_available_is_the_built_clients_that_are_not_disabled():
     disabled = FakeClient()
     disabled.status = ClientStatus.DISABLED
-    registry = registry_with(tfl=FakeClient(), glowmarkt=disabled, weather=FailedClient(WeatherConfig(), ValueError()))
+    registry = registry_with(
+        tfl=FakeClient(), glowmarkt=disabled, weather=FailedClient(REGISTRATION, WeatherConfig(), ValueError())
+    )
 
     # A failing client keeps its area (to say so); a disabled or missing one doesn't.
     assert registry.available() == frozenset({ClientClasses.TFL, ClientClasses.WEATHER})
@@ -399,7 +398,7 @@ def test_a_client_missing_what_it_needs_is_not_built_and_comes_back_fresh(monkey
 
 
 def test_show_stops_tells_the_tfl_client_how_many_to_fetch():
-    registry = registry_with(tfl=TflClient(TflConfig()))
+    registry = registry_with(tfl=TflClient(REGISTRATION, TflConfig()))
 
     registry.show_stops(4)
 

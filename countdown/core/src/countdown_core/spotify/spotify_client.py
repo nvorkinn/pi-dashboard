@@ -35,8 +35,8 @@ class SpotifyClient(AbstractClient):
     panel_title = "Spotify"
     panel_logo = "spotify_logo.png"
 
-    def __init__(self, config: SpotifyConfig, registration: Registration):
-        super().__init__(config)
+    def __init__(self, registration: Registration, config: SpotifyConfig):
+        super().__init__(registration, config)
         self.page = -1
         self.base_url = registration.broker_url
         self.session.auth = registration.auth

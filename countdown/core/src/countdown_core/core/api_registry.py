@@ -36,8 +36,8 @@ class FailedClient(AbstractClient):
 
     poll_interval = timedelta(hours=1)
 
-    def __init__(self, config: ApiConfig, error: Exception):
-        super().__init__(config)
+    def __init__(self, registration: Registration, config: ApiConfig, error: Exception):
+        super().__init__(registration, config)
         self.error = error
         self.status = ClientStatus.ERROR
 
@@ -50,13 +50,14 @@ class FailedClient(AbstractClient):
 
 class ApiRegistry:
     def __init__(self, registration: Registration, status: DeviceStatus | None = None):
-        # For the clients that call the broker as this device (Spotify).
-        self.registration = registration
+        self.registration = registration  # handed to every client
         self.clients: dict[str, AbstractClient] = {}
         self.panels: dict[str, Panel | None] = {}  # None only from a DISABLED client
         self.status = status or DeviceStatus()
         # Shares self.clients (mutated in place, never reassigned) to read their statuses.
-        self.pub = MqttPublisher.from_env(self.clients, [member.api_name for member in ClientClasses], self.status)
+        self.pub = MqttPublisher.from_env(
+            registration, self.clients, [member.api_name for member in ClientClasses], self.status
+        )
 
     async def on_config_update(self, config: AppConfig) -> None:
         """Brings the clients in line with `config`, rebuilding only those whose
@@ -75,20 +76,15 @@ class ApiRegistry:
                 # The old panel came from the old config, so it goes too.
                 self._drop(name)
                 try:
-                    to_initialise[name] = self.clients[name] = self._build(clazz, client_config)
+                    to_initialise[name] = self.clients[name] = clazz(self.registration, client_config)
                 except Exception as e:
                     logger.exception(f"Error building {name} client: {e}")
-                    self.clients[name] = FailedClient(client_config, e)
+                    self.clients[name] = FailedClient(self.registration, client_config, e)
 
         outcomes = await asyncio.gather(*[c.initialise() for c in to_initialise.values()], return_exceptions=True)
         for name, outcome in zip(to_initialise, outcomes, strict=True):
             if isinstance(outcome, Exception):
                 logger.error(f"Error initialising {name}: {outcome}", exc_info=outcome)
-
-    def _build(self, clazz: type[AbstractClient], config: ApiConfig) -> AbstractClient:
-        if clazz is SpotifyClient:
-            return SpotifyClient(config, self.registration)
-        return clazz(config)
 
     def _drop(self, name: str) -> None:
         self.clients.pop(name, None)

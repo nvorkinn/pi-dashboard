@@ -4,6 +4,7 @@ import threading
 from datetime import datetime, timedelta
 
 import pytest
+from test_utils import REGISTRATION
 
 from countdown_core.config_server.models import TflConfig
 from countdown_core.core import abstract_client
@@ -14,7 +15,7 @@ class FakeClient(AbstractClient):
     poll_interval = timedelta(minutes=5)
 
     def __init__(self, config=None, initialise_failures: int = 0):
-        super().__init__(config)
+        super().__init__(REGISTRATION, config)
         self.initialise_failures = initialise_failures
         self.initialise_calls = 0
         self.update_calls = 0

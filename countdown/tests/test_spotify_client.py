@@ -38,7 +38,7 @@ def mock_top():
 
 @pytest.fixture
 def client() -> SpotifyClient:
-    return SpotifyClient(SpotifyConfig(enabled=True), RendererRegistration(BROKER_URL, "shh", "device-123"))
+    return SpotifyClient(RendererRegistration(BROKER_URL, "shh", "device-123"), SpotifyConfig(enabled=True))
 
 
 @responses.activate

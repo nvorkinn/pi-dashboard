@@ -1,6 +1,11 @@
 import numpy as np
 from PIL import Image, ImageChops
 
+from countdown_credentials.registration import RendererRegistration
+
+# A device that's already registered, for any client that needs one.
+REGISTRATION = RendererRegistration("https://broker.example.com", "shh", "device-123")
+
 
 def images_equal(img1: Image.Image, img2: Image.Image, threshold: float = 0.0) -> bool:
     """True if two images are pixel-identical (the default, threshold=0.0) or

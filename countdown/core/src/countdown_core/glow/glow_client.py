@@ -6,6 +6,7 @@ from countdown_core.config_server.models import GlowmarktConfig
 from countdown_core.core.abstract_client import DEFAULT_TIMEOUT, AbstractClient
 from countdown_core.glow.energy_panel import EnergyPanel
 from countdown_core.glow.models import Entity, Readings
+from countdown_credentials.registration import Registration
 
 
 def _get_utc_offset(now: datetime | None = None) -> str:
@@ -31,8 +32,8 @@ class GlowClient(AbstractClient):
     resource_id = None
     token = None
 
-    def __init__(self, config: GlowmarktConfig):
-        super().__init__(config)
+    def __init__(self, registration: Registration, config: GlowmarktConfig):
+        super().__init__(registration, config)
         self.page_index = 0
         self.username = config.username
         self.password = config.password

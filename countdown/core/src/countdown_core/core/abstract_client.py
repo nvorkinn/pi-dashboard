@@ -12,6 +12,7 @@ from urllib3 import Retry
 from countdown_core.config_server.models import ApiConfig
 from countdown_core.core.panel import Panel
 from countdown_core.system_screens.message_panel import MessagePanel
+from countdown_credentials.registration import Registration
 
 logger = logging.getLogger(__name__)
 
@@ -44,7 +45,10 @@ class AbstractClient(ABC):
     panel_title: str = ""
     panel_logo: str | None = None
 
-    def __init__(self, config: ApiConfig | None = None):
+    def __init__(self, registration: Registration, config: ApiConfig | None = None):
+        # The device, as the broker knows it. Only the clients that call the broker send its
+        # secret (session.auth): it mustn't go to third-party APIs.
+        self.registration = registration
         self.config = config
         self.session = self._build_retrying_session()
         self.cache: dict[str, object] = {}

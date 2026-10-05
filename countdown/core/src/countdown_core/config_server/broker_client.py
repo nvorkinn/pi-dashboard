@@ -26,8 +26,7 @@ class BrokerClient(AbstractClient):
     as the device `registration` registered."""
 
     def __init__(self, registration: RendererRegistration):
-        super().__init__()
-        self.registration = registration
+        super().__init__(registration)
         self.device_id = registration.device_id
         self.base_url = registration.broker_url
         self.session.auth = registration.auth

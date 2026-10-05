@@ -11,6 +11,7 @@ from countdown_core.core.abstract_client import AbstractClient, ClientStatus
 from countdown_core.core.panel import Panel
 from countdown_core.home_assistant.device_status import STAGES, DeviceStatus
 from countdown_credentials.device_id import resolve_device_id
+from countdown_credentials.registration import Registration
 
 logger = logging.getLogger(__name__)
 
@@ -111,6 +112,7 @@ class MqttPublisher(AbstractClient):
 
     def __init__(
         self,
+        registration: Registration,
         clients: Mapping[str, AbstractClient],
         api_names: Sequence[str],
         device_id: str,
@@ -120,7 +122,7 @@ class MqttPublisher(AbstractClient):
         password: str | None = None,
         status: DeviceStatus | None = None,
     ):
-        super().__init__()
+        super().__init__(registration)
         self.clients = clients
         self.device_status = status or DeviceStatus()
         self.api_names = list(api_names)
@@ -136,7 +138,11 @@ class MqttPublisher(AbstractClient):
 
     @classmethod
     def from_env(
-        cls, clients: Mapping[str, AbstractClient], api_names: Sequence[str], status: DeviceStatus | None = None
+        cls,
+        registration: Registration,
+        clients: Mapping[str, AbstractClient],
+        api_names: Sequence[str],
+        status: DeviceStatus | None = None,
     ) -> MqttPublisher:
         """Same variables as pi-telemetry, but no localhost default: no host means disabled."""
         try:
@@ -150,6 +156,7 @@ class MqttPublisher(AbstractClient):
         # crash the app over a feature that's switched off.
         device_id = resolve_device_id(os.environ.get("DEVICE_ID"), socket.gethostname()) if broker_host else ""
         return cls(
+            registration,
             clients,
             api_names,
             device_id=device_id,
