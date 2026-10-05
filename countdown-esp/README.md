@@ -22,14 +22,14 @@ Run these from this directory (`countdown-esp`):
 pio run                       # build every environment in platformio.ini
 pio run -t upload             # build and flash the board on the default serial port
 pio device monitor            # open the serial monitor (115200 baud)
-pio test -e esp32dev          # run the tests in test/ on a connected board
+pio test -e esp-wrover-kit    # run the tests in test/ on a connected board
 ```
 
-The firmware image ends up at `.pio/build/esp32dev/firmware.bin`.
+The firmware image ends up at `.pio/build/esp-wrover-kit/firmware.bin`.
 
 ## Layout
 
-- `platformio.ini`: build environments (`esp32dev` by default)
+- `platformio.ini`: build environments (`esp-wrover-kit` by default)
 - `src/`: firmware sources, starting at `main.cpp`
 - `include/`: project headers
 - `lib/`: project-private libraries
