@@ -68,14 +68,18 @@ fi
 echo "Resolved release $TAG"
 
 echo "Downloading release assets..."
+# countdown-standalone and every package of ours it depends on.
 gh release download "$TAG" --repo "$REPO" --dir "$TMP_DIR" --clobber \
-    --pattern 'countdown_core-*.whl' --pattern 'countdown_standalone-*.whl' --pattern 'countdown.service'
+    --pattern 'countdown_standalone-*.whl' --pattern 'countdown_core-*.whl' \
+    --pattern 'countdown_credentials-*.whl' --pattern 'countdown_epd-*.whl' --pattern 'countdown.service'
 # uv tool install parses name/version from the wheel filename, which gh preserves.
-CORE_WHEEL="$(ls "$TMP_DIR"/countdown_core-*.whl)"
 STANDALONE_WHEEL="$(ls "$TMP_DIR"/countdown_standalone-*.whl)"
+CORE_WHEEL="$(ls "$TMP_DIR"/countdown_core-*.whl)"
+CREDENTIALS_WHEEL="$(ls "$TMP_DIR"/countdown_credentials-*.whl)"
+EPD_WHEEL="$(ls "$TMP_DIR"/countdown_epd-*.whl)"
 # The repo-root install.sh runs with umask 077, which would leave these unreadable
 # by TARGET_USER.
-chmod 644 "$CORE_WHEEL" "$STANDALONE_WHEEL" "$TMP_DIR/countdown.service"
+chmod 644 "$STANDALONE_WHEEL" "$CORE_WHEEL" "$CREDENTIALS_WHEEL" "$EPD_WHEEL" "$TMP_DIR/countdown.service"
 
 if ! run_as_target "command -v uv" >/dev/null 2>&1; then
     echo "uv not found for $TARGET_USER, installing it..."
@@ -83,8 +87,10 @@ if ! run_as_target "command -v uv" >/dev/null 2>&1; then
 fi
 
 echo "Installing the countdown wheels with uv tool..."
-# countdown-core isn't on an index, so its wheel (from the same release) is handed over alongside.
-run_as_target "uv tool install --force '$STANDALONE_WHEEL' --with '$CORE_WHEEL'"
+# None of our packages is on an index, so each one's wheel (from the same release) is handed over
+# alongside. Never leave one out: uv would then look the name up on PyPI, where anyone could
+# publish a package by that name.
+run_as_target "uv tool install --force '$STANDALONE_WHEEL' --with '$CORE_WHEEL' --with '$CREDENTIALS_WHEEL' --with '$EPD_WHEEL'"
 # Releases before the core/standalone split installed a tool called just "countdown".
 run_as_target "uv tool uninstall countdown" >/dev/null 2>&1 || true
 
