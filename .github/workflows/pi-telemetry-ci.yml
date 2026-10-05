@@ -37,7 +37,7 @@ jobs:
     - name: Run tests with coverage
       run: cargo llvm-cov --verbose --lcov --output-path lcov.info
     - name: Upload coverage to Codecov
-      uses: codecov/codecov-action@v5
+      uses: codecov/codecov-action@v7
       with:
         token: ${{ secrets.CODECOV_TOKEN }}
         files: pi-telemetry/lcov.info
