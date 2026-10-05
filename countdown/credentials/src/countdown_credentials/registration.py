@@ -8,6 +8,7 @@ Until it's registered, a client has nothing to do but wait, so register() only r
 import asyncio
 import json
 import logging
+import os
 import secrets
 from abc import ABC, abstractmethod
 from collections.abc import Awaitable, Callable
@@ -29,6 +30,11 @@ REQUEST_TIMEOUT_S = 10
 def _bearer(request: requests.PreparedRequest, secret: str) -> requests.PreparedRequest:
     request.headers["Authorization"] = f"Bearer {secret}"
     return request
+
+
+def _owner_only(path: str, flags: int) -> int:
+    """An opener for open(): the file is created readable by its owner only, never briefly by anyone else."""
+    return os.open(path, flags, 0o600)
 
 
 def _retry_after(response: requests.Response) -> int:
@@ -142,7 +148,10 @@ class Registrar[R: Registration](ABC):
         data = {"device_secret": self._device_secret}
         if self._device_id is not None:
             data["device_id"] = self._device_id
-        self.credentials_file.write_text(json.dumps(data))
+        # The secret is the device's identity, so only the app's own user may read it.
+        with open(self.credentials_file, "w", opener=_owner_only) as file:
+            os.fchmod(file.fileno(), 0o600)  # a file an older version wrote readable to everyone
+            json.dump(data, file)
 
     def _new_secret(self) -> None:
         self._device_secret = secrets.token_urlsafe(24)

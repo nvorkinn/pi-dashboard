@@ -2,6 +2,7 @@ import asyncio
 import dataclasses
 import json
 import logging
+import stat
 
 import pytest
 import requests
@@ -102,6 +103,22 @@ def test_the_saved_secret_is_the_one_sent(broker, sleeps):
 
     assert _bodies(broker)[0]["secret"] == registration.device_secret == saved
     assert broker.calls[0].request.headers["Authorization"] == f"Bearer {saved}"
+
+
+def test_the_file_is_readable_by_its_owner_only(sleeps):
+    _renderer(sleeps)
+
+    assert stat.S_IMODE(CREDENTIALS_FILE.stat().st_mode) == 0o600
+
+
+def test_saving_makes_a_file_readable_by_others_owner_only(broker, sleeps):
+    broker.post(REGISTER_URL, status=201, json={"device_id": "device-123"})
+    _seed(device_secret="shh")
+    CREDENTIALS_FILE.chmod(0o644)
+
+    _register(_renderer(sleeps))
+
+    assert stat.S_IMODE(CREDENTIALS_FILE.stat().st_mode) == 0o600
 
 
 def test_a_file_with_only_a_secret_keeps_it(broker, sleeps):
