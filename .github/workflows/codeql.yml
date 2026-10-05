@@ -38,6 +38,9 @@ jobs:
             rust:
               - 'pi-telemetry/**'
               - '.github/workflows/codeql.yml'
+            cpp:
+              - 'countdown-esp/**'
+              - '.github/workflows/codeql.yml'
 
       # Pull requests: only what changed. Push to main and the weekly
       # schedule: everything, so main always has a complete baseline.
@@ -50,7 +53,7 @@ jobs:
           if [ "$EVENT" = "pull_request" ]; then
             echo "languages=$CHANGED" >> "$GITHUB_OUTPUT"
           else
-            echo 'languages=["actions","python","rust"]' >> "$GITHUB_OUTPUT"
+            echo 'languages=["actions","python","rust","cpp"]' >> "$GITHUB_OUTPUT"
           fi
 
   analyze:
@@ -76,17 +79,17 @@ jobs:
         language: ${{ fromJSON(needs.changes.outputs.languages) }}
 
     steps:
-    - name: Checkout repository
-      uses: actions/checkout@v7
+      - name: Checkout repository
+        uses: actions/checkout@v7
 
-    - name: Initialize CodeQL
-      uses: github/codeql-action/init@v4
-      with:
-        languages: ${{ matrix.language }}
-        # All three languages here are analysed without a build.
-        build-mode: none
+      - name: Initialize CodeQL
+        uses: github/codeql-action/init@v4
+        with:
+          languages: ${{ matrix.language }}
+          # All three languages here are analysed without a build.
+          build-mode: none
 
-    - name: Perform CodeQL Analysis
-      uses: github/codeql-action/analyze@v4
-      with:
-        category: "/language:${{matrix.language}}"
+      - name: Perform CodeQL Analysis
+        uses: github/codeql-action/analyze@v4
+        with:
+          category: "/language:${{matrix.language}}"
