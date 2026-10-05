@@ -1,11 +1,11 @@
 mod countdown_liveness;
-mod device_id;
+mod device_name;
 mod homeassistant;
 mod system_value_retriever;
 mod telemetry;
 
 use crate::countdown_liveness::is_countdown_active;
-use crate::device_id::resolve_device_id;
+use crate::device_name::{configured_device_name, resolve_device_name};
 use crate::homeassistant::{build_discovery_payload, discovery_topic};
 use rumqttc::{AsyncClient, MqttOptions, QoS};
 use std::thread;
@@ -28,12 +28,15 @@ async fn main() {
     println!("Global CPU usage: {}", telemetry.global_cpu_usage);
     println!("Is countdown alive: {}", is_alive);
 
-    let device_id = resolve_device_id(std::env::var("DEVICE_ID").ok(), System::host_name())
-        .unwrap_or_else(|e| {
-            eprintln!("{e}");
-            std::process::exit(1);
-        });
-    println!("Device id: {device_id}");
+    let configured = configured_device_name(
+        std::env::var("DEVICE_NAME").ok(),
+        std::env::var("DEVICE_ID").ok(),
+    );
+    let device_name = resolve_device_name(configured, System::host_name()).unwrap_or_else(|e| {
+        eprintln!("{e}");
+        std::process::exit(1);
+    });
+    println!("Device name: {device_name}");
 
     let host = std::env::var("MQTT_BROKER_HOST").unwrap_or_else(|_| "localhost".to_string());
     let port: u16 = std::env::var("MQTT_BROKER_PORT")
@@ -41,7 +44,7 @@ async fn main() {
         .and_then(|p| p.parse().ok())
         .unwrap_or(1883);
 
-    let mut mqtt_options = MqttOptions::new(format!("pi-telemetry-{device_id}"), host, port);
+    let mut mqtt_options = MqttOptions::new(format!("pi-telemetry-{device_name}"), host, port);
     mqtt_options.set_keep_alive(Duration::from_secs(5));
 
     if let (Ok(username), Ok(password)) = (
@@ -63,16 +66,16 @@ async fn main() {
         }
     });
 
-    let state_topic = state_topic(&device_id);
+    let state_topic = state_topic(&device_name);
 
     // Discovery is retained so HA picks the device up after a restart, and is
     // re-sent on every run so it self-heals if the broker's store is wiped.
     client
         .publish(
-            discovery_topic(&device_id),
+            discovery_topic(&device_name),
             QoS::AtLeastOnce,
             true,
-            build_discovery_payload(&device_id, &state_topic),
+            build_discovery_payload(&device_name, &state_topic),
         )
         .await
         .expect("failed to publish discovery config");

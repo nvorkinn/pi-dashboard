@@ -1,11 +1,8 @@
-import os
-import socket
-
 from countdown_core.config_server.models import AppConfig
 from countdown_core.core.abstract_client import DEFAULT_TIMEOUT, AbstractClient
 from countdown_core.core.panel import Panel
 from countdown_core.system_screens.pairing_code_panel import PairingCodePanel
-from countdown_credentials.device_id import resolve_device_id
+from countdown_credentials.device_name import device_name_from_env
 from countdown_credentials.registration import RendererRegistration
 
 # Sent as the JSON body of every broker call.
@@ -16,7 +13,7 @@ def _device_name_header() -> dict[str, str]:
     """X-Device-Name is cosmetic on the broker side, so it's sent on every call (a rename
     shows on the next poll) but never allowed to fail a request."""
     try:
-        return {"X-Device-Name": resolve_device_id(os.environ.get("DEVICE_ID"), socket.gethostname())}
+        return {"X-Device-Name": device_name_from_env()}
     except ValueError:
         return {}
 

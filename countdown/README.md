@@ -222,15 +222,16 @@ secret file on the device at all.
 Reporting API health to Home Assistant is optional and configured the same way as
 [pi-telemetry](../pi-telemetry/), which it sits alongside: the
 service loads `/etc/pi-telemetry/env` (if it exists) for `MQTT_BROKER_HOST`,
-`MQTT_BROKER_PORT`, `MQTT_BROKER_USERNAME`, `MQTT_BROKER_PASSWORD` and `DEVICE_ID`.
+`MQTT_BROKER_PORT`, `MQTT_BROKER_USERNAME`, `MQTT_BROKER_PASSWORD` and `DEVICE_NAME`.
 With no `MQTT_BROKER_HOST` it doesn't publish at all. Countdown adds a status sensor
 per API and an "API problem" sensor to the same Home Assistant device as
-pi-telemetry's (same `DEVICE_ID`), publishing to `pi-telemetry/<DEVICE_ID>/countdown/state`.
+pi-telemetry's (same `DEVICE_NAME`), publishing to `pi-telemetry/<DEVICE_NAME>/countdown/state`.
 
+It reports from the moment the app starts, from its own background task, so a
+device still registering with the broker shows up (as `waiting_for_broker`).
 Discovery is retained and re-sent on every connect; the state (each API's
 status, the device's stage, whether the panel is connected, and the last broker
-sync) is published at most once a minute, and straight away when the stage
-changes. Countdown uses its own MQTT client ID and topics, so it never kicks off
+sync) is published once a minute, and straight away when the stage changes. Countdown uses its own MQTT client ID and topics, so it never kicks off
 or overwrites pi-telemetry's. Entities go unavailable after 3 minutes without
 an update. The env file is only read when the service starts, so restart countdown
 (`sudo systemctl restart countdown`) after installing pi-telemetry or editing it.

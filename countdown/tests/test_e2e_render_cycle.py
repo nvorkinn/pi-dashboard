@@ -527,36 +527,33 @@ def test_run_reports_the_stage_it_is_in(isolated_cwd, monkeypatch, pairing_code,
     assert loop.api_reg.status.stage == stage
 
 
-def _record_publishes(loop: DisplayLoop, monkeypatch) -> list[bool]:
-    forced: list[bool] = []
-
-    async def publish_health(force: bool = False) -> None:
-        forced.append(force)
-
-    monkeypatch.setattr(loop.api_reg, "publish_health", publish_health)
-    return forced
+def _record_publishes(loop: DisplayLoop, monkeypatch) -> list[str]:
+    """The stage each time the loop asks the publisher to publish early."""
+    stages: list[str] = []
+    monkeypatch.setattr(loop.api_reg.pub, "publish_soon", lambda: stages.append(loop.api_reg.status.stage))
+    return stages
 
 
 @responses.activate
-def test_run_publishes_health_every_cycle_and_forces_it_only_when_the_stage_changes(isolated_cwd, monkeypatch):
+def test_run_asks_for_an_early_publish_only_when_the_stage_changes(isolated_cwd, monkeypatch):
     _mock_config(pairing_code="ABC123")
     loop = _build_loop(make_config(), monkeypatch, pairing_code="ABC123")
-    forced = _record_publishes(loop, monkeypatch)
+    published = _record_publishes(loop, monkeypatch)
 
     _run_cycles(loop, monkeypatch, cycles=2)
 
-    assert forced == [True, False]  # waiting_for_broker -> pairing, then no change
+    assert published == ["pairing"]  # waiting_for_broker -> pairing, then no change
 
 
 @responses.activate
 def test_run_forces_a_publish_when_setup_completes(isolated_cwd, monkeypatch):
     _mock_config(setup_missing=[])
     loop = _build_loop(make_config(setup_missing=MISSING_BOTH), monkeypatch)
-    forced = _record_publishes(loop, monkeypatch)
+    published = _record_publishes(loop, monkeypatch)
 
     _run_cycles(loop, monkeypatch, cycles=2)
 
-    assert forced == [True, True]  # -> setup, then -> running
+    assert published == ["setup", "running"]
 
 
 @responses.activate

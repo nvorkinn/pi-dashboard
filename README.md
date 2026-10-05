@@ -13,7 +13,7 @@ repo:
 - Root -- `install.sh`, which provisions a Pi with both, and `secrets/`, the
   encrypted config it hands them.
 
-The two apps are always deployed together and share config (`DEVICE_ID` and
+The two apps are always deployed together and share config (`DEVICE_NAME` and
 the MQTT settings in `/etc/pi-telemetry/env`), so they're released together:
 one tag builds the countdown wheel, the pi-telemetry binary and the secrets
 bundle, and `install.sh` installs exactly that tag. Each app is still its own
@@ -66,7 +66,7 @@ script (and its cache) exists.
 it hourly from 02:00 to 06:00, then every three hours (09:00, 12:00, ...,
 00:00). If the GitHub release marked "latest" isn't what's installed, it
 downloads that release's `install.sh` and runs it with the cached token and
-device id.
+device name.
 
 The release workflow creates every release as a pre-release, so nothing
 reaches the Pis until you promote it:
@@ -97,16 +97,20 @@ folder change (`.github/workflows/countdown-ci.yml`,
 Each Pi needs a name that identifies it in Home Assistant -- pick something
 that says whose it is, e.g. `sister-hat`. It's the second argument to
 `install.sh`. The name is sanitized (trimmed, lowercased, anything outside
-`[a-z0-9_-]` becomes `-`, same rules as pi-telemetry's `device_id.rs`) and
-written as `DEVICE_ID=<id>` into `/etc/pi-telemetry/env`, which both apps'
-systemd units load, replacing any `DEVICE_ID` already there. It's also saved to `/etc/pi-setup/device-id`.
+`[a-z0-9_-]` becomes `-`, same rules as pi-telemetry's `device_name.rs`) and
+written as `DEVICE_NAME=<name>` into `/etc/pi-telemetry/env`, which both apps'
+systemd units load, replacing any `DEVICE_NAME` already there. It's also saved to `/etc/pi-setup/device-name`.
+Releases before the rename called it `DEVICE_ID` (and `/etc/pi-setup/device-id`); both apps still read
+`DEVICE_ID` when there's no `DEVICE_NAME`, and the next `install.sh` replaces both.
+
+It isn't the `device_id` the auth broker gives a renderer when it registers.
 
 Both apps use it in their MQTT client ID and topics, and pi-telemetry in its
 HA device, so their data lands under the same device in Home Assistant.
-Don't put `DEVICE_ID` in the encrypted secrets -- they're shared by every
+Don't put `DEVICE_NAME` in the encrypted secrets -- they're shared by every
 Pi, and `install.sh` overwrites it anyway.
 
-Re-running with a different name changes the ID, and HA will treat it as a
+Re-running with a different name changes it, and HA will treat it as a
 new device (the old one's entities are orphaned), so `install.sh` warns
 when that happens. Re-run with the same name to keep it.
 

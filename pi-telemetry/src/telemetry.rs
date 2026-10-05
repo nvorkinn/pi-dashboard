@@ -7,8 +7,8 @@ pub struct Telemetry {
     pub global_cpu_usage: f32,
 }
 
-pub fn state_topic(device_id: &str) -> String {
-    format!("pi-telemetry/{device_id}/state")
+pub fn state_topic(device_name: &str) -> String {
+    format!("pi-telemetry/{device_name}/state")
 }
 
 pub fn build_payload(telemetry: &Telemetry, is_alive: bool) -> String {
@@ -51,7 +51,7 @@ mod tests {
     }
 
     #[test]
-    fn state_topic_includes_device_id() {
+    fn state_topic_includes_device_name() {
         assert_eq!(state_topic("sister-hat"), "pi-telemetry/sister-hat/state");
     }
 }

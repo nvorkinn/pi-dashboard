@@ -10,8 +10,9 @@ from countdown_core.config_server.broker_client import BrokerClient
 from countdown_core.config_server.models import (
     AppConfig,
 )
-from countdown_core.core.api_registry import ApiRegistry
+from countdown_core.core.api_registry import API_NAMES, ApiRegistry
 from countdown_core.core.display import DisplayController
+from countdown_core.home_assistant.mqtt_publisher import MqttPublisher
 from countdown_core.system_screens.pairing_code_panel import PairingCodePanel
 from countdown_core.system_screens.setup_panel import SetupPanel
 
@@ -46,7 +47,8 @@ class DisplayLoop:
         self.pairing_code_panel = pairing_code_panel
         self.interval = config.interval
         self.display = display if display is not None else DisplayController()
-        self.api_reg = api_reg if api_reg is not None else ApiRegistry(broker.registration)
+        # Without a registry of its own, one whose publisher reports nowhere.
+        self.api_reg = api_reg if api_reg is not None else ApiRegistry(broker.registration, MqttPublisher(API_NAMES))
         self._setup_shown: list[str] | None = None
         self._published_stage: str | None = None
 
@@ -80,9 +82,11 @@ class DisplayLoop:
             except Exception as e:
                 logger.exception(f"Unexpected error: {e}")
 
+            # The publisher reports every minute by itself; a new stage is worth telling HA at once.
             stage = self.api_reg.status.stage
-            await self.api_reg.publish_health(force=stage != self._published_stage)
-            self._published_stage = stage
+            if stage != self._published_stage:
+                self.api_reg.pub.publish_soon()
+                self._published_stage = stage
 
             if not first_cycle_done:
                 # Logged once, to spot a slow start without spamming the journal.

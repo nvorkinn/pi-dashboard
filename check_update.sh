@@ -11,7 +11,9 @@ set -euo pipefail
 REPO="nvorkinn/pi-dashboard"
 STATE_DIR="/etc/pi-setup"
 TOKEN_FILE="$STATE_DIR/github-token"
-DEVICE_ID_FILE="$STATE_DIR/device-id"
+DEVICE_NAME_FILE="$STATE_DIR/device-name"
+# Where releases before the rename kept it; read until the next install.sh replaces it.
+LEGACY_DEVICE_ID_FILE="$STATE_DIR/device-id"
 INSTALLED_TAG_FILE="$STATE_DIR/installed-tag"
 
 # Everything is in main() so bash has parsed the whole script before install.sh
@@ -29,7 +31,9 @@ main() {
     fi
 
     [ -f "$TOKEN_FILE" ] || { echo "No $TOKEN_FILE -- run install.sh by hand first." >&2; exit 1; }
-    [ -f "$DEVICE_ID_FILE" ] || { echo "No $DEVICE_ID_FILE -- run install.sh by hand first." >&2; exit 1; }
+    local name_file="$DEVICE_NAME_FILE"
+    [ -f "$name_file" ] || name_file="$LEGACY_DEVICE_ID_FILE"
+    [ -f "$name_file" ] || { echo "No $DEVICE_NAME_FILE -- run install.sh by hand first." >&2; exit 1; }
     GITHUB_TOKEN="$(cat "$TOKEN_FILE")"
     export GITHUB_TOKEN
 
@@ -49,7 +53,7 @@ main() {
     trap 'rm -rf "$tmp_dir"' EXIT
     gh release download "$tag" --repo "$REPO" --pattern install.sh --dir "$tmp_dir"
 
-    bash "$tmp_dir/install.sh" "$tag" "$(cat "$DEVICE_ID_FILE")"
+    bash "$tmp_dir/install.sh" "$tag" "$(cat "$name_file")"
 
     # install.sh records this too, but releases from before check_update.sh
     # existed don't, and rolling back to one would otherwise reinstall it on

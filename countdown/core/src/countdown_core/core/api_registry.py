@@ -7,7 +7,6 @@ from countdown_core.config_server.models import ApiConfig, AppConfig
 from countdown_core.core.abstract_client import AbstractClient, ClientStatus
 from countdown_core.core.panel import Panel
 from countdown_core.glow.glow_client import GlowClient
-from countdown_core.home_assistant.device_status import DeviceStatus
 from countdown_core.home_assistant.mqtt_publisher import MqttPublisher
 from countdown_core.notices.notice_board_client import NoticeBoardClient
 from countdown_core.spotify.spotify_client import SpotifyClient
@@ -30,6 +29,9 @@ class ClientClasses(Enum):
         return self.value[0]
 
 
+API_NAMES = [member.api_name for member in ClientClasses]
+
+
 class FailedClient(AbstractClient):
     """Stands in for a client whose constructor raised, so the failure shows as an error status
     (and in HA) instead of the client silently being missing. Rebuilt when its config changes."""
@@ -49,15 +51,15 @@ class FailedClient(AbstractClient):
 
 
 class ApiRegistry:
-    def __init__(self, registration: Registration, status: DeviceStatus | None = None):
+    def __init__(self, registration: Registration, publisher: MqttPublisher):
         self.registration = registration  # handed to every client
         self.clients: dict[str, AbstractClient] = {}
         self.panels: dict[str, Panel | None] = {}  # None only from a DISABLED client
-        self.status = status or DeviceStatus()
+        # The publisher has been reporting since boot; from now on it reports these clients too.
         # Shares self.clients (mutated in place, never reassigned) to read their statuses.
-        self.pub = MqttPublisher.from_env(
-            registration, self.clients, [member.api_name for member in ClientClasses], self.status
-        )
+        self.pub = publisher
+        self.pub.clients = self.clients
+        self.status = publisher.device_status
 
     async def on_config_update(self, config: AppConfig) -> None:
         """Brings the clients in line with `config`, rebuilding only those whose
@@ -126,13 +128,3 @@ class ApiRegistry:
         if client is None or client.is_disabled():
             return clazz.message_panel("Not configured")
         return self.panels.get(name) or clazz.message_panel("Could not connect")
-
-    async def publish_health(self, force: bool = False) -> None:
-        """Logged, never raised: telemetry must not cost the display a refresh. `force`
-        skips the once-a-minute limit (for a stage change)."""
-        if not force and not self.pub.is_due:
-            return
-        try:
-            await self.pub.update()
-        except Exception as e:
-            logger.exception(f"Error publishing health over MQTT: {e}")

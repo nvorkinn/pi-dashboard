@@ -97,43 +97,37 @@ class FakeBroker:
 
 def wait(broker):
     delays: list[float] = []
-    waits = []
 
     async def sleep(seconds):
         delays.append(seconds)
         assert len(delays) < 50, "wait_for_config is retrying forever"
 
-    async def on_retry():
-        waits.append(len(delays))
-
-    result = asyncio.run(app.wait_for_config(broker, sleep=sleep, on_retry=on_retry))
-    return result, delays, waits
+    result = asyncio.run(app.wait_for_config(broker, sleep=sleep))
+    return result, delays
 
 
 def test_a_broker_that_answers_straight_away_means_no_waiting():
-    (config, panel), delays, waits = wait(FakeBroker())
+    (config, panel), delays = wait(FakeBroker())
 
     assert config == make_config()
     assert panel == "the pairing panel"
     assert delays == []
-    assert waits == []
 
 
 def test_an_unreachable_broker_is_retried_with_backoff():
     broker = FakeBroker(fetch_failures=[requests.exceptions.ConnectionError("down")] * 3)
 
-    (config, _), delays, waits = wait(broker)
+    (config, _), delays = wait(broker)
 
     assert config == make_config()
     assert delays == [30, 60, 120]
-    assert waits == [0, 1, 2]  # on_retry before every sleep
     assert broker.fetch_calls == 4
 
 
 def test_the_backoff_stops_growing_at_the_maximum():
     broker = FakeBroker(fetch_failures=[requests.exceptions.ConnectionError("down")] * 8)
 
-    _, delays, _ = wait(broker)
+    _, delays = wait(broker)
 
     assert delays == [30, 60, 120, 240, 300, 300, 300, 300]
 
@@ -143,7 +137,7 @@ def test_a_response_that_is_not_a_valid_config_is_treated_like_no_response():
         AppConfig.model_validate({})
     broker = FakeBroker(fetch_failures=[error.value])
 
-    (config, _), delays, _ = wait(broker)
+    (config, _), delays = wait(broker)
 
     assert config == make_config()
     assert delays == [30]
@@ -179,10 +173,13 @@ def booted(monkeypatch):
         seen["registrar"] = registrar
         return REGISTRATION
 
-    async def fake_wait(broker, on_retry=None):
+    async def fake_wait(broker):
         seen["order"].append("config")
-        seen["on_retry"] = on_retry
         return make_config(), "the pairing panel"
+
+    def fake_start(publisher):
+        seen["order"].append("publish")
+        seen["publisher"] = publisher
 
     def make_target(registration):
         seen["order"].append("target")
@@ -190,6 +187,7 @@ def booted(monkeypatch):
         return "the target"
 
     fake_display = SimpleNamespace(panel_connected=True, shutdown=lambda: None)
+    monkeypatch.setattr(app.MqttPublisher, "start", fake_start)
     monkeypatch.setattr(RendererRegistrar, "register", fake_register)
     monkeypatch.setattr(app, "DisplayController", lambda target: seen.update(target=target) or fake_display)
     monkeypatch.setattr(app, "DisplayLoop", FakeLoop)
@@ -203,10 +201,10 @@ def booted(monkeypatch):
     return boot
 
 
-def test_run_does_nothing_until_the_device_is_registered(booted):
+def test_run_reports_to_home_assistant_from_the_start_and_does_nothing_else_until_registered(booted):
     seen = booted()
 
-    assert seen["order"] == ["register", "target", "config", "loop"]
+    assert seen["order"] == ["publish", "register", "target", "config", "loop"]
 
 
 @pytest.mark.parametrize("standalone", [True, False])
@@ -226,10 +224,11 @@ def test_run_shares_the_one_registration_between_the_target_the_broker_and_the_r
     assert seen["registry"].registration is REGISTRATION
 
 
-def test_run_wires_one_device_status_through_the_registry_the_config_wait_and_the_loop(booted):
+def test_run_hands_the_publisher_it_started_to_the_registry_with_one_device_status(booted):
     seen = booted()
 
     registry = seen["registry"]
+    assert registry.pub is seen["publisher"]
+    assert registry.status is seen["publisher"].device_status
     assert registry.status.display is seen["display"]
-    assert seen["on_retry"] == registry.publish_health
     assert registry.status.last_broker_sync is not None

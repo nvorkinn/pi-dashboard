@@ -89,7 +89,9 @@ class Registrar[R: Registration](ABC):
             return cached
         while True:
             try:
-                response = self._session.post(
+                # In a thread, so a slow broker doesn't hold up the rest of the event loop.
+                response = await asyncio.to_thread(
+                    self._session.post,
                     f"{self.broker_url}/api/devices/register",
                     json=self._register_body(),
                     timeout=REQUEST_TIMEOUT_S,
@@ -192,8 +194,11 @@ class RendererRegistrar(Registrar[RendererRegistration]):
         logger.info("Waiting for a screen to be matched with")
         while True:
             try:
-                response = self._session.get(
-                    f"{self.broker_url}/api/config", json={"role": self.role}, timeout=REQUEST_TIMEOUT_S
+                response = await asyncio.to_thread(
+                    self._session.get,
+                    f"{self.broker_url}/api/config",
+                    json={"role": self.role},
+                    timeout=REQUEST_TIMEOUT_S,
                 )
             except requests.RequestException as e:
                 logger.warning("Couldn't reach the broker: %s", e)
