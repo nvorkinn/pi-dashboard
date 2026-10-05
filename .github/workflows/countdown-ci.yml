@@ -4,10 +4,12 @@ on:
   push:
     paths:
       - "countdown/**"
+      - "!countdown/countdown-esp/**"
       - ".github/workflows/countdown-ci.yml"
   pull_request:
     paths:
       - "countdown/**"
+      - "!countdown/countdown-esp/**"
       - ".github/workflows/countdown-ci.yml"
 
 defaults:

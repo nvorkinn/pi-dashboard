@@ -53,6 +53,10 @@ jobs:
           name: countdown-wheel
           path: countdown/dist/*.whl
 
+  build-firmware:
+    needs: verify-tag
+    uses: ./.github/workflows/firmware.yml
+
   build-rust:
     needs: verify-tag
     runs-on: ubuntu-latest
@@ -79,7 +83,7 @@ jobs:
           path: ${{ env.BIN_NAME }}-${{ env.TARGET }}
 
   release:
-    needs: [build-python, build-rust]
+    needs: [build-python, build-rust, build-firmware]
     runs-on: ubuntu-latest
     permissions:
       contents: write
@@ -92,6 +96,10 @@ jobs:
       - uses: actions/download-artifact@v4
         with:
           name: pi-telemetry-binary
+      - uses: actions/download-artifact@v4
+        with:
+          name: firmware
+          path: firmware
       - name: Bundle encrypted secrets
         run: zip -r secrets.zip secrets
       - name: Create GitHub release and upload assets
@@ -102,6 +110,7 @@ jobs:
             countdown/dist/*.whl \
             countdown/packaging/systemd/countdown.service \
             "${{ env.BIN_NAME }}-${{ env.TARGET }}" \
+            firmware/*.bin \
             secrets.zip \
             install.sh \
             --title "$GITHUB_REF_NAME" --generate-notes --prerelease
