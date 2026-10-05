@@ -10,6 +10,8 @@ repo:
 - [`pi-telemetry/`](pi-telemetry/) -- a short-lived Rust binary, run once a
   minute by a systemd timer, that reports Pi telemetry to Home Assistant over
   MQTT.
+- [`countdown-esp/`](countdown-esp/) -- ESP32 firmware for the countdown
+  (PlatformIO, Arduino, C++).
 - Root -- `install.sh`, which provisions a Pi with both, and `secrets/`, the
   encrypted config it hands them.
 
@@ -90,7 +92,7 @@ a placeholder and doesn't need bumping.
 
 Each app also has its own CI workflow that only runs when files under its
 folder change (`.github/workflows/countdown-ci.yml`,
-`.github/workflows/pi-telemetry-ci.yml`).
+`.github/workflows/pi-telemetry-ci.yml`, `.github/workflows/firmware.yml`).
 
 ## Device name
 

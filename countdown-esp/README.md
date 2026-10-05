@@ -12,11 +12,11 @@ source .venv/bin/activate
 pip install platformio
 ```
 
-Open `countdown/countdown-esp` as the folder in VS Code and accept the recommended PlatformIO IDE extension (listed in `.vscode/extensions.json`).
+Open `countdown-esp` as the folder in VS Code and accept the recommended PlatformIO IDE extension (listed in `.vscode/extensions.json`).
 
 ## Common commands
 
-Run these from this directory (`countdown/countdown-esp`):
+Run these from this directory (`countdown-esp`):
 
 ```sh
 pio run                       # build every environment in platformio.ini
