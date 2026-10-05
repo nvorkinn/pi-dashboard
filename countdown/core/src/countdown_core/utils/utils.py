@@ -1,3 +1,4 @@
+import functools
 import urllib.request
 from pathlib import Path
 
@@ -35,10 +36,16 @@ UBUNTU_CONDENSED = ImageFont.truetype(str(FONTS_DIR / "UbuntuCondensed-Regular.t
 UBUNTU_BOLD_20 = ImageFont.truetype(str(FONTS_DIR / "Ubuntu-Bold.ttf"), 20)
 GOOGLE_REGULAR = ImageFont.truetype(str(FONTS_DIR / "GoogleSans-Regular.ttf"), 14)
 GOOGLE_SEMI = ImageFont.truetype(str(FONTS_DIR / "GoogleSans-SemiBold.ttf"), 14)
-GOOGLE_SYMBOLS = _cached_font(
-    "https://github.com/google/material-design-icons/raw/refs/heads/master/variablefont/MaterialSymbolsOutlined%5BFILL,GRAD,opsz,wght%5D.ttf",
-    "MaterialSymbolsOutlined[FILL,GRAD,opsz,wght].ttf",
-)
+
+
+@functools.cache
+def google_symbols() -> ImageFont.FreeTypeFont:
+    """Material Symbols, downloaded on first use rather than at import, so importing
+    countdown_core (the app at boot, every test) never needs the network."""
+    return _cached_font(
+        "https://github.com/google/material-design-icons/raw/refs/heads/master/variablefont/MaterialSymbolsOutlined%5BFILL,GRAD,opsz,wght%5D.ttf",
+        "MaterialSymbolsOutlined[FILL,GRAD,opsz,wght].ttf",
+    )
 
 
 def add_border(img: Image.Image) -> None:

@@ -161,7 +161,7 @@ venv.bak/
 # Local cache / mock files
 weather_cache.pkl
 .spotify_token_cache
-# Material Symbols, downloaded on first use -- see GOOGLE_SYMBOLS in core/src/countdown_core/utils/utils.py
+# Material Symbols, downloaded on first use -- see google_symbols() in core/src/countdown_core/utils/utils.py
 core/src/countdown_core/fonts/MaterialSymbols*.ttf
 
 # auth-broker device credentials (device_id + device_secret), generated on first
