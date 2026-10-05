@@ -9,6 +9,7 @@ env:
   CARGO_TERM_COLOR: always
   BIN_NAME: pi-telemetry
   TARGET: aarch64-unknown-linux-gnu
+  SERVER_IMAGE: ghcr.io/nvorkinn/countdown-server
 
 jobs:
   verify-tag:
@@ -53,6 +54,36 @@ jobs:
           name: countdown-wheel
           path: countdown/dist/*.whl
 
+  build-server-image:
+    # countdown-server's image, for renderers run with Docker (countdown/server/deploy/), built from
+    # this release's own wheels. Only the version tag: :latest moves when the release is promoted
+    # (promote-server-image.yml).
+    needs: build-python
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/download-artifact@v4
+        with:
+          name: countdown-wheel
+          path: countdown/dist
+      - uses: docker/login-action@v4
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - uses: docker/setup-qemu-action@v4
+      - uses: docker/setup-buildx-action@v4
+      - uses: docker/build-push-action@v7
+        with:
+          context: countdown
+          file: countdown/server/Dockerfile
+          push: true
+          platforms: linux/amd64,linux/arm64
+          tags: ${{ env.SERVER_IMAGE }}:${{ github.ref_name }}
+
   build-firmware:
     needs: verify-tag
     uses: ./.github/workflows/firmware.yml
@@ -83,7 +114,8 @@ jobs:
           path: ${{ env.BIN_NAME }}-${{ env.TARGET }}
 
   release:
-    needs: [build-python, build-rust, build-firmware]
+    # The image too, so a GitHub release is only created once everything it ships exists.
+    needs: [build-python, build-server-image, build-rust, build-firmware]
     runs-on: ubuntu-latest
     permissions:
       contents: write

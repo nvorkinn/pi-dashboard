@@ -1,0 +1,26 @@
+# Renderers for screens that only show frames (countdown-client, or the ESP32), one service per
+# screen. Each renders its device's dashboard and hands the frames to the broker. See README.md.
+
+# Fixed, so the volumes (each renderer's identity) keep their names wherever this file lives.
+name: countdown-renderers
+
+x-renderer: &renderer
+  # :latest is the newest promoted release, so what the Pis run. Pin a tag in .env to hold back.
+  image: ghcr.io/nvorkinn/countdown-server:${COUNTDOWN_SERVER_VERSION:-latest}
+  pull_policy: always
+  restart: unless-stopped
+
+services:
+  # Copy this block (and its volume below) for each screen.
+  example-screen:
+    <<: *renderer
+    environment:
+      BROKER_URL: https://auth.nikolaivorkinn.com
+      # Labels the device on the broker; lowercase letters, digits, _ and -.
+      DEVICE_NAME: example-screen
+    volumes:
+      # The renderer's identity: lose it and it registers as a new device.
+      - example-screen:/data
+
+volumes:
+  example-screen:

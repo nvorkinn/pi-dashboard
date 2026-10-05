@@ -6,7 +6,9 @@ A Raspberry Pi e-paper dashboard and the telemetry that goes with it, in one
 repo:
 
 - [`countdown/`](countdown/) -- the long-running Python app that drives the
-  display.
+  display. For a screen that only shows frames, its renderer runs as a Docker
+  container next to the auth broker instead: see
+  [`countdown/server/deploy/`](countdown/server/deploy/).
 - [`pi-telemetry/`](pi-telemetry/) -- a short-lived Rust binary, run once a
   minute by a systemd timer, that reports Pi telemetry to Home Assistant over
   MQTT.
