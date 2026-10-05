@@ -69,7 +69,7 @@ def test_registers_and_persists_credentials_on_first_run(isolated_cwd, monkeypat
 
     assert client.device_id == "device-123"
     post_mock.assert_called_once()
-    assert post_mock.call_args.kwargs["json"]["device_secret"] == client.device_secret
+    assert post_mock.call_args.kwargs["json"] == {"device_secret": client.device_secret, "role": "renderer"}
     assert post_mock.call_args.kwargs["timeout"] == DEFAULT_TIMEOUT
 
     saved = json.loads(CREDENTIALS_FILE.read_text())
@@ -98,6 +98,17 @@ def test_request_sends_bearer_auth_header(isolated_cwd):
     assert result == {"ok": True}
     assert request_mock.call_args.kwargs["headers"]["Authorization"] == "Bearer shh"
     assert request_mock.call_args.kwargs["timeout"] == DEFAULT_TIMEOUT
+
+
+@responses.activate
+def test_get_config_identifies_the_device_by_its_secret_not_its_path(isolated_cwd):
+    _seed_credentials("test-device", "test-secret")
+    client = _initialised_client()
+    responses.add(responses.GET, f"{BROKER_URL}/api/config", json=_app_config(None).model_dump())
+
+    client.get_config()
+
+    assert json.loads(responses.calls[0].request.body) == {"device_secret": "test-secret", "role": "renderer"}
 
 
 def test_request_sends_device_name_header_from_device_id_env(isolated_cwd, monkeypatch):
@@ -230,7 +241,7 @@ def test_fetch_app_config_uses_real_broker_response(isolated_cwd):
     client = _initialised_client()
     responses.add(
         responses.GET,
-        f"{BROKER_URL}/api/devices/test-device/config",
+        f"{BROKER_URL}/api/config",
         json={
             "interval": 20,
             "tfl": {"app_key": "tfl-key", "stop_ids": ["940GZZLUEUS"]},
@@ -268,7 +279,7 @@ def test_fetch_app_config_raises_when_broker_unreachable(isolated_cwd):
 def test_fetch_app_config_raises_when_response_is_invalid(isolated_cwd):
     _seed_credentials("test-device", "test-secret")
     client = _initialised_client()
-    responses.add(responses.GET, f"{BROKER_URL}/api/devices/test-device/config", json={"interval": "soon"})
+    responses.add(responses.GET, f"{BROKER_URL}/api/config", json={"interval": "soon"})
 
     with pytest.raises(ValidationError):
         client.fetch_app_config()
@@ -283,7 +294,7 @@ def test_a_failed_fetch_does_not_mark_the_pairing_code_as_seen(isolated_cwd):
         client.fetch_app_config()
     responses.add(
         responses.GET,
-        f"{BROKER_URL}/api/devices/test-device/config",
+        f"{BROKER_URL}/api/config",
         json=_app_config("ABC123").model_dump(),
     )
 

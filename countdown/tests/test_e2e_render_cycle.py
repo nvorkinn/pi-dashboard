@@ -32,7 +32,7 @@ from countdown_core.weather.weather_panel import WeatherPanel
 
 TEST_BROKER_URL = "https://broker.example.com"
 GLOWMARKT_URL = "https://api.glowmarkt.com/api/v0-1"
-QUEUE_URL = f"{TEST_BROKER_URL}/api/devices/test-device/queue"
+QUEUE_URL = f"{TEST_BROKER_URL}/api/queue"
 
 
 def _app_config_json(
@@ -260,8 +260,8 @@ def test_full_render_cycle_when_nothing_is_playing(isolated_cwd, monkeypatch):
     config.spotify.enabled = True
     _mock_tfl_and_glowmarkt({"490000123W": BUS_STOP_JSON}, {"490000123W": BUS_ARRIVALS_JSON})
     responses.add(responses.GET, QUEUE_URL, json={"currently_playing": None, "queue": []})
-    responses.add(responses.GET, f"{TEST_BROKER_URL}/api/devices/test-device/top/tracks", json={"items": []})
-    responses.add(responses.GET, f"{TEST_BROKER_URL}/api/devices/test-device/top/artists", json={"items": []})
+    responses.add(responses.GET, f"{TEST_BROKER_URL}/api/top/tracks", json={"items": []})
+    responses.add(responses.GET, f"{TEST_BROKER_URL}/api/top/artists", json={"items": []})
     loop = _build_loop(config, monkeypatch)
     shown = _spy_on_display_screen(loop, monkeypatch)
 
@@ -378,7 +378,7 @@ def test_run_only_repaints_pairing_screen_when_code_changes(isolated_cwd, monkey
     code), so each cycle really re-derives the panel through BrokerClient's cache."""
     responses.add(
         responses.GET,
-        f"{TEST_BROKER_URL}/api/devices/test-device/config",
+        f"{TEST_BROKER_URL}/api/config",
         json=_app_config_json(pairing_code="ABC123"),
     )
     loop = _build_loop(make_config(), monkeypatch, pairing_code="ABC123")
@@ -396,7 +396,7 @@ def test_run_only_repaints_pairing_screen_when_code_changes(isolated_cwd, monkey
 def test_refresh_broker_config_applies_the_new_interval_and_pairing_state(isolated_cwd, monkeypatch):
     responses.add(
         responses.GET,
-        f"{TEST_BROKER_URL}/api/devices/test-device/config",
+        f"{TEST_BROKER_URL}/api/config",
         json=_app_config_json(pairing_code=None, interval=42),
     )
     loop = _build_loop(make_config(), monkeypatch, pairing_code="ABC123")
@@ -416,7 +416,7 @@ def test_config_changes_from_the_broker_reach_the_screen_on_the_next_cycle(isola
     _mock_tfl({"490000123W": BUS_STOP_JSON}, {"490000123W": BUS_ARRIVALS_JSON})
     new_config = _app_config_json()
     new_config["tfl"]["stop_ids"] = ["490000123W"]
-    responses.add(responses.GET, f"{TEST_BROKER_URL}/api/devices/test-device/config", json=new_config)
+    responses.add(responses.GET, f"{TEST_BROKER_URL}/api/config", json=new_config)
     loop = _build_loop(make_config(), monkeypatch)
     shown = _spy_on_display_screen(loop, monkeypatch)
 
@@ -432,7 +432,7 @@ def test_the_layout_follows_what_the_config_lets_the_device_show(isolated_cwd, m
     Glowmarkt's credentials on the broker, and the next cycle drops the energy column
     (BaseComposer, with neither)."""
     _mock_tfl_and_glowmarkt({}, {})
-    responses.add(responses.GET, f"{TEST_BROKER_URL}/api/devices/test-device/config", json=_app_config_json())
+    responses.add(responses.GET, f"{TEST_BROKER_URL}/api/config", json=_app_config_json())
     loop = _build_loop(_make_config(), monkeypatch)
     layouts: list[type] = []
     original = loop.display.display_screen
@@ -455,7 +455,7 @@ def test_the_first_cycle_reports_how_long_startup_took_once(isolated_cwd, monkey
     caplog.set_level(logging.INFO)
     responses.add(
         responses.GET,
-        f"{TEST_BROKER_URL}/api/devices/test-device/config",
+        f"{TEST_BROKER_URL}/api/config",
         json=_app_config_json(pairing_code="ABC123"),
     )
     loop = _build_loop(make_config(), monkeypatch, pairing_code="ABC123")
@@ -476,7 +476,7 @@ def _spy_on_setup_screen(loop: DisplayLoop, monkeypatch) -> list[list[str]]:
 
 
 def _mock_config(**kwargs) -> None:
-    responses.add(responses.GET, f"{TEST_BROKER_URL}/api/devices/test-device/config", json=_app_config_json(**kwargs))
+    responses.add(responses.GET, f"{TEST_BROKER_URL}/api/config", json=_app_config_json(**kwargs))
 
 
 @responses.activate
