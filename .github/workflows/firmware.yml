@@ -4,11 +4,11 @@ on:
   push:
     branches: [main]
     paths:
-      - "countdown/countdown-esp/**"
+      - "countdown-esp/**"
       - ".github/workflows/firmware.yml"
   pull_request:
     paths:
-      - "countdown/countdown-esp/**"
+      - "countdown-esp/**"
       - ".github/workflows/firmware.yml"
   # Release tags build the firmware through release.yml, which attaches it to the release.
   workflow_call:
@@ -18,7 +18,7 @@ permissions:
 
 defaults:
   run:
-    working-directory: countdown/countdown-esp
+    working-directory: countdown-esp
 
 jobs:
   build:
@@ -32,7 +32,7 @@ jobs:
           path: |
             ~/.cache/pip
             ~/.platformio/.cache
-          key: ${{ runner.os }}-pio-${{ hashFiles('countdown/countdown-esp/platformio.ini') }}
+          key: ${{ runner.os }}-pio-${{ hashFiles('countdown-esp/platformio.ini') }}
 
       - uses: actions/setup-python@v5
         with:
@@ -57,5 +57,5 @@ jobs:
       - uses: actions/upload-artifact@v4
         with:
           name: firmware
-          path: countdown/countdown-esp/dist/*.bin
+          path: countdown-esp/dist/*.bin
           if-no-files-found: error
