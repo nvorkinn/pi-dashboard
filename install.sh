@@ -16,13 +16,13 @@ if [ "$(id -u)" -ne 0 ]; then
 fi
 
 TAG="${1:?TAG is required -- pass the exact tag this script was fetched from}"
-DEVICE_NAME="${2:?device name is required -- pass it as the second argument (e.g. \"sister-hat\")}"
+RAW_DEVICE_NAME="${2:?device name is required -- pass it as the second argument (e.g. \"sister-hat\")}"
 
-# Same rules as pi-telemetry's device_id.rs.
-DEVICE_ID="$(printf '%s' "$DEVICE_NAME" | sed -e 's/^[[:space:]]*//' -e 's/[[:space:]]*$//' \
+# Same rules as pi-telemetry's device_name.rs.
+DEVICE_NAME="$(printf '%s' "$RAW_DEVICE_NAME" | sed -e 's/^[[:space:]]*//' -e 's/[[:space:]]*$//' \
     | tr '[:upper:]' '[:lower:]' | sed 's/[^a-z0-9_-]/-/g')"
-if [ -z "$(printf '%s' "$DEVICE_ID" | tr -d '-')" ]; then
-    echo "Device name \"$DEVICE_NAME\" has no usable characters (need at least one of a-z, 0-9, _)." >&2
+if [ -z "$(printf '%s' "$DEVICE_NAME" | tr -d '-')" ]; then
+    echo "Device name \"$RAW_DEVICE_NAME\" has no usable characters (need at least one of a-z, 0-9, _)." >&2
     exit 1
 fi
 
@@ -35,7 +35,9 @@ TELEMETRY_ENV_FILE="/etc/pi-telemetry/env"
 STATE_DIR="/etc/pi-setup"
 TOKEN_FILE="$STATE_DIR/github-token"
 KEY_FILE="$STATE_DIR/age-key.txt"
-DEVICE_ID_FILE="$STATE_DIR/device-id"
+DEVICE_NAME_FILE="$STATE_DIR/device-name"
+# What DEVICE_NAME_FILE was called before; replaced by it below.
+LEGACY_DEVICE_ID_FILE="$STATE_DIR/device-id"
 INSTALL_USER_FILE="$STATE_DIR/install-user"
 INSTALLED_TAG_FILE="$STATE_DIR/installed-tag"
 
@@ -47,12 +49,15 @@ TMP_DIR="$(mktemp -d)"
 chmod 755 "$TMP_DIR"
 trap 'rm -rf "$TMP_DIR"' EXIT
 
-if [ -f "$DEVICE_ID_FILE" ] && [ "$(cat "$DEVICE_ID_FILE")" != "$DEVICE_ID" ]; then
-    echo "Warning: changing device id from \"$(cat "$DEVICE_ID_FILE")\" to \"$DEVICE_ID\"." >&2
+PREVIOUS_NAME_FILE="$DEVICE_NAME_FILE"
+[ -f "$PREVIOUS_NAME_FILE" ] || PREVIOUS_NAME_FILE="$LEGACY_DEVICE_ID_FILE"
+if [ -f "$PREVIOUS_NAME_FILE" ] && [ "$(cat "$PREVIOUS_NAME_FILE")" != "$DEVICE_NAME" ]; then
+    echo "Warning: changing device name from \"$(cat "$PREVIOUS_NAME_FILE")\" to \"$DEVICE_NAME\"." >&2
     echo "         Home Assistant will treat this as a new device; the old one's entities are orphaned." >&2
 fi
-echo "$DEVICE_ID" > "$DEVICE_ID_FILE"
-echo "Device id: $DEVICE_ID"
+echo "$DEVICE_NAME" > "$DEVICE_NAME_FILE"
+rm -f "$LEGACY_DEVICE_ID_FILE"
+echo "Device name: $DEVICE_NAME"
 
 # The apps are installed for whoever ran sudo. check_update.sh runs this from a
 # systemd timer, without sudo, so it reuses the user from the first install.
@@ -125,19 +130,19 @@ fetch_secret() {
     return 1
 }
 
-# Sets DEVICE_ID in pi-telemetry's env file, which countdown's unit also reads, replacing any existing line. Edits in place so an
-# existing file keeps its owner and mode.
-set_device_id() {
+# Sets DEVICE_NAME in pi-telemetry's env file, which countdown's unit also reads, replacing any existing line (and the
+# DEVICE_ID line older releases wrote). Edits in place so an existing file keeps its owner and mode.
+set_device_name() {
     local file="$1" tmp="$TMP_DIR/env.tmp"
     if [ -f "$file" ]; then
-        grep -v '^DEVICE_ID=' "$file" > "$tmp" || true
+        grep -v -e '^DEVICE_NAME=' -e '^DEVICE_ID=' "$file" > "$tmp" || true
         if [ -s "$tmp" ] && [ -n "$(tail -c1 "$tmp")" ]; then
             echo >> "$tmp"
         fi
     else
         : > "$tmp"
     fi
-    echo "DEVICE_ID=$DEVICE_ID" >> "$tmp"
+    echo "DEVICE_NAME=$DEVICE_NAME" >> "$tmp"
     if [ -f "$file" ]; then
         cat "$tmp" > "$file"
     else
@@ -179,7 +184,7 @@ chmod +x "$TMP_DIR/$TELEMETRY_ASSET"
 (cd "$TELEMETRY_SRC" && bash install.sh "$TMP_DIR/$TELEMETRY_ASSET")
 
 # After its installer, so the env file exists whichever way it got there.
-set_device_id "$TELEMETRY_ENV_FILE"
+set_device_name "$TELEMETRY_ENV_FILE"
 
 echo
 echo "== updates =="

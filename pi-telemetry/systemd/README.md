@@ -65,15 +65,16 @@ each run starts a fresh process.
 
 ## Multiple hosts
 
-Each host publishes to `pi-telemetry/<DEVICE_ID>/state` and announces itself
+Each host publishes to `pi-telemetry/<DEVICE_NAME>/state` and announces itself
 to Home Assistant via a retained MQTT discovery message on
-`homeassistant/device/<DEVICE_ID>/config`. HA groups all of a host's sensors
-under one device named after its `DEVICE_ID`, so `DEVICE_ID` must be unique
+`homeassistant/device/<DEVICE_NAME>/config`. HA groups all of a host's sensors
+under one device named after its `DEVICE_NAME`, so `DEVICE_NAME` must be unique
 per host (two hosts sharing one would also fight over the same MQTT client
-id). If it's unset the hostname is used. Sensors go `unavailable` in HA if a
+id). If it's unset, an older env file's `DEVICE_ID` is used, and failing that the
+hostname. Sensors go `unavailable` in HA if a
 host stops reporting for 3 minutes.
 
 `countdown`'s own MQTT health reporting (`mqtt_publisher.py`) resolves
-`DEVICE_ID` the same way and reports under the same HA device, so both apps'
+`DEVICE_NAME` the same way and reports under the same HA device, so both apps'
 entities land on one device per host — see the repo root's `README.md` for
-how `install.sh` sets `DEVICE_ID` once for both.
+how `install.sh` sets `DEVICE_NAME` once for both.

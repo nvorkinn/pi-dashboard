@@ -10,11 +10,12 @@ import requests
 
 from countdown_core.config_server.broker_client import BrokerClient
 from countdown_core.config_server.models import AppConfig
-from countdown_core.core.api_registry import ApiRegistry
+from countdown_core.core.api_registry import API_NAMES, ApiRegistry
 from countdown_core.core.display import DisplayController
 from countdown_core.core.display_loop import DisplayLoop
 from countdown_core.core.targets import DisplayTarget
 from countdown_core.home_assistant.device_status import DeviceStatus
+from countdown_core.home_assistant.mqtt_publisher import MqttPublisher
 from countdown_core.system_screens.pairing_code_panel import PairingCodePanel
 from countdown_credentials.registration import RendererRegistrar, RendererRegistration
 
@@ -49,10 +50,8 @@ def configure_logging() -> None:
 async def wait_for_config(
     broker: BrokerClient,
     sleep: Callable[[float], Awaitable[None]] = asyncio.sleep,
-    on_retry: Callable[[], Awaitable[None]] | None = None,
 ) -> tuple[AppConfig, PairingCodePanel]:
-    """Blocks until the broker returns a valid config, retrying with backoff. `on_retry` is
-    awaited before each retry."""
+    """Blocks until the broker returns a valid config, retrying with backoff."""
     delay = INITIAL_RETRY_S
     while True:
         try:
@@ -60,17 +59,21 @@ async def wait_for_config(
         except (requests.exceptions.RequestException, ValueError, KeyError) as e:
             reason = f"{type(e).__name__}: {e}".splitlines()[0]
             logger.warning(f"Can't get a valid config from the broker yet ({reason}) -- retrying in {delay}s")
-            if on_retry:
-                await on_retry()
             await sleep(delay)
             delay = min(delay * 2, MAX_RETRY_S)
 
 
 async def run(make_target: MakeTarget, standalone: bool) -> None:
+    # Reporting to Home Assistant starts first, from the host's own settings, so a device still
+    # waiting on the broker says so.
+    status = DeviceStatus()
+    publisher = MqttPublisher.from_env(API_NAMES, status)
+    publisher.start()
+
     # No default: crash loudly rather than silently talk to some baked-in URL.
     registrar = RendererRegistrar(os.environ["BROKER_URL"], standalone=standalone)
-    # Nothing happens until the device is registered, standalone or split alike: without it there's
-    # no config to render, and nowhere a split renderer's frames could go.
+    # Nothing else happens until the device is registered, standalone or split alike: without it
+    # there's no config to render, and nowhere a split renderer's frames could go.
     registration = await registrar.register()
 
     display = DisplayController(make_target(registration))
@@ -85,11 +88,10 @@ async def run(make_target: MakeTarget, standalone: bool) -> None:
     signal.signal(signal.SIGINT, handle_shutdown)
     signal.signal(signal.SIGTERM, handle_shutdown)
 
-    # Created before the config exists, so the wait for it can be reported to Home Assistant too.
-    status = DeviceStatus(display=display)
-    registry = ApiRegistry(registration, status)
+    status.display = display
+    registry = ApiRegistry(registration, publisher)
 
     broker = BrokerClient(registration)
-    config, pairing_code_panel = await wait_for_config(broker, on_retry=registry.publish_health)
+    config, pairing_code_panel = await wait_for_config(broker)
     status.last_broker_sync = datetime.now(UTC)
     await DisplayLoop(broker, config, pairing_code_panel, display, registry).run()

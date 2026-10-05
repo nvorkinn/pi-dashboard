@@ -4,13 +4,13 @@ use serde_json::{Value, json};
 /// There's no last will, since the process exits after every publish.
 const EXPIRE_AFTER_SECS: u64 = 180;
 
-pub fn discovery_topic(device_id: &str) -> String {
-    format!("homeassistant/device/{device_id}/config")
+pub fn discovery_topic(device_name: &str) -> String {
+    format!("homeassistant/device/{device_name}/config")
 }
 
 fn component(
     platform: &str,
-    device_id: &str,
+    device_name: &str,
     key: &str,
     name: &str,
     state_topic: &str,
@@ -19,7 +19,7 @@ fn component(
 ) -> Value {
     let mut component = json!({
         "platform": platform,
-        "unique_id": format!("pi_telemetry_{device_id}_{key}"),
+        "unique_id": format!("pi_telemetry_{device_name}_{key}"),
         "name": name,
         "state_topic": state_topic,
         "value_template": value_template,
@@ -34,16 +34,24 @@ fn component(
 /// Builds the device-based discovery message. Every component shares the same
 /// `device.identifiers`, which is what makes HA group them under one device
 /// per host.
-pub fn build_discovery_payload(device_id: &str, state_topic: &str) -> String {
+pub fn build_discovery_payload(device_name: &str, state_topic: &str) -> String {
     let version = env!("CARGO_PKG_VERSION");
     let sensor = |key, name, template, extra| {
-        component("sensor", device_id, key, name, state_topic, template, extra)
+        component(
+            "sensor",
+            device_name,
+            key,
+            name,
+            state_topic,
+            template,
+            extra,
+        )
     };
 
     json!({
         "device": {
-            "identifiers": [format!("pi_telemetry_{device_id}")],
-            "name": device_id,
+            "identifiers": [format!("pi_telemetry_{device_name}")],
+            "name": device_name,
             "manufacturer": "pi-telemetry",
             "sw_version": version,
         },
@@ -76,7 +84,7 @@ pub fn build_discovery_payload(device_id: &str, state_topic: &str) -> String {
             })),
             "is_alive": component(
                 "binary_sensor",
-                device_id,
+                device_name,
                 "is_alive",
                 "HAT running",
                 state_topic,
@@ -92,13 +100,13 @@ pub fn build_discovery_payload(device_id: &str, state_topic: &str) -> String {
 mod tests {
     use super::*;
 
-    fn payload(device_id: &str) -> Value {
-        let state_topic = format!("pi-telemetry/{device_id}/state");
-        serde_json::from_str(&build_discovery_payload(device_id, &state_topic)).unwrap()
+    fn payload(device_name: &str) -> Value {
+        let state_topic = format!("pi-telemetry/{device_name}/state");
+        serde_json::from_str(&build_discovery_payload(device_name, &state_topic)).unwrap()
     }
 
     #[test]
-    fn discovery_topic_includes_device_id() {
+    fn discovery_topic_includes_device_name() {
         assert_eq!(
             discovery_topic("sister-hat"),
             "homeassistant/device/sister-hat/config"
@@ -121,8 +129,8 @@ mod tests {
 
     #[test]
     fn unique_ids_are_distinct_per_host_and_metric() {
-        let unique_ids = |device_id| -> Vec<String> {
-            let payload = payload(device_id);
+        let unique_ids = |device_name| -> Vec<String> {
+            let payload = payload(device_name);
             let mut ids: Vec<String> = payload["components"]
                 .as_object()
                 .unwrap()

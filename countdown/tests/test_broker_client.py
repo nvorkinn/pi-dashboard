@@ -7,9 +7,9 @@ import requests
 import responses
 from pydantic import ValidationError
 
-from countdown_core.config_server import broker_client as broker_client_module
 from countdown_core.config_server.broker_client import BrokerClient
 from countdown_core.config_server.models import AppConfig
+from countdown_credentials import device_name
 from countdown_credentials.registration import RendererRegistration
 
 BROKER_URL = "https://broker.example.com"
@@ -81,8 +81,8 @@ def test_get_config_sends_the_secret_as_a_bearer_token_and_the_role_in_the_body(
     assert json.loads(request.body) == {"role": "renderer"}  # the secret goes in the body only when registering
 
 
-def test_request_sends_device_name_header_from_device_id_env(isolated_cwd, monkeypatch):
-    monkeypatch.setenv("DEVICE_ID", "Sister HAT")
+def test_request_sends_device_name_header_from_device_name_env(isolated_cwd, monkeypatch):
+    monkeypatch.setenv("DEVICE_NAME", "Sister HAT")
     client = _initialised_client()
     request_mock = MagicMock(return_value=_response({}))
     client.session.request = request_mock
@@ -92,8 +92,8 @@ def test_request_sends_device_name_header_from_device_id_env(isolated_cwd, monke
     assert request_mock.call_args.kwargs["headers"]["X-Device-Name"] == "sister-hat"
 
 
-def test_request_sends_device_name_header_from_hostname_when_device_id_unset(isolated_cwd, monkeypatch):
-    monkeypatch.setattr(broker_client_module.socket, "gethostname", lambda: "vorkin-rbpi-z2w")
+def test_request_sends_device_name_header_from_hostname_when_device_name_unset(isolated_cwd, monkeypatch):
+    monkeypatch.setattr(device_name.socket, "gethostname", lambda: "vorkin-rbpi-z2w")
     client = _initialised_client()
     request_mock = MagicMock(return_value=_response({}))
     client.session.request = request_mock
@@ -105,8 +105,8 @@ def test_request_sends_device_name_header_from_hostname_when_device_id_unset(iso
 
 def test_request_omits_device_name_header_when_unresolvable(isolated_cwd, monkeypatch):
     """Never allowed to fail the request itself -- a dev box with an unresolvable
-    hostname and no DEVICE_ID just doesn't send the (purely cosmetic) header."""
-    monkeypatch.setattr(broker_client_module.socket, "gethostname", lambda: "")
+    hostname and no DEVICE_NAME just doesn't send the (purely cosmetic) header."""
+    monkeypatch.setattr(device_name.socket, "gethostname", lambda: "")
     client = _initialised_client()
     request_mock = MagicMock(return_value=_response({}))
     client.session.request = request_mock
