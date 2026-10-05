@@ -2,7 +2,7 @@ name: Auto-approve PRs
 
 on:
   pull_request:
-    types: [opened, synchronize, reopened, ready_for_review]
+    types: [ opened, synchronize, reopened, ready_for_review ]
 
 permissions:
   contents: write
@@ -26,6 +26,7 @@ jobs:
           ref: ${{ github.event.pull_request.head.sha }}
           repo-token: ${{ secrets.GITHUB_TOKEN }}
           wait-interval: 30
+          allowed-conclusions: success,skipped,neutral
           running-workflow-name: 'auto-approve'
 
       # Only approve if CI passes

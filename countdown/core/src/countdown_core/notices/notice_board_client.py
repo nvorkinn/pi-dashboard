@@ -77,7 +77,7 @@ class NoticeBoardClient(AbstractClient):
         # Otherwise a quiet board gives no sign the postcode was placed.
         area = ", ".join(part for part in (location.region or location.country, location.admin_district) if part)
         logger.info(
-            f"Notice board: {location.postcode} is in {area}; Met Office region {met_office.region}, "
+            f"Notice board: location lookup succeeded: {area}; Met Office region {met_office.region}, "
             f"bank holidays for {bank_holidays.division}"
         )
 
