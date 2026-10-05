@@ -32,7 +32,8 @@ class AbstractDisplayComposer(ABC):
     def compose(self, panels: dict[str, Panel]) -> tuple[Image.Image, Box]:
         """The screen without its footer, and the box the arrivals panel occupies."""
 
-    def _place(self, img: Image.Image, panel: Panel, x: int, y: int, width: int, height: int) -> Image.Image:
+    @staticmethod
+    def _place(img: Image.Image, panel: Panel, x: int, y: int, width: int, height: int) -> Image.Image:
         """Renders `panel` and pastes it at (x, y). Returns what was rendered, since some
         panels (the arrivals) choose their own size."""
         rendered = panel.render(width, height)

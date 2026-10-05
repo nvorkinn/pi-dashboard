@@ -13,6 +13,7 @@ from countdown_core.notices.notice_board_client import NoticeBoardClient
 from countdown_core.spotify.spotify_client import SpotifyClient
 from countdown_core.tfl.tfl_client import TflClient
 from countdown_core.weather.weather_client import WeatherClient
+from countdown_credentials.registration import Registration
 
 logger = logging.getLogger(__name__)
 
@@ -48,7 +49,9 @@ class FailedClient(AbstractClient):
 
 
 class ApiRegistry:
-    def __init__(self, status: DeviceStatus | None = None):
+    def __init__(self, registration: Registration, status: DeviceStatus | None = None):
+        # For the clients that call the broker as this device (Spotify).
+        self.registration = registration
         self.clients: dict[str, AbstractClient] = {}
         self.panels: dict[str, Panel | None] = {}  # None only from a DISABLED client
         self.status = status or DeviceStatus()
@@ -72,7 +75,7 @@ class ApiRegistry:
                 # The old panel came from the old config, so it goes too.
                 self._drop(name)
                 try:
-                    to_initialise[name] = self.clients[name] = clazz(client_config)
+                    to_initialise[name] = self.clients[name] = self._build(clazz, client_config)
                 except Exception as e:
                     logger.exception(f"Error building {name} client: {e}")
                     self.clients[name] = FailedClient(client_config, e)
@@ -81,6 +84,11 @@ class ApiRegistry:
         for name, outcome in zip(to_initialise, outcomes, strict=True):
             if isinstance(outcome, Exception):
                 logger.error(f"Error initialising {name}: {outcome}", exc_info=outcome)
+
+    def _build(self, clazz: type[AbstractClient], config: ApiConfig) -> AbstractClient:
+        if clazz is SpotifyClient:
+            return SpotifyClient(config, self.registration)
+        return clazz(config)
 
     def _drop(self, name: str) -> None:
         self.clients.pop(name, None)

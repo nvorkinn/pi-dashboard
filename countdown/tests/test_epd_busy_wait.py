@@ -9,14 +9,16 @@ from types import ModuleType
 
 import pytest
 
-DRIVER = Path(__file__).parent.parent / "standalone" / "src" / "countdown_standalone" / "lib" / "epd7in5_V2.py"
+import countdown_epd
+
+DRIVER = Path(countdown_epd.__file__).parent / "epd7in5_V2.py"
 
 
 class FakeEpdConfig(ModuleType):
     RST_PIN, DC_PIN, BUSY_PIN, CS_PIN = 17, 25, 24, 8
 
     def __init__(self, busy_reads: list[int]):
-        super().__init__("epdconfig")
+        super().__init__("countdown_epd.epdconfig")
         self.busy_reads = busy_reads  # what the BUSY pin reads, in order; the last repeats
         self.delays: list[int] = []
         self.exited = 0
@@ -39,7 +41,9 @@ class FakeEpdConfig(ModuleType):
 
 def load_driver(monkeypatch, busy_reads: list[int]):
     config = FakeEpdConfig(busy_reads)
-    monkeypatch.setitem(sys.modules, "epdconfig", config)
+    # The driver does `from countdown_epd import epdconfig`, which finds the package attribute first.
+    monkeypatch.setitem(sys.modules, "countdown_epd.epdconfig", config)
+    monkeypatch.setattr(countdown_epd, "epdconfig", config, raising=False)
     spec = importlib.util.spec_from_file_location("epd7in5_V2_under_test", DRIVER)
     driver = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(driver)

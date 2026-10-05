@@ -10,7 +10,7 @@ import paho.mqtt.client as mqtt
 from countdown_core.core.abstract_client import AbstractClient, ClientStatus
 from countdown_core.core.panel import Panel
 from countdown_core.home_assistant.device_status import STAGES, DeviceStatus
-from countdown_core.utils.device_id import resolve_device_id
+from countdown_credentials.device_id import resolve_device_id
 
 logger = logging.getLogger(__name__)
 

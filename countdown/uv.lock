@@ -5,7 +5,10 @@ requires-python = ">=3.14"
 [manifest]
 members = [
     "countdown",
+    "countdown-client",
     "countdown-core",
+    "countdown-credentials",
+    "countdown-epd",
     "countdown-server",
     "countdown-standalone",
 ]
@@ -111,7 +114,10 @@ name = "countdown"
 version = "0.4.2"
 source = { virtual = "." }
 dependencies = [
+    { name = "countdown-client" },
     { name = "countdown-core" },
+    { name = "countdown-credentials" },
+    { name = "countdown-epd" },
     { name = "countdown-server" },
     { name = "countdown-standalone" },
 ]
@@ -129,7 +135,10 @@ dev = [
 
 [package.metadata]
 requires-dist = [
+    { name = "countdown-client", editable = "client" },
     { name = "countdown-core", editable = "core" },
+    { name = "countdown-credentials", editable = "credentials" },
+    { name = "countdown-epd", editable = "epd" },
     { name = "countdown-server", editable = "server" },
     { name = "countdown-standalone", editable = "standalone" },
 ]
@@ -146,10 +155,30 @@ dev = [
 ]
 
 [[package]]
+name = "countdown-client"
+version = "0.4.2"
+source = { editable = "client" }
+dependencies = [
+    { name = "countdown-credentials" },
+    { name = "countdown-epd" },
+    { name = "requests" },
+    { name = "urllib3" },
+]
+
+[package.metadata]
+requires-dist = [
+    { name = "countdown-credentials", editable = "credentials" },
+    { name = "countdown-epd", editable = "epd" },
+    { name = "requests", specifier = ">=2.32.5" },
+    { name = "urllib3", specifier = "==2.8.0" },
+]
+
+[[package]]
 name = "countdown-core"
 version = "0.4.2"
 source = { editable = "core" }
 dependencies = [
+    { name = "countdown-credentials" },
     { name = "np" },
     { name = "numpy" },
     { name = "paho-mqtt" },
@@ -163,6 +192,7 @@ dependencies = [
 
 [package.metadata]
 requires-dist = [
+    { name = "countdown-credentials", editable = "credentials" },
     { name = "np", specifier = ">=1.0.2" },
     { name = "numpy", specifier = ">=2.5.3" },
     { name = "paho-mqtt", specifier = ">=2.1.0" },
@@ -172,6 +202,34 @@ requires-dist = [
     { name = "pydantic-tfl-api", specifier = ">=3.1.0" },
     { name = "requests", specifier = ">=2.32.5" },
     { name = "urllib3", specifier = "==2.8.0" },
+]
+
+[[package]]
+name = "countdown-credentials"
+version = "0.4.2"
+source = { editable = "credentials" }
+dependencies = [
+    { name = "requests" },
+]
+
+[package.metadata]
+requires-dist = [{ name = "requests", specifier = ">=2.32.5" }]
+
+[[package]]
+name = "countdown-epd"
+version = "0.4.2"
+source = { editable = "epd" }
+dependencies = [
+    { name = "gpiozero" },
+    { name = "lgpio", marker = "sys_platform == 'linux'" },
+    { name = "spidev", marker = "sys_platform == 'linux'" },
+]
+
+[package.metadata]
+requires-dist = [
+    { name = "gpiozero", specifier = ">=2.0.1.post3" },
+    { name = "lgpio", marker = "sys_platform == 'linux'", specifier = ">=0.2.2.0" },
+    { name = "spidev", marker = "sys_platform == 'linux'", specifier = ">=3.8" },
 ]
 
 [[package]]
@@ -191,17 +249,13 @@ version = "0.4.2"
 source = { editable = "standalone" }
 dependencies = [
     { name = "countdown-core" },
-    { name = "gpiozero" },
-    { name = "lgpio", marker = "sys_platform == 'linux'" },
-    { name = "spidev", marker = "sys_platform == 'linux'" },
+    { name = "countdown-epd" },
 ]
 
 [package.metadata]
 requires-dist = [
     { name = "countdown-core", editable = "core" },
-    { name = "gpiozero", specifier = ">=2.0.1.post3" },
-    { name = "lgpio", marker = "sys_platform == 'linux'", specifier = ">=0.2.2.0" },
-    { name = "spidev", marker = "sys_platform == 'linux'", specifier = ">=3.8" },
+    { name = "countdown-epd", editable = "epd" },
 ]
 
 [[package]]

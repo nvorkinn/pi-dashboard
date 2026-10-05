@@ -7,15 +7,25 @@ description = "Add your description here"
 readme = "README.md"
 requires-python = ">=3.14"
 # The workspace's own packages, so `uv sync` installs them all (editable) for the tests.
-dependencies = ["countdown-core", "countdown-standalone", "countdown-server"]
+dependencies = [
+    "countdown-credentials",
+    "countdown-epd",
+    "countdown-core",
+    "countdown-standalone",
+    "countdown-server",
+    "countdown-client",
+]
 
 [tool.uv]
 package = false
 
 [tool.uv.sources]
+countdown-credentials = { workspace = true }
+countdown-epd = { workspace = true }
 countdown-core = { workspace = true }
 countdown-standalone = { workspace = true }
 countdown-server = { workspace = true }
+countdown-client = { workspace = true }
 
 [dependency-groups]
 dev = [
@@ -29,10 +39,24 @@ dev = [
 ]
 
 [tool.uv.workspace]
-members = ["core", "standalone", "server"]
+members = [
+    "credentials",
+    "epd",
+    "core",
+    "standalone",
+    "server",
+    "client"
+]
 
 [tool.coverage.run]
-source = ["core/src", "standalone/src", "server/src"]
+source = [
+    "credentials/src",
+    "epd/src",
+    "core/src",
+    "standalone/src",
+    "server/src",
+    "client/src"
+]
 
 [tool.coverage.report]
 skip_empty = true
@@ -41,8 +65,18 @@ skip_empty = true
 target-version = "py314"
 line-length = 120
 # So isort knows the workspace packages are first-party.
-src = ["core/src", "standalone/src", "server/src"]
-extend-exclude = ["standalone/src/countdown_standalone/lib"]  # vendored Waveshare driver
+src = [
+    "credentials/src",
+    "epd/src",
+    "core/src",
+    "standalone/src",
+    "server/src",
+    "client/src"
+]
+# The vendored Waveshare driver.
+extend-exclude = ["epd/src/countdown_epd/epdconfig.py", "epd/src/countdown_epd/epd7in5_V2.py"]
+# Even when a file is named on the command line, as pre-commit does with every changed file.
+force-exclude = true
 
 [tool.ruff.lint]
 select = ["E4", "E7", "E9", "F", "I", "UP", "B", "SIM", "TID251"]
@@ -52,8 +86,7 @@ select = ["E4", "E7", "E9", "F", "I", "UP", "B", "SIM", "TID251"]
 [tool.ruff.lint.flake8-tidy-imports.banned-api]
 "countdown_standalone".msg = "countdown-core can't depend on countdown-standalone; pass what it needs in from there"
 "countdown_server".msg = "countdown-core can't depend on countdown-server; pass what it needs in from there"
-"epd7in5_V2".msg = "The e-paper driver belongs to countdown-standalone"
-"epdconfig".msg = "The e-paper driver belongs to countdown-standalone"
+"countdown_epd".msg = "countdown-core can't depend on the e-paper driver; it belongs to countdown-epd"
 
 [tool.ruff.lint.per-file-ignores]
 "!core/**" = ["TID251"]

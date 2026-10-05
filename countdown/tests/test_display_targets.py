@@ -3,7 +3,6 @@ countdown_standalone, which adds the panel), the raw panel buffer, and what Remo
 runs. EpdTarget is covered through the controller in test_display_controller.py."""
 
 import subprocess
-from pathlib import Path
 
 import pytest
 from PIL import Image
@@ -113,10 +112,6 @@ def test_the_remote_target_needs_a_host():
 
 def test_the_remote_target_sends_the_real_dev_script():
     assert (RemotePiTarget("pi@countdown.local").dev_dir / "pi_display.py").is_file()
-
-
-def test_the_driver_is_looked_for_where_the_package_ships_it():
-    assert (Path(epd_module.LIB_DIR) / "epd7in5_V2.py").is_file()
 
 
 class FakeEpd:

@@ -1,8 +1,5 @@
-import json
-import os
 from collections.abc import Callable
 from dataclasses import dataclass
-from pathlib import Path
 
 from countdown_core.config_server.broker_client import ROLE_BODY
 from countdown_core.config_server.models import SpotifyConfig
@@ -13,8 +10,7 @@ from countdown_core.spotify.spotify_panel import SpotifyPanel
 from countdown_core.spotify.spotify_top_artists_panel import SpotifyTopArtistsPanel
 from countdown_core.spotify.spotify_top_panel import SpotifyTopPanel
 from countdown_core.spotify.spotify_top_tracks_panel import SpotifyTopTracksPanel
-
-CREDENTIALS_FILE = Path(".auth_broker_device")
+from countdown_credentials.registration import Registration
 
 
 @dataclass(frozen=True)
@@ -34,27 +30,23 @@ class TopPageConfig(PageConfig):
 
 class SpotifyClient(AbstractClient):
     """Now playing and top tracks/artists, via auth-broker, which calls Spotify server-side
-    so this device never holds a token. Uses BrokerClient's saved device credentials."""
+    so this device never holds a token. Authenticates as the device `registration` registered."""
 
     panel_title = "Spotify"
     panel_logo = "spotify_logo.png"
 
-    def __init__(self, config: SpotifyConfig):
+    def __init__(self, config: SpotifyConfig, registration: Registration):
         super().__init__(config)
         self.page = -1
-        self.base_url = os.environ["BROKER_URL"]
-        if CREDENTIALS_FILE.exists():
-            data = json.loads(CREDENTIALS_FILE.read_text())
-            self.device_id: str = data["device_id"]
-            self.device_secret: str = data["device_secret"]
+        self.base_url = registration.broker_url
+        self.session.auth = registration.auth
 
     def _initialise(self) -> None:
         pass
 
     def _request(self, method: str, path: str, **kwargs) -> bytes:
-        headers = {"Authorization": f"Bearer {self.device_secret}"}
         response = self.session.request(
-            method, f"{self.base_url}{path}", headers=headers, json=ROLE_BODY, timeout=DEFAULT_TIMEOUT, **kwargs
+            method, f"{self.base_url}{path}", json=ROLE_BODY, timeout=DEFAULT_TIMEOUT, **kwargs
         )
         response.raise_for_status()
         return response.content

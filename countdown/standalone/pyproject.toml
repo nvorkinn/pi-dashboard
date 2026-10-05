@@ -3,10 +3,8 @@ name = "countdown-standalone"
 version = "0.4.2"
 requires-python = ">=3.14"
 dependencies = [
+    "countdown-epd",
     "countdown-core",
-    "spidev>=3.8; sys_platform == 'linux'",
-    "gpiozero>=2.0.1.post3",
-    "lgpio>=0.2.2.0; sys_platform == 'linux'",
 ]
 
 [project.scripts]
@@ -14,6 +12,7 @@ countdown-standalone = "countdown_standalone.main:run"
 
 [tool.uv.sources]
 countdown-core = { workspace = true }
+countdown-epd = { workspace = true }
 
 [build-system]
 requires = ["uv_build>=0.12.0,<0.13.0"]
