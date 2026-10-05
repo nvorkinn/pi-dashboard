@@ -569,7 +569,7 @@ def test_board_adds_local_sources_once_the_postcode_is_found(api, clock):
     ]
 
 
-def test_board_logs_where_the_postcode_is(api, clock, caplog):
+def test_board_logs_that_it_resolved_postcode(api, clock, caplog):
     api.add(responses.GET, f"{POSTCODES_URL}/SE17%203LL", json={"result": SOUTHWARK.model_dump()})
     client = NoticeBoardClient(REGISTRATION, NoticeBoardConfig(postcode="SE17 3LL"))
     client._refresh = lambda source, now: None
@@ -578,7 +578,7 @@ def test_board_logs_where_the_postcode_is(api, clock, caplog):
         update(client)
 
     assert (
-        "Notice board: SE17 3LL is in London, Southwark; Met Office region se, bank holidays for england-and-wales"
+        "Notice board: location lookup succeeded: London, Southwark; Met Office region se, bank holidays for england-and-wales"
         in caplog.messages
     )
 
