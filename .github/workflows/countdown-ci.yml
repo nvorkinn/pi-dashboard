@@ -61,6 +61,7 @@ jobs:
       with:
         token: ${{ secrets.CODECOV_TOKEN }}
         files: countdown/coverage.xml
+        flags: countdown
         disable_search: true
 
     - name: Upload snapshot failure artifacts
