@@ -13,6 +13,9 @@ on:
   # Release tags build the firmware through release.yml, which attaches it to the release.
   workflow_call:
 
+permissions:
+  contents: read
+
 defaults:
   run:
     working-directory: countdown/countdown-esp
