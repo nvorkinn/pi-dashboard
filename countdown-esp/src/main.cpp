@@ -1,23 +1,36 @@
 #include <Arduino.h>
 
-// Most ESP32 dev boards wire their onboard LED to GPIO 2.
-constexpr uint8_t kLedPin = 2;
-constexpr unsigned long kBlinkIntervalMs = 1000;
+#include "display_registrar.h"
+#include "esp_ports.h"
+#include "frame_client.h"
+#include "root_certs.h"
+#include "wifi_setup.h"
+
+#ifndef BROKER_URL
+#error "BROKER_URL isn't set: it comes from build_flags in platformio.ini"
+#endif
+
+namespace {
+constexpr char kNvsNamespace[] = "countdown";
+
+countdown::FrameClient* client = nullptr;
+}  // namespace
 
 void setup() {
   Serial.begin(115200);
-  pinMode(kLedPin, OUTPUT);
   Serial.println("countdown-esp started");
+
+  static NvsStore store(kNvsNamespace);
+  static SerialLog log;
+  connectWifi(store, log);
+
+  // Made after Wi-Fi is up, so a new device secret comes from the RNG at its most random.
+  static EspHttp http(kBrokerRootCerts);
+  static EspRandom random;
+  static DelaySleeper sleeper;
+  static countdown::DisplayRegistrar registrar(BROKER_URL, store, http, random, sleeper, log);
+  static countdown::FrameClient frameClient(registrar, http, sleeper, log);
+  client = &frameClient;
 }
 
-void loop() {
-  static unsigned long lastToggle = 0;
-  static bool ledOn = false;
-
-  const unsigned long now = millis();
-  if (now - lastToggle >= kBlinkIntervalMs) {
-    lastToggle = now;
-    ledOn = !ledOn;
-    digitalWrite(kLedPin, ledOn ? HIGH : LOW);
-  }
-}
+void loop() { client->tick(); }

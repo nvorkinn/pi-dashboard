@@ -21,6 +21,42 @@ defaults:
     working-directory: countdown-esp
 
 jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cache/pip
+            ~/.platformio/.cache
+          key: ${{ runner.os }}-pio-native-${{ hashFiles('countdown-esp/platformio.ini') }}
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install PlatformIO and gcovr
+        run: pip install --upgrade platformio gcovr
+
+      # lib/broker_client's unit tests, built for the host with --coverage
+      - name: Run unit tests
+        run: pio test -e native
+
+      - name: Measure coverage
+        run: >
+          gcovr --root . --filter lib/ --exclude-throw-branches --exclude-unreachable-branches
+          --print-summary --xml coverage.xml --fail-under-line 95 .pio/build/native
+
+      - name: Upload coverage to Codecov
+        uses: codecov/codecov-action@v7
+        with:
+          token: ${{ secrets.CODECOV_TOKEN }}
+          files: countdown-esp/coverage.xml
+          flags: countdown-esp
+          disable_search: true
+
   build:
     runs-on: ubuntu-latest
     steps:
@@ -41,8 +77,9 @@ jobs:
       - name: Install PlatformIO
         run: pip install --upgrade platformio
 
+      # Only the board: native is the unit tests' host build, with no firmware to collect.
       - name: Build firmware
-        run: pio run
+        run: pio run -e esp-wrover-kit
 
       # Copy each environment's firmware.bin out of .pio with a clear name
       - name: Collect binaries

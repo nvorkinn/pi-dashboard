@@ -10,6 +10,9 @@ flag_management:
     - name: pi-telemetry
       paths:
         - pi-telemetry/
+    - name: countdown-esp
+      paths:
+        - countdown-esp/
 
 coverage:
   status:
