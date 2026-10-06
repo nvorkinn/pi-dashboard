@@ -6,8 +6,9 @@
 
 namespace countdown {
 
-FrameClient::FrameClient(DisplayRegistrar& registrar, Http& http, Sleeper& sleeper, Log& log)
-    : registrar_(registrar), http_(http), sleeper_(sleeper), log_(log) {}
+FrameClient::FrameClient(DisplayRegistrar& registrar, Http& http, Display& display, Sleeper& sleeper,
+                         Log& log)
+    : registrar_(registrar), http_(http), display_(display), sleeper_(sleeper), log_(log) {}
 
 void FrameClient::tick() {
   if (!registered_) {
@@ -23,8 +24,12 @@ void FrameClient::tick() {
   }
   switch (response.status) {
     case 200:
-      // Drawing it comes with the e-paper display; for now it's only logged.
       log_.info("Got a frame (" + std::to_string(response.body.size()) + " bytes)");
+      // Where the Pi's client would crash (and systemd restart it), this logs and carries on
+      // polling: the next frame the broker sends is drawn as usual.
+      if (!display_.show(response.body)) {
+        log_.error("Couldn't draw the frame");
+      }
       break;
     case 202:  // Not matched with a renderer yet
     case 304:  // Nothing has changed since last poll

@@ -62,4 +62,12 @@ class Log {
   void error(const std::string& message) { write(LogLevel::Error, message); }
 };
 
+// Where frames are drawn: the e-paper panel on the board.
+class Display {
+ public:
+  virtual ~Display() = default;
+  // Draws a frame from the broker; false if it couldn't (the implementation logs why).
+  virtual bool show(const std::vector<uint8_t>& frame) = 0;
+};
+
 }  // namespace countdown
