@@ -5,4 +5,4 @@ dist/
 .vscode/launch.json
 .vscode/ipch
 
-secrets.h
+.venv/

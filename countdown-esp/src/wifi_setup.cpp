@@ -52,7 +52,7 @@ bool join(const std::string& ssid, const std::string& password, countdown::Log& 
 String portalName() {
   String mac = WiFi.macAddress();  // AA:BB:CC:DD:EE:FF
   mac.replace(":", "");
-  return "countdown-" + mac.substring(8);
+  return "ePaper-Dashboard-" + mac.substring(8);
 }
 
 // Answers every URL WiFiManager has no page for (phones' captive-portal checks, favicon.ico) with a
@@ -70,6 +70,8 @@ class RedirectToPortal : public RequestHandler {
 
 void runPortal(countdown::Store& store, countdown::Log& log) {
   WiFiManager manager;
+  // Verbose, not DEV: DEV logs the Wi-Fi password.
+  manager.setDebugOutput(true, WM_DEBUG_VERBOSE);
   // Non-blocking, so the loop below can stop the portal as soon as Wi-Fi is up.
   manager.setConfigPortalBlocking(false);
   manager.setConfigPortalTimeout(kPortalTimeoutS);
