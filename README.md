@@ -84,6 +84,14 @@ mark an older release as latest the same way.
     journalctl -u pi-dashboard-update
     sudo pi-dashboard-check-update   # check now
 
+## Logs
+
+`install.sh` keeps the journal on disk (`systemd/90-pi-dashboard-journal.conf`),
+which Raspberry Pi OS otherwise keeps in RAM only, so the logs from before a
+crash or reboot survive it. It keeps up to three days, in at most 50 MB.
+
+    journalctl -u countdown -b -1   # the previous boot
+
 ## Releasing
 
 Push a `v*` tag on a commit that's on `main`; `.github/workflows/release.yml`

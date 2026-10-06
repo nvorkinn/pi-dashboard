@@ -187,6 +187,13 @@ chmod +x "$TMP_DIR/$TELEMETRY_ASSET"
 set_device_name "$TELEMETRY_ENV_FILE"
 
 echo
+echo "== logs =="
+install -d /etc/systemd/journald.conf.d
+install -m 644 "$TMP_DIR/src/systemd/90-pi-dashboard-journal.conf" /etc/systemd/journald.conf.d/
+# Moves this boot's journal from RAM onto disk too.
+systemctl restart systemd-journald
+
+echo
 echo "== updates =="
 install -m 755 "$TMP_DIR/src/check_update.sh" /usr/local/sbin/pi-dashboard-check-update
 install -m 644 "$TMP_DIR/src/systemd/pi-dashboard-update.service" \
