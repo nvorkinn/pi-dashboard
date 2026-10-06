@@ -21,7 +21,7 @@ struct Client {
   DisplayRegistrar registrar;
   FrameClient client;
 
-  Client() : registrar(withSecret(board)), client(registrar, board.http, board.sleeper, board.log) {}
+  Client() : registrar(withSecret(board)), client(registrar, board.http, board.display, board.sleeper, board.log) {}
 
   static DisplayRegistrar withSecret(Board& board) {
     board.store.values[kDeviceSecretKey] = "shh";
@@ -79,6 +79,35 @@ void test_a_frame_is_logged_with_its_size() {
   TEST_ASSERT_EQUAL(30, c.board.sleeper.sleeps.back());
 }
 
+void test_a_frame_is_drawn() {
+  Client c;
+  c.board.http.reply(201);
+  c.board.http.reply(200, "30", "\x01\x02\x03");
+
+  c.client.tick();
+
+  TEST_ASSERT_EQUAL(1, c.board.display.shown.size());
+  const std::vector<uint8_t> expected = {0x01, 0x02, 0x03};
+  TEST_ASSERT_TRUE(c.board.display.shown[0] == expected);
+  TEST_ASSERT_FALSE(c.board.log.has(LogLevel::Error, "Couldn't draw"));
+}
+
+void test_a_frame_that_cant_be_drawn_is_logged_and_polling_carries_on() {
+  Client c;
+  c.board.display.succeeds = false;
+  c.board.http.reply(201);
+  c.board.http.reply(200, "30", "frame");
+  c.board.http.reply(304);
+
+  c.client.tick();
+  c.client.tick();
+
+  TEST_ASSERT_TRUE(c.board.log.has(LogLevel::Error, "Couldn't draw the frame"));
+  TEST_ASSERT_EQUAL(30, c.board.sleeper.sleeps[0]);
+  TEST_ASSERT_EQUAL(1, c.count("POST"));
+  TEST_ASSERT_EQUAL(2, c.count("GET"));
+}
+
 void test_nothing_to_draw_is_quiet_and_waits_as_asked(int status) {
   Client c;
   c.board.http.reply(201);
@@ -90,6 +119,7 @@ void test_nothing_to_draw_is_quiet_and_waits_as_asked(int status) {
     TEST_ASSERT_TRUE_MESSAGE(level == LogLevel::Info && message == "Registered with the broker", message.c_str());
   }
   TEST_ASSERT_EQUAL(1, c.board.sleeper.sleeps.size());
+  TEST_ASSERT_TRUE(c.board.display.shown.empty());
   TEST_ASSERT_EQUAL(12, c.board.sleeper.sleeps[0]);
 }
 
@@ -159,7 +189,7 @@ void test_polls_carry_the_new_secret_after_a_409() {
   Board board;
   board.store.values[kDeviceSecretKey] = "a renderer's";
   DisplayRegistrar registrar = board.registrar();
-  FrameClient client(registrar, board.http, board.sleeper, board.log);
+  FrameClient client(registrar, board.http, board.display, board.sleeper, board.log);
   board.http.reply(409);
   board.http.reply(201);
   board.http.reply(202);
@@ -175,6 +205,8 @@ void runFrameClientTests() {
   RUN_TEST(test_the_first_tick_registers_then_polls_the_frame);
   RUN_TEST(test_later_ticks_only_poll);
   RUN_TEST(test_a_frame_is_logged_with_its_size);
+  RUN_TEST(test_a_frame_is_drawn);
+  RUN_TEST(test_a_frame_that_cant_be_drawn_is_logged_and_polling_carries_on);
   RUN_TEST(test_202_is_quiet);
   RUN_TEST(test_304_is_quiet);
   RUN_TEST(test_404_is_quiet);

@@ -109,6 +109,18 @@ class RecordingLog : public Log {
   std::vector<std::pair<LogLevel, std::string>> lines;
 };
 
+// Records the frames it's asked to draw; `succeeds` says whether drawing works.
+class FakeDisplay : public Display {
+ public:
+  bool show(const std::vector<uint8_t>& frame) override {
+    shown.push_back(frame);
+    return succeeds;
+  }
+
+  bool succeeds = true;
+  std::vector<std::vector<uint8_t>> shown;
+};
+
 // What CountingRandom's first and second 24 bytes encode to, from Python:
 // base64.urlsafe_b64encode(bytes(range(24))).rstrip(b"=")
 constexpr char kFirstToken[] = "AAECAwQFBgcICQoLDA0ODxAREhMUFRYX";
@@ -123,6 +135,7 @@ struct Board {
   MapStore store;
   FakeHttp http{store};
   CountingRandom random;
+  FakeDisplay display;
   RecordingSleeper sleeper;
   RecordingLog log;
 

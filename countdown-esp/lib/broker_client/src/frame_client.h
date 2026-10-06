@@ -9,7 +9,7 @@ namespace countdown {
 
 class FrameClient {
  public:
-  FrameClient(DisplayRegistrar& registrar, Http& http, Sleeper& sleeper, Log& log);
+  FrameClient(DisplayRegistrar& registrar, Http& http, Display& display, Sleeper& sleeper, Log& log);
 
   // One poll of /api/frame, registering first if it isn't registered (yet, or any more), then
   // waiting as long as the broker asks. Arduino's loop() calls this over and over.
@@ -18,6 +18,7 @@ class FrameClient {
  private:
   DisplayRegistrar& registrar_;
   Http& http_;
+  Display& display_;
   Sleeper& sleeper_;
   Log& log_;
   bool registered_ = false;

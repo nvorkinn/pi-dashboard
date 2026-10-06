@@ -4,8 +4,7 @@ ESP32 firmware for the countdown, built with [PlatformIO](https://platformio.org
 
 It is a countdown display: the ESP32 port of `countdown-client` (`../countdown/client`). It registers
 with [auth-broker](https://github.com/nvorkinn/auth-broker) as a `display`, then polls `/api/frame` for
-frames that a renderer has drawn. Drawing them on the e-paper panel comes later; for now it logs each
-frame it gets and throws it away.
+frames that a renderer has drawn and puts them on a Waveshare 7.5" e-paper panel, the same one the Pi uses.
 
 ## Setup
 
@@ -55,20 +54,64 @@ gcovr --root . --filter lib/ --gcov-executable "xcrun llvm-cov gcov" .pio/build/
    Join it and pick the network on the page that opens (or browse to `192.168.4.1`). The board saves
    what you enter to NVS and closes the portal once it's connected. If nobody sets it up within
    5 minutes, it restarts and tries the saved network again.
+   On an iPhone, if the set-up page doesn't appear within a few seconds, tap ⓘ next to the network,
+   turn off **Limit IP Address Tracking**, and rejoin. Opening Safari at `http://192.168.4.1` works too.
 2. It makes a device secret (like Python's `secrets.token_urlsafe(24)`), saves it to NVS as
    `device_secret`, and registers with the broker. It registers again on every boot, with the same secret.
 3. It polls `/api/frame`, waiting as long as the broker's `Retry-After` says (60 seconds if it doesn't).
    The broker answers 202 until it matches the display with a renderer.
+4. Each new frame (a `200`) is drawn on the panel: wake it, send the frame, refresh (about 4 seconds),
+   and put it back into deep sleep, as `countdown-client` does on the Pi.
+
+## Connecting the e-paper panel
+
+The panel is the Waveshare 7.5" V2 (800×480, black and white), driven through Waveshare's
+**e-Paper HAT**, the small board the panel's flat ribbon cable plugs into. On the Pi the HAT sits on the
+pin header. On the ESP32 it's wired up through the 9-pin connector on its side, with the cable Waveshare
+includes, or any female-to-female jumper wires.
+
+Go by the labels printed on the HAT and on the ESP32 board's edge, not by wire colour:
+
+| HAT  | ESP32   | What it does |
+|------|---------|--------------|
+| VCC  | 3V3     | Power (3.3 V, not 5 V) |
+| GND  | GND     | Ground |
+| DIN  | GPIO 14 | Data to the panel (SPI MOSI) |
+| CLK  | GPIO 13 | SPI clock |
+| CS   | GPIO 15 | Chip select |
+| DC   | GPIO 33 | Command or data |
+| RST  | GPIO 26 | Reset |
+| BUSY | GPIO 25 | The panel says it's still working |
+| PWR  | GPIO 32 | Turns the HAT on and off. Leave it unconnected on a HAT without a PWR pin |
+
+- **Where the pinout comes from:** it follows Waveshare's own e-Paper ESP32 Driver Board, except DC,
+  which moves from 27 to 33 because this board's RGB LED is on 27.
+- **Pins it avoids:** GPIO 16 and 17 (the WROVER module's PSRAM) and the boot-sensitive pins 0, 2 and 12.
+- **Changing pins:** each pin is an `EPD_PIN_*` build flag in `platformio.ini`. For a HAT without PWR,
+  set `-DEPD_PIN_PWR=-1`.
+- **The HAT's switches:** if the HAT has an "Interface Config" switch, set it to 0 (4-wire SPI).
+  Leave "Display Config" as it was on the Pi.
+
+If the panel isn't connected or powered, each frame logs `The e-paper panel didn't answer` after
+10 seconds, and the board carries on polling.
+
+The board's ESP32-WROVER-IE module has no antenna of its own. Plug a 2.4 GHz antenna into its u.FL
+connector, or Wi-Fi only reaches a few metres.
 
 ## Layout
 
 - `platformio.ini`: build environments: `esp-wrover-kit` (the default) and `native` (the unit tests)
 - `lib/broker_client/`: registering and polling for frames, in plain C++ with no Arduino, so it can be
-  tested on the host. What it needs from the board (HTTP, NVS, randomness, sleeping, logging) are the
-  interfaces in `ports.h`
+  tested on the host. What it needs from the board (HTTP, NVS, randomness, sleeping, logging, a display)
+  are the interfaces in `ports.h`
+- `lib/epd/`: the 7.5" V2 panel driver, ported command for command from
+  `../countdown/epd/src/countdown_epd/epd7in5_V2.py`. It drives the HAT's wires through the `EpdBus`
+  interface in `epd_bus.h`
 - `src/`: the ESP32 side: `main.cpp`, the ports' implementations (`esp_ports.cpp`), the Wi-Fi set-up
-  portal (`wifi_setup.cpp`) and the broker's pinned root certificates (`root_certs.h`)
+  portal (`wifi_setup.cpp`), the HAT's wires over SPI (`esp_epd_bus.cpp`) and the broker's pinned root
+  certificates (`root_certs.h`)
 - `test/test_broker_client/`: Unity tests for `lib/broker_client`, with fakes of the ports
+- `test/test_epd/`: Unity tests for `lib/epd`, against a fake HAT that records every command and wire change
 - `include/`: project headers
 
 ## CI
