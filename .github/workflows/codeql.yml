@@ -7,6 +7,8 @@ on:
     branches: [ "main" ]
   schedule:
     - cron: '40 13 * * 4'
+  # By hand, e.g. to re-scan main when a merge didn't trigger a push run.
+  workflow_dispatch:
 
 jobs:
   # Works out which languages need analysing for this run.
@@ -42,8 +44,8 @@ jobs:
               - 'countdown-esp/**'
               - '.github/workflows/codeql.yml'
 
-      # Pull requests: only what changed. Push to main and the weekly
-      # schedule: everything, so main always has a complete baseline.
+      # Pull requests: only what changed. Push to main, the weekly schedule
+      # and manual runs: everything, so main always has a complete baseline.
       - name: Pick languages
         id: pick
         env:
