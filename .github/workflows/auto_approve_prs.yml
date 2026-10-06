@@ -30,12 +30,18 @@ jobs:
           running-workflow-name: 'auto-approve'
 
       # Only approve if CI passes
-      - name: Approve PR and enable auto-merge
+      - name: Approve PR
         if: success()
-        run: |
-          # Approve the PR
-          gh pr review --approve ${{ github.event.pull_request.number }}
-          # Enable auto-merge
-          gh pr merge --auto --merge --delete-branch ${{ github.event.pull_request.number }}
+        run: gh pr review --approve ${{ github.event.pull_request.number }}
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      # A merge made with GITHUB_TOKEN doesn't trigger workflows, so main would get no push
+      # runs (CI, CodeQL). AUTO_MERGE_TOKEN, a fine-grained PAT with Contents and Pull requests
+      # read/write on this repo, merges as a user instead. It can't do the approving above:
+      # GitHub won't let a PR's author approve their own PR.
+      - name: Enable auto-merge
+        if: success()
+        run: gh pr merge --auto --merge --delete-branch ${{ github.event.pull_request.number }}
+        env:
+          GH_TOKEN: ${{ secrets.AUTO_MERGE_TOKEN || secrets.GITHUB_TOKEN }}
