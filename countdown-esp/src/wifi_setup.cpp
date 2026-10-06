@@ -1,6 +1,7 @@
 #include "wifi_setup.h"
 
 #include <Arduino.h>
+#include <WebServer.h>
 #include <WiFi.h>
 #include <WiFiManager.h>
 
@@ -14,9 +15,37 @@ constexpr char kHostname[] = "countdown-esp-nikolai";
 constexpr unsigned long kConnectTimeoutMs = 30 * 1000;
 constexpr int kPortalTimeoutS = 5 * 60;
 
-bool join(const std::string& ssid, const std::string& password) {
+const char* statusName(wl_status_t status) {
+  switch (status) {
+    case WL_NO_SSID_AVAIL:
+      return "network not found";
+    case WL_CONNECT_FAILED:
+      return "connection failed (wrong password?)";
+    case WL_CONNECTION_LOST:
+      return "connection lost";
+    case WL_DISCONNECTED:
+      return "disconnected";
+    case WL_IDLE_STATUS:
+      return "idle";
+    default:
+      return "not connected";
+  }
+}
+
+// Waits out the whole timeout instead of using WiFi.waitForConnectResult(), which returns on the
+// first failed attempt. Straight after boot that's often "network not found", before the first scan
+// has seen the router, while auto-reconnect would have joined it a few seconds later.
+bool join(const std::string& ssid, const std::string& password, countdown::Log& log) {
   WiFi.begin(ssid.c_str(), password.c_str());
-  return WiFi.waitForConnectResult(kConnectTimeoutMs) == WL_CONNECTED;
+  const unsigned long start = millis();
+  while (millis() - start < kConnectTimeoutMs) {
+    if (WiFi.status() == WL_CONNECTED) {
+      return true;
+    }
+    delay(100);
+  }
+  log.warning("Couldn't connect to " + ssid + ": " + statusName(WiFi.status()));
+  return false;
 }
 
 // countdown- and the last two bytes of the MAC, so two boards' portals can be told apart.
@@ -26,17 +55,47 @@ String portalName() {
   return "countdown-" + mac.substring(8);
 }
 
+// Answers every URL WiFiManager has no page for (phones' captive-portal checks, favicon.ico) with a
+// redirect to the portal. Without it they fall through to WiFiManager's onNotFound, which redirects
+// too, but only after WebServer has logged "request handler not found" for each one.
+class RedirectToPortal : public RequestHandler {
+ public:
+  bool canHandle(HTTPMethod, String) override { return true; }
+  bool handle(WebServer& server, HTTPMethod, String) override {
+    server.sendHeader("Location", "http://" + WiFi.softAPIP().toString() + "/", true);
+    server.send(302, "text/plain", "");
+    return true;
+  }
+};
+
 void runPortal(countdown::Store& store, countdown::Log& log) {
   WiFiManager manager;
+  // Non-blocking, so the loop below can stop the portal as soon as Wi-Fi is up.
+  manager.setConfigPortalBlocking(false);
   manager.setConfigPortalTimeout(kPortalTimeoutS);
+  // Without a save timeout WiFiManager waits with WiFi.waitForConnectResult() too, so a network
+  // that isn't found on the first try fails the save and the portal shows "No AP set".
+  manager.setSaveConnectTimeout(kConnectTimeoutMs / 1000);
   const String name = portalName();
   log.info(std::string("Opening the Wi-Fi set-up portal: join ") + name.c_str() + " and browse to 192.168.4.1");
-  if (!manager.startConfigPortal(name.c_str())) {
-    log.error("Nobody set up Wi-Fi in time; restarting");
-    ESP.restart();
+  manager.startConfigPortal(name.c_str());
+  // Added after WiFiManager's own handlers, so it only gets the URLs they don't match.
+  manager.server->addHandler(new RedirectToPortal());
+
+  while (!manager.process() && WiFi.status() != WL_CONNECTED) {
+    if (!manager.getConfigPortalActive()) {
+      log.error("Nobody set up Wi-Fi in time; restarting");
+      ESP.restart();
+    }
+    delay(10);
   }
+  if (manager.getConfigPortalActive()) {
+    manager.stopConfigPortal();
+  }
+  WiFi.mode(WIFI_STA);  // the portal's access point off for good
   store.put(kSsidKey, WiFi.SSID().c_str());
   store.put(kPasswordKey, manager.getWiFiPass().c_str());
+  log.info(std::string("Saved Wi-Fi credentials for ") + WiFi.SSID().c_str());
 }
 
 }  // namespace
@@ -52,11 +111,10 @@ void connectWifi(countdown::Store& store, countdown::Log& log) {
   const auto password = store.get(kPasswordKey);
   if (ssid && password) {
     log.info("Connecting to " + *ssid);
-    if (join(*ssid, *password)) {
+    if (join(*ssid, *password, log)) {
       log.info(std::string("Connected, IP: ") + WiFi.localIP().toString().c_str());
       return;
     }
-    log.warning("Couldn't connect to " + *ssid);
   } else {
     log.info("No Wi-Fi credentials saved");
   }

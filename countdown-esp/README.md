@@ -53,7 +53,8 @@ gcovr --root . --filter lib/ --gcov-executable "xcrun llvm-cov gcov" .pio/build/
 1. With no Wi-Fi saved in NVS (`WIFI_SSID`, `WIFI_PASSWORD`), or if the saved network can't be joined
    within 30 seconds, the board opens a set-up portal: an open Wi-Fi network named `countdown-XXXX`.
    Join it and pick the network on the page that opens (or browse to `192.168.4.1`). The board saves
-   what you enter to NVS. If nobody sets it up within 5 minutes, it restarts and tries again.
+   what you enter to NVS and closes the portal once it's connected. If nobody sets it up within
+   5 minutes, it restarts and tries the saved network again.
 2. It makes a device secret (like Python's `secrets.token_urlsafe(24)`), saves it to NVS as
    `device_secret`, and registers with the broker. It registers again on every boot, with the same secret.
 3. It polls `/api/frame`, waiting as long as the broker's `Retry-After` says (60 seconds if it doesn't).
