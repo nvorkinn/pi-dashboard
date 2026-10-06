@@ -57,10 +57,10 @@ class NoticeBoardClient(AbstractClient):
         try:
             location = lookup_postcode(self.session, self.postcode)
         except Exception as e:
-            logger.warning(f"Couldn't look up postcode {self.postcode}: {e}")
+            logger.warning(f"Couldn't look up the postcode: {type(e).__name__}")
             return
         if location is None:
-            logger.warning(f"Postcode {self.postcode} isn't a known UK postcode; no local notices")
+            logger.warning("The configured postcode isn't a known UK postcode; no local notices")
             self.postcode = None  # don't keep asking about a postcode that doesn't exist
             self.unknown_postcode = True
             self.sources.append(BankHolidaySource(self.session))  # England and Wales
@@ -114,7 +114,7 @@ class NoticeBoardClient(AbstractClient):
             if self.postcode and self.location is None:
                 # The postcode isn't placed yet, so the weather, floods and roads haven't
                 # been checked: "All clear" would be a guess.
-                raise RuntimeError(f"Couldn't look up postcode {self.postcode} yet")
+                raise RuntimeError("Couldn't look up the postcode yet")
             return self.message_panel("Unknown postcode" if self.unknown_postcode else "All clear")
         active.sort(key=lambda pair: (pair[0].severity, pair[1]))
         return NoticeBoardPanel([notice for notice, _ in active])

@@ -103,6 +103,15 @@ def test_met_office_region_from_postcode(country, region, district, expected):
     assert region_for(location) == expected
 
 
+def test_met_office_logs_the_area_not_the_postcode_when_it_has_no_region(caplog):
+    location = SOUTHWARK.model_copy(update={"country": "Scotland", "region": None, "admin_district": "Somewhere New"})
+
+    with caplog.at_level("WARNING", logger="countdown_core.notices.met_office"):
+        region_for(location)
+
+    assert caplog.messages == ["No Met Office warning region for Somewhere New; using the whole UK"]
+
+
 def test_met_office_source_fetches_its_region(api):
     api.add(
         responses.GET, "https://www.metoffice.gov.uk/public/data/PWSCache/WarningsRSS/Region/se", body=AMBER_AND_YELLOW
@@ -583,24 +592,32 @@ def test_board_logs_that_it_resolved_postcode(api, clock, caplog):
     )
 
 
-def test_board_with_an_unknown_postcode_says_so(api, clock):
+def test_board_with_an_unknown_postcode_says_so(api, clock, caplog):
     api.add(responses.GET, f"{POSTCODES_URL}/ZZ1%201ZZ", status=404, json={"error": "Invalid postcode"})
     api.add(responses.GET, BANK_HOLIDAYS_URL, json=BANK_HOLIDAYS)
 
-    panel = update(NoticeBoardClient(REGISTRATION, NoticeBoardConfig(postcode="ZZ1 1ZZ")))
+    with caplog.at_level("WARNING", logger="countdown_core.notices.notice_board_client"):
+        panel = update(NoticeBoardClient(REGISTRATION, NoticeBoardConfig(postcode="ZZ1 1ZZ")))
 
     assert panel.message == "Unknown postcode"
+    # Where the board is stays out of the logs.
+    assert caplog.messages == ["The configured postcode isn't a known UK postcode; no local notices"]
 
 
-def test_board_retries_a_postcode_lookup_that_failed(api, clock):
+def test_board_retries_a_postcode_lookup_that_failed(api, clock, caplog):
     api.add(responses.GET, f"{POSTCODES_URL}/SE17%203LL", status=503)
     client = NoticeBoardClient(REGISTRATION, NoticeBoardConfig(postcode="SE17 3LL"))
     client.session = requests.Session()  # no retries, so the 503 comes straight back
 
-    with pytest.raises(RuntimeError):
+    with (
+        caplog.at_level("WARNING", logger="countdown_core.notices.notice_board_client"),
+        pytest.raises(RuntimeError, match="^Couldn't look up the postcode yet$"),
+    ):
         update(client)
     assert client.location is None
     assert client.postcode == "SE17 3LL"  # still to be looked up, unlike an unknown one
+    # Not the HTTPError's own text either: that quotes the URL, postcode and all.
+    assert caplog.messages == ["Couldn't look up the postcode: HTTPError"]
 
 
 # --- Config ----------------------------------------------------------------------

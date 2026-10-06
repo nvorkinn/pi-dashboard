@@ -77,7 +77,8 @@ def region_for(location: Postcode) -> str:
     else:
         region = REGION_BY_AREA.get(location.region or location.country)
     if region is None:
-        logger.warning(f"No Met Office warning region for {location.postcode}; using the whole UK")
+        area = location.admin_district or location.region or location.country
+        logger.warning(f"No Met Office warning region for {area}; using the whole UK")
         return UK_REGION
     return region
 
