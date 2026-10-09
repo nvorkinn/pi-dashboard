@@ -50,6 +50,25 @@ class Sleeper {
   virtual void sleepSeconds(int seconds) = 0;
 };
 
+class Clock {
+ public:
+  virtual ~Clock() = default;
+  // Milliseconds since boot. The board has no wall clock to stamp logs with.
+  virtual uint64_t uptimeMs() = 0;
+};
+
+struct Metric {
+  std::string name;
+  int64_t value;
+};
+
+// Readings about the board itself (heap, Wi-Fi signal, ...), sent with every frame poll.
+class Metrics {
+ public:
+  virtual ~Metrics() = default;
+  virtual std::vector<Metric> read() = 0;
+};
+
 enum class LogLevel { Info, Warning, Error };
 
 class Log {

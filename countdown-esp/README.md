@@ -5,6 +5,7 @@ ESP32 firmware for the countdown, built with [PlatformIO](https://platformio.org
 It is a countdown display: the ESP32 port of `countdown-client` (`../countdown/client`). It registers
 with [auth-broker](https://github.com/nvorkinn/auth-broker) as a `display`, then polls `/api/frame` for
 frames that a renderer has drawn and puts them on a Waveshare 7.5" e-paper panel, the same one the Pi uses.
+Each poll also carries the board's logs and metrics to the broker.
 
 ## Setup
 
@@ -58,10 +59,32 @@ gcovr --root . --filter lib/ --gcov-executable "xcrun llvm-cov gcov" .pio/build/
    turn off **Limit IP Address Tracking**, and rejoin. Opening Safari at `http://192.168.4.1` works too.
 2. It makes a device secret (like Python's `secrets.token_urlsafe(24)`), saves it to NVS as
    `device_secret`, and registers with the broker. It registers again on every boot, with the same secret.
-3. It polls `/api/frame`, waiting as long as the broker's `Retry-After` says (60 seconds if it doesn't).
-   The broker answers 202 until it matches the display with a renderer.
+3. It polls `/api/frame` with a `POST`, waiting as long as the broker's `Retry-After` says (60 seconds
+   if it doesn't). The broker answers 202 until it matches the display with a renderer. See
+   [What each poll sends](#what-each-poll-sends).
 4. Each new frame (a `200`) is drawn on the panel: wake it, send the frame, refresh (about 4 seconds),
    and put it back into deep sleep, as `countdown-client` does on the Pi.
+
+## What each poll sends
+
+```json
+{
+  "role": "display",
+  "metrics": {"uptime_s": 3600, "free_heap": 182344, "min_free_heap": 150212, "free_psram": 4100000,
+              "wifi_rssi": -61, "reset_reason": 1, "logs_dropped": 0},
+  "logs": [{"uptime_ms": 3599012, "level": "INFO", "message": "Got a frame (48000 bytes)"}]
+}
+```
+
+- **`logs`:** every line logged since the broker last answered, oldest first, from Wi-Fi set-up on.
+  They're stamped with milliseconds since boot, since the board has no wall clock.
+  An answer of 200, 202, 304 or 404 clears them. When there's no answer, a 401, or anything
+  else, they're kept for the next poll.
+- **Limits:** to protect the heap during a long outage, the buffer holds at most 50 lines and 8 KB of messages (lines
+  are cut at 512 bytes). Past that the oldest lines go, and `logs_dropped` counts them since boot.
+  Serial still gets every line in full.
+- **`reset_reason`:** ESP-IDF's `esp_reset_reason_t`: 1 power-on, 3 software restart, 4 panic,
+  5–7 watchdogs, 8 deep sleep, 9 brownout.
 
 ## Connecting the e-paper panel
 
@@ -102,8 +125,8 @@ connector, or Wi-Fi only reaches a few metres.
 
 - `platformio.ini`: build environments: `esp-wrover-kit` (the default) and `native` (the unit tests)
 - `lib/broker_client/`: registering and polling for frames, in plain C++ with no Arduino, so it can be
-  tested on the host. What it needs from the board (HTTP, NVS, randomness, sleeping, logging, a display)
-  are the interfaces in `ports.h`
+  tested on the host. What it needs from the board (HTTP, NVS, randomness, sleeping, logging, a clock,
+  metrics, a display) are the interfaces in `ports.h`. `log_buffer.h` keeps log lines until the broker has them
 - `lib/epd/`: the 7.5" V2 panel driver, ported command for command from
   `../countdown/epd/src/countdown_epd/epd7in5_V2.py`. It drives the HAT's wires through the `EpdBus`
   interface in `epd_bus.h`

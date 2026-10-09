@@ -12,29 +12,29 @@ using namespace countdown::testing;
 
 namespace {
 
-constexpr char kFrameBody[] = R"({"role":"display"})";
-
-// A FrameClient on a board whose secret is already saved, so the tests can tell
-// registrations (POST) and frame polls (GET) apart by method.
+// A FrameClient on a board whose secret is already saved, so its first registration
+// succeeds without minting a new one.
 struct Client {
   Board board;
   DisplayRegistrar registrar;
   FrameClient client;
 
-  Client() : registrar(withSecret(board)), client(registrar, board.http, board.display, board.sleeper, board.log) {}
+  Client() : registrar(withSecret(board)), client(registrar, board.http, board.display, board.sleeper, board.logs, board.metrics) {}
 
   static DisplayRegistrar withSecret(Board& board) {
     board.store.values[kDeviceSecretKey] = "shh";
     return board.registrar();
   }
 
-  int count(const std::string& method) const {
+  int count(const std::string& url) const {
     int n = 0;
     for (const SentRequest& sent : board.http.requests) {
-      n += sent.method == method;
+      n += sent.url == url;
     }
     return n;
   }
+
+  const std::string& lastBody() const { return board.http.requests.back().body; }
 };
 
 void test_the_first_tick_registers_then_polls_the_frame() {
@@ -45,11 +45,14 @@ void test_the_first_tick_registers_then_polls_the_frame() {
   c.client.tick();
 
   TEST_ASSERT_EQUAL(2, c.board.http.requests.size());
-  TEST_ASSERT_EQUAL_STD_STRING("POST", c.board.http.requests[0].method);
+  TEST_ASSERT_EQUAL_STD_STRING(kRegisterUrl, c.board.http.requests[0].url);
   const SentRequest& poll = c.board.http.requests[1];
-  TEST_ASSERT_EQUAL_STD_STRING("GET", poll.method);
+  TEST_ASSERT_EQUAL_STD_STRING("POST", poll.method);
   TEST_ASSERT_EQUAL_STD_STRING(kFrameUrl, poll.url);
-  TEST_ASSERT_EQUAL_STD_STRING(kFrameBody, poll.body);
+  TEST_ASSERT_EQUAL_STD_STRING(
+      R"({"role":"display","metrics":{"logs_dropped":0},)"
+      R"("logs":[{"uptime_ms":0,"level":"INFO","message":"Registered with the broker"}]})",
+      poll.body);
   TEST_ASSERT_EQUAL_STD_STRING("shh", poll.bearer);
 }
 
@@ -64,8 +67,8 @@ void test_later_ticks_only_poll() {
   c.client.tick();
   c.client.tick();
 
-  TEST_ASSERT_EQUAL(1, c.count("POST"));
-  TEST_ASSERT_EQUAL(3, c.count("GET"));
+  TEST_ASSERT_EQUAL(1, c.count(kRegisterUrl));
+  TEST_ASSERT_EQUAL(3, c.count(kFrameUrl));
 }
 
 void test_a_frame_is_logged_with_its_size() {
@@ -104,8 +107,8 @@ void test_a_frame_that_cant_be_drawn_is_logged_and_polling_carries_on() {
 
   TEST_ASSERT_TRUE(c.board.log.has(LogLevel::Error, "Couldn't draw the frame"));
   TEST_ASSERT_EQUAL(30, c.board.sleeper.sleeps[0]);
-  TEST_ASSERT_EQUAL(1, c.count("POST"));
-  TEST_ASSERT_EQUAL(2, c.count("GET"));
+  TEST_ASSERT_EQUAL(1, c.count(kRegisterUrl));
+  TEST_ASSERT_EQUAL(2, c.count(kFrameUrl));
 }
 
 void test_nothing_to_draw_is_quiet_and_waits_as_asked(int status) {
@@ -151,10 +154,10 @@ void test_401_registers_again_with_the_same_secret_on_the_next_tick() {
   TEST_ASSERT_TRUE(c.board.sleeper.sleeps.empty());  // straight back to registering
   c.client.tick();
 
-  TEST_ASSERT_EQUAL(2, c.count("POST"));
-  TEST_ASSERT_EQUAL_STD_STRING("POST", c.board.http.requests[2].method);
+  TEST_ASSERT_EQUAL(2, c.count(kRegisterUrl));
+  TEST_ASSERT_EQUAL_STD_STRING(kRegisterUrl, c.board.http.requests[2].url);
   TEST_ASSERT_EQUAL_STD_STRING(R"({"role":"display","secret":"shh"})", c.board.http.requests[2].body);
-  TEST_ASSERT_EQUAL_STD_STRING("GET", c.board.http.requests[3].method);
+  TEST_ASSERT_EQUAL_STD_STRING(kFrameUrl, c.board.http.requests[3].url);
   TEST_ASSERT_EQUAL_STD_STRING("shh", c.board.http.requests[3].bearer);
 }
 
@@ -167,7 +170,7 @@ void test_an_unexpected_status_is_logged_and_waits_as_asked() {
 
   TEST_ASSERT_TRUE(c.board.log.has(LogLevel::Warning, std::string("Unexpected 500 from ") + kFrameUrl));
   TEST_ASSERT_EQUAL(9, c.board.sleeper.sleeps[0]);
-  TEST_ASSERT_EQUAL(1, c.count("POST"));
+  TEST_ASSERT_EQUAL(1, c.count(kRegisterUrl));
 }
 
 void test_an_unreachable_broker_is_polled_again_after_the_default() {
@@ -181,15 +184,15 @@ void test_an_unreachable_broker_is_polled_again_after_the_default() {
 
   TEST_ASSERT_TRUE(c.board.log.has(LogLevel::Warning, "Couldn't fetch the frame: connection reset"));
   TEST_ASSERT_EQUAL(kDefaultRetryS, c.board.sleeper.sleeps[0]);
-  TEST_ASSERT_EQUAL(1, c.count("POST"));
-  TEST_ASSERT_EQUAL(2, c.count("GET"));
+  TEST_ASSERT_EQUAL(1, c.count(kRegisterUrl));
+  TEST_ASSERT_EQUAL(2, c.count(kFrameUrl));
 }
 
 void test_polls_carry_the_new_secret_after_a_409() {
   Board board;
   board.store.values[kDeviceSecretKey] = "a renderer's";
   DisplayRegistrar registrar = board.registrar();
-  FrameClient client(registrar, board.http, board.display, board.sleeper, board.log);
+  FrameClient client(registrar, board.http, board.display, board.sleeper, board.logs, board.metrics);
   board.http.reply(409);
   board.http.reply(201);
   board.http.reply(202);
@@ -197,6 +200,85 @@ void test_polls_carry_the_new_secret_after_a_409() {
   client.tick();
 
   TEST_ASSERT_EQUAL_STD_STRING(kFirstToken, board.http.requests[2].bearer);
+}
+
+void test_polls_carry_the_metrics_and_how_many_lines_were_dropped() {
+  Client c;
+  c.board.metrics.readings = {{"free_heap", 182344}, {"wifi_rssi", -61}};
+  c.board.http.reply(201);
+  c.board.http.reply(202);
+
+  c.client.tick();
+
+  TEST_ASSERT_NOT_EQUAL(std::string::npos,
+                        c.lastBody().find(R"("metrics":{"free_heap":182344,"wifi_rssi":-61,"logs_dropped":0})"));
+}
+
+void test_polls_carry_the_logs_with_their_uptime_level_and_escaped_message() {
+  Client c;
+  c.board.http.reply(201);
+  c.board.http.reply(202);
+  c.board.clock.now = 1234;
+  c.board.logs.warning("say \"hi\"\nback\\slash");
+
+  c.client.tick();
+
+  TEST_ASSERT_NOT_EQUAL(
+      std::string::npos,
+      c.lastBody().find(R"({"uptime_ms":1234,"level":"WARNING","message":"say \"hi\"\nback\\slash"})"));
+}
+
+void test_logs_the_broker_answered_are_not_sent_again() {
+  Client c;
+  c.board.http.reply(201);
+  c.board.http.reply(202);
+  c.board.http.reply(304);
+
+  c.client.tick();
+  c.client.tick();
+
+  TEST_ASSERT_NOT_EQUAL(std::string::npos, c.board.http.requests[1].body.find("Registered with the broker"));
+  TEST_ASSERT_NOT_EQUAL(std::string::npos, c.lastBody().find(R"("logs":[]})"));
+}
+
+void test_lines_logged_after_the_answer_go_with_the_next_poll() {
+  Client c;
+  c.board.http.reply(201);
+  c.board.http.reply(200, "30", "frame");
+  c.board.http.reply(304);
+
+  c.client.tick();
+  c.client.tick();
+
+  TEST_ASSERT_EQUAL(std::string::npos, c.lastBody().find("Registered with the broker"));
+  TEST_ASSERT_NOT_EQUAL(std::string::npos, c.lastBody().find("Got a frame (5 bytes)"));
+}
+
+void test_logs_are_kept_until_the_broker_answers(void (*notAnswered)(FakeHttp&)) {
+  Client c;
+  c.board.http.reply(201);
+  notAnswered(c.board.http);
+  c.board.http.reply(202);
+
+  c.client.tick();
+  c.client.tick();
+
+  TEST_ASSERT_EQUAL_STD_STRING(kFrameUrl, c.board.http.requests.back().url);
+  TEST_ASSERT_TRUE(c.board.http.responses.empty());
+  TEST_ASSERT_NOT_EQUAL(std::string::npos, c.lastBody().find("Registered with the broker"));
+}
+
+void test_logs_are_kept_when_the_broker_is_unreachable() {
+  test_logs_are_kept_until_the_broker_answers([](FakeHttp& http) { http.fail("connection reset"); });
+}
+void test_logs_are_kept_after_a_500() {
+  test_logs_are_kept_until_the_broker_answers([](FakeHttp& http) { http.reply(500); });
+}
+void test_logs_are_kept_after_a_401() {
+  test_logs_are_kept_until_the_broker_answers([](FakeHttp& http) {
+    http.reply(401);
+    http.reply(201);  // Registering again
+  });
 }
 
 }  // namespace
@@ -215,4 +297,11 @@ void runFrameClientTests() {
   RUN_TEST(test_an_unexpected_status_is_logged_and_waits_as_asked);
   RUN_TEST(test_an_unreachable_broker_is_polled_again_after_the_default);
   RUN_TEST(test_polls_carry_the_new_secret_after_a_409);
+  RUN_TEST(test_polls_carry_the_metrics_and_how_many_lines_were_dropped);
+  RUN_TEST(test_polls_carry_the_logs_with_their_uptime_level_and_escaped_message);
+  RUN_TEST(test_logs_the_broker_answered_are_not_sent_again);
+  RUN_TEST(test_lines_logged_after_the_answer_go_with_the_next_poll);
+  RUN_TEST(test_logs_are_kept_when_the_broker_is_unreachable);
+  RUN_TEST(test_logs_are_kept_after_a_500);
+  RUN_TEST(test_logs_are_kept_after_a_401);
 }

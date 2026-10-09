@@ -2,7 +2,9 @@
 
 #include <Arduino.h>
 #include <HTTPClient.h>
+#include <WiFi.h>
 #include <esp_system.h>
+#include <esp_timer.h>
 
 #include <vector>
 
@@ -91,6 +93,20 @@ countdown::HttpResponse EspHttp::request(const std::string& method, const std::s
 void EspRandom::fill(uint8_t* buffer, size_t length) { esp_fill_random(buffer, length); }
 
 void DelaySleeper::sleepSeconds(int seconds) { delay(static_cast<unsigned long>(seconds) * 1000UL); }
+
+uint64_t EspClock::uptimeMs() { return static_cast<uint64_t>(esp_timer_get_time()) / 1000; }
+
+std::vector<countdown::Metric> EspMetrics::read() {
+  return {
+      {"uptime_s", esp_timer_get_time() / 1000000},
+      {"free_heap", ESP.getFreeHeap()},
+      {"min_free_heap", ESP.getMinFreeHeap()},
+      {"free_psram", ESP.getFreePsram()},
+      {"wifi_rssi", WiFi.RSSI()},
+      // esp_reset_reason_t: 1 power-on, 3 software restart, 4 panic, 5-7 watchdogs, 8 deep sleep, 9 brownout.
+      {"reset_reason", esp_reset_reason()},
+  };
+}
 
 void SerialLog::write(countdown::LogLevel level, const std::string& message) {
   const char* name = level == countdown::LogLevel::Error     ? "ERROR"

@@ -6,6 +6,7 @@
 #include "esp_epd_bus.h"
 #include "esp_ports.h"
 #include "frame_client.h"
+#include "log_buffer.h"
 #include "root_certs.h"
 #include "wifi_setup.h"
 
@@ -28,18 +29,22 @@ void setup() {
   Serial.println("countdown-esp started");
 
   static NvsStore store(kNvsNamespace);
-  static SerialLog log;
+  static SerialLog serialLog;
+  static EspClock clock;
+  // Everything logs through this, so the broker gets the lines from Wi-Fi set-up on.
+  static countdown::LogBuffer log(serialLog, clock);
   connectWifi(store, log);
 
   // Made after Wi-Fi is up, so a new device secret comes from the RNG at its most random.
   static EspHttp http(kBrokerRootCerts);
   static EspRandom random;
   static DelaySleeper sleeper;
+  static EspMetrics metrics;
   static countdown::DisplayRegistrar registrar(BROKER_URL, store, http, random, sleeper, log);
   static EspEpdBus epdBus({EPD_PIN_DIN, EPD_PIN_CLK, EPD_PIN_CS, EPD_PIN_DC, EPD_PIN_RST, EPD_PIN_BUSY, EPD_PIN_PWR});
   static countdown::Epd7in5V2 panel(epdBus);
   static countdown::EpdDisplay display(panel, log);
-  static countdown::FrameClient frameClient(registrar, http, display, sleeper, log);
+  static countdown::FrameClient frameClient(registrar, http, display, sleeper, log, metrics);
   client = &frameClient;
 }
 

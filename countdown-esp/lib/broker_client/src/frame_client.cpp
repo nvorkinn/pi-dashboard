@@ -1,14 +1,48 @@
 #include "frame_client.h"
 
+#include <deque>
 #include <string>
+#include <vector>
 
+#include "json.h"
 #include "retry.h"
 
 namespace countdown {
 
+namespace {
+
+const char* levelName(LogLevel level) {
+  switch (level) {
+    case LogLevel::Error:
+      return "ERROR";
+    case LogLevel::Warning:
+      return "WARNING";
+    default:
+      return "INFO";
+  }
+}
+
+// {"role":"display","metrics":{"name":value,...},"logs":[{"uptime_ms":...,"level":...,"message":...},...]}
+std::string pollBody(const std::vector<Metric>& metrics, const std::deque<LogEntry>& logs) {
+  std::string body = R"({"role":"display","metrics":{)";
+  for (size_t i = 0; i < metrics.size(); ++i) {
+    body += (i ? "," : "") + jsonString(metrics[i].name) + ":" + std::to_string(metrics[i].value);
+  }
+  body += R"(},"logs":[)";
+  for (size_t i = 0; i < logs.size(); ++i) {
+    body += (i ? "," : "");
+    body += R"({"uptime_ms":)" + std::to_string(logs[i].uptimeMs) + R"(,"level":")" + levelName(logs[i].level) +
+            R"(","message":)" + jsonString(logs[i].message) + "}";
+  }
+  body += "]}";
+  return body;
+}
+
+}  // namespace
+
 FrameClient::FrameClient(DisplayRegistrar& registrar, Http& http, Display& display, Sleeper& sleeper,
-                         Log& log)
-    : registrar_(registrar), http_(http), display_(display), sleeper_(sleeper), log_(log) {}
+                         LogBuffer& log, Metrics& metrics)
+    : registrar_(registrar), http_(http), display_(display), sleeper_(sleeper), log_(log), metrics_(metrics) {}
 
 void FrameClient::tick() {
   if (!registered_) {
@@ -16,11 +50,21 @@ void FrameClient::tick() {
     registered_ = true;
   }
   const std::string url = registrar_.brokerUrl() + "/api/frame";
-  const HttpResponse response = http_.request("GET", url, R"({"role":"display"})", registrar_.secret());
+  std::vector<Metric> metrics = metrics_.read();
+  metrics.push_back({"logs_dropped", static_cast<int64_t>(log_.dropped())});
+  const std::deque<LogEntry>& logs = log_.entries();
+  const uint64_t sentThrough = logs.empty() ? 0 : logs.back().seq;
+  const HttpResponse response = http_.request("POST", url, pollBody(metrics, logs), registrar_.secret());
   if (!response.sent) {
     log_.warning("Couldn't fetch the frame: " + response.error);
     sleeper_.sleepSeconds(kDefaultRetryS);
     return;
+  }
+  // Answered as a poll should be, so the broker has the logs. Anything logged from here on (the
+  // lines below included) goes with the next poll.
+  const int status = response.status;
+  if (status == 200 || status == 202 || status == 304 || status == 404) {
+    log_.dropThrough(sentThrough);
   }
   switch (response.status) {
     case 200:
