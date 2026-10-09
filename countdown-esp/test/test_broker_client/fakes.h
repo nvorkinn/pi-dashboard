@@ -12,6 +12,7 @@
 #include <vector>
 
 #include "display_registrar.h"
+#include "log_buffer.h"
 #include "ports.h"
 
 namespace countdown::testing {
@@ -121,6 +122,21 @@ class FakeDisplay : public Display {
   std::vector<std::vector<uint8_t>> shown;
 };
 
+// Stands still unless a test moves it.
+class FakeClock : public Clock {
+ public:
+  uint64_t uptimeMs() override { return now; }
+
+  uint64_t now = 0;
+};
+
+class FakeMetrics : public Metrics {
+ public:
+  std::vector<Metric> read() override { return readings; }
+
+  std::vector<Metric> readings;
+};
+
 // What CountingRandom's first and second 24 bytes encode to, from Python:
 // base64.urlsafe_b64encode(bytes(range(24))).rstrip(b"=")
 constexpr char kFirstToken[] = "AAECAwQFBgcICQoLDA0ODxAREhMUFRYX";
@@ -138,9 +154,13 @@ struct Board {
   FakeDisplay display;
   RecordingSleeper sleeper;
   RecordingLog log;
+  FakeClock clock;
+  FakeMetrics metrics;
+  // What the code under test logs through, as on the board: it passes every line on to `log`.
+  LogBuffer logs{log, clock};
 
   DisplayRegistrar registrar(const std::string& brokerUrl = kBrokerUrl) {
-    return DisplayRegistrar(brokerUrl, store, http, random, sleeper, log);
+    return DisplayRegistrar(brokerUrl, store, http, random, sleeper, logs);
   }
 };
 

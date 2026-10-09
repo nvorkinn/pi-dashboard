@@ -7,6 +7,7 @@
 
 #include <optional>
 #include <string>
+#include <vector>
 
 #include "ports.h"
 
@@ -41,6 +42,18 @@ class EspRandom : public countdown::Random {
 class DelaySleeper : public countdown::Sleeper {
  public:
   void sleepSeconds(int seconds) override;
+};
+
+// esp_timer's 64-bit microseconds, so it doesn't wrap after 49 days as millis() does.
+class EspClock : public countdown::Clock {
+ public:
+  uint64_t uptimeMs() override;
+};
+
+// Uptime, heap, PSRAM, the Wi-Fi signal and why the board last reset.
+class EspMetrics : public countdown::Metrics {
+ public:
+  std::vector<countdown::Metric> read() override;
 };
 
 class SerialLog : public countdown::Log {
