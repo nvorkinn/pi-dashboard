@@ -56,7 +56,7 @@ def test_paint_is_accepted_while_waiting_for_a_screen(target, broker):
     assert target.paint(_frame()) is True
 
 
-def test_paint_with_a_region_sends_only_that_part(target, broker):
+def test_paint_with_a_region_still_sends_the_whole_frame(target, broker):
     broker.put(FRAME_URL)
     img = _frame()
     region = (392, 0, 408, 8)
@@ -64,7 +64,8 @@ def test_paint_with_a_region_sends_only_that_part(target, broker):
     target.paint(img, region)
 
     [call] = broker.calls
-    assert call.request.body == bytes(panel_bytes(img, region))
+    assert call.request.body == bytes(panel_bytes(img))
+    assert len(call.request.body) == 800 * 480 // 8  # the only length the broker accepts
 
 
 def test_paint_raises_when_the_broker_rejects_the_frame(target, broker):
