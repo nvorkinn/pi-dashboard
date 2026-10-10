@@ -22,11 +22,15 @@ RUN python -c "from countdown_core.utils.utils import google_symbols; google_sym
 # Fail the build rather than render text differently from the Pis.
 RUN python -c "from PIL import features; assert features.check('raqm'), 'Pillow has no Raqm text layout'"
 
-RUN useradd --system --create-home countdown && mkdir /data && chown countdown:countdown /data
+RUN useradd --system --create-home countdown && mkdir /data /keys && chown countdown:countdown /data /keys
 USER countdown
 # The renderer's identity (.auth_broker_device) is written to its working directory.
 WORKDIR /data
 VOLUME /data
+# Its key is made on first start, in a volume of its own so it isn't in the same copy as the identity it encrypts.
+# A mounted Docker secret (/run/secrets/credentials-key) is used instead if there is one.
+ENV XDG_CONFIG_HOME=/keys
+VOLUME /keys
 
 ENV PYTHONUNBUFFERED=1
 ENTRYPOINT ["countdown-server"]
