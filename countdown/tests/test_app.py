@@ -271,3 +271,31 @@ def test_run_hands_the_publisher_it_started_to_the_registry_with_one_device_stat
     assert registry.status is seen["publisher"].device_status
     assert registry.status.display is seen["display"]
     assert registry.status.last_broker_sync is not None
+
+
+def test_a_standalone_device_hands_its_secret_to_fluent_bit_once_registered(booted, tmp_path, monkeypatch):
+    env_file = tmp_path / "fluent-bit-env"
+    monkeypatch.setenv("FLUENT_BIT_ENV_FILE", str(env_file))
+
+    booted(standalone=True)
+
+    assert env_file.read_text().startswith("FLUENT_BIT_TOKEN=shh\n")
+
+
+def test_a_renderer_for_a_separate_screen_leaves_fluent_bit_to_its_host(booted, tmp_path, monkeypatch):
+    env_file = tmp_path / "fluent-bit-env"
+    monkeypatch.setenv("FLUENT_BIT_ENV_FILE", str(env_file))
+
+    booted(standalone=False)
+
+    assert not env_file.exists()
+
+
+def test_fluent_bit_is_only_handed_the_secret_after_registering(booted, tmp_path, monkeypatch):
+    env_file = tmp_path / "fluent-bit-env"
+    monkeypatch.setenv("FLUENT_BIT_ENV_FILE", str(env_file))
+
+    with pytest.raises(SystemExit):
+        booted(stop_while_registering=True)
+
+    assert not env_file.exists()

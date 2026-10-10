@@ -12,6 +12,8 @@ Environment=BROKER_URL=https://auth.nikolaivorkinn.com
 Environment=PYTHONUNBUFFERED=1
 # DEVICE_NAME, written by the repo-root install.sh. Optional: without it the hostname is used.
 EnvironmentFile=-/etc/countdown/env
+# Once registered, countdown writes its credentials here for Fluent Bit (countdown_credentials/log_shipping.py).
+Environment=FLUENT_BIT_ENV_FILE=/etc/fluent-bit/env
 ExecStart=@EXEC_START@
 Restart=always
 RestartSec=5

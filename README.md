@@ -9,9 +9,13 @@ repo:
   display. For a screen that only shows frames, its renderer runs as a Docker
   container next to the auth broker instead: see
   [`countdown/server/deploy/`](countdown/server/deploy/).
+- [`fluent-bit/`](fluent-bit/) -- the [Fluent Bit](https://fluentbit.io) config `install.sh` sets up on
+  a Pi: the systemd journal goes to VictoriaLogs (`logs.nikolaivorkinn.com`) and host metrics to
+  `metrics.nikolaivorkinn.com`, both with a bearer token in the `Authorization` header. The token is the device's own secret, so
+  Fluent Bit only runs once countdown has registered with the broker (see [Logs and metrics](#logs-and-metrics)).
 - [`countdown-esp/`](countdown-esp/) -- ESP32 firmware for the countdown
   (PlatformIO, Arduino, C++).
-- Root -- `install.sh`, which provisions a Pi with countdown, and `secrets/`, the
+- Root -- `install.sh`, which provisions a Pi with countdown and Fluent Bit, and `secrets/`, the
   encrypted config it hands them.
 
 Everything is released together: one tag builds the countdown wheel, the
@@ -99,23 +103,46 @@ folder change (`.github/workflows/countdown-ci.yml`,
 
 ## Device name
 
-Each Pi needs a name that identifies it in its metrics -- pick something
+Each Pi needs a name that identifies it in the logs and metrics -- pick something
 that says whose it is, e.g. `sister-hat`. It's the second argument to
 `install.sh`. The name is sanitized (trimmed, lowercased, anything outside
 `[a-z0-9_-]` becomes `-`, same rules as `countdown_credentials/device_name.py`) and
 written as `DEVICE_NAME=<name>` into `/etc/countdown/env` (loaded by countdown's systemd unit), replacing
-any `DEVICE_NAME` already there. It's also saved to
+any `DEVICE_NAME` already there; countdown copies it into Fluent Bit's env once registered. It's also saved to
 `/etc/pi-setup/device-name`. Releases before the rename called it `DEVICE_ID` (and `/etc/pi-setup/device-id`);
 countdown still reads `DEVICE_ID` when there's no `DEVICE_NAME`, and the next `install.sh` replaces both.
 
 It isn't the `device_id` the auth broker gives a renderer when it registers.
 
-countdown sends it to the broker as the `X-Device-Name` header and as the `host.name` on its OTLP metrics.
+countdown sends it to the broker as the `X-Device-Name` header and as the `host.name` on its OTLP metrics, and
+Fluent Bit labels every log line and metric with it as `device_name`.
 Don't put `DEVICE_NAME` in the encrypted secrets -- they're shared by every
 Pi, and `install.sh` overwrites it anyway.
 
-Re-running with a different name changes it, and its metrics then show up under the new
-`host.name`, so `install.sh` warns when that happens. Re-run with the same name to keep it.
+Re-running with a different name changes it, and the logs and metrics then show up under the new
+`device_name`, so `install.sh` warns when that happens. Re-run with the same name to keep it.
+
+## Logs and metrics
+
+On a standalone Pi, `install.sh` installs [Fluent Bit](https://fluentbit.io) (config: [`fluent-bit/fluent-bit.yaml`](fluent-bit/fluent-bit.yaml)),
+which sends the systemd journal to VictoriaLogs (`logs.nikolaivorkinn.com`) and host metrics, plus countdown's own
+OTLP gauges, to `metrics.nikolaivorkinn.com`. Both requests carry `Authorization: Bearer <token>`, and the token is
+the device secret countdown registers with the broker (`.auth_broker_device`), so there's nothing to provision.
+
+This is only for a standalone Pi (`countdown-standalone`). A renderer for a separate screen (`countdown-server`, in
+Docker) does none of it: its host already runs a Fluent Bit, which the renderer just sends its OTLP metrics to at
+`127.0.0.1:4318`, so there's no token and no systemd involved.
+
+Fluent Bit mustn't send before the broker has accepted that secret, so it's started by systemd only then:
+
+1. `fluent-bit.service` is enabled, with a drop-in (`systemd/fluent-bit-env.conf`) that makes it conditional on
+   `/etc/fluent-bit/env`. Until that file exists it doesn't run, and it reads nothing from the journal.
+2. When `register()` succeeds, countdown (via `countdown_credentials/log_shipping.py`, pointed at the file by
+   `FLUENT_BIT_ENV_FILE` in `countdown.service`) writes `FLUENT_BIT_TOKEN` and `DEVICE_NAME` there. The directory
+   belongs to the install user, so no root is needed, and Fluent Bit runs as that user too.
+3. `fluent-bit-env.path` sees the write and restarts Fluent Bit. It starts with no saved journal position, so it
+   also sends what was logged while the device was registering. Every later boot starts it directly, and a changed
+   secret (a new registration) restarts it again.
 
 ## How secrets work
 

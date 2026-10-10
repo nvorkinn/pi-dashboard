@@ -1,0 +1,6 @@
+[Unit]
+Description=Restart Fluent Bit with the credentials countdown wrote
+
+[Service]
+Type=oneshot
+ExecStart=/usr/bin/systemctl restart fluent-bit.service

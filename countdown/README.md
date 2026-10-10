@@ -190,7 +190,7 @@ curl -fsSL -H "Authorization: Bearer $GITHUB_TOKEN" \
 From there `install.sh` uses the [`gh` CLI](https://cli.github.com), installing
 it if it's missing (see the [root README](../README.md) for why).
 
-If you're provisioning a Pi, use the repo-root
+If you're provisioning a Pi with Fluent Bit too (which ships its logs and metrics), use the repo-root
 [`install.sh`](../README.md#install) instead -- it wraps this installer and
 installs everything else you need in one command.
 
@@ -236,8 +236,9 @@ are sent once a minute, and straight away when the stage changes. A failed send 
 logged and retried at the next interval. The env file is only read when the service
 starts, so restart countdown (`sudo systemctl restart countdown`) after editing it.
 
-The service also loads `/etc/countdown/env` (if it exists) for `DEVICE_NAME`, which the repo-root `install.sh` writes.
-The file is only read when the service starts.
+Once the broker has accepted the registration, a standalone countdown (not `countdown-server`) writes the device secret and `DEVICE_NAME` to the file
+`FLUENT_BIT_ENV_FILE` points at (`/etc/fluent-bit/env`, set in the unit), which is what starts Fluent Bit shipping
+the Pi's logs and metrics (see the repo root's README). Without that variable set, it does nothing.
 
 Once installed:
 

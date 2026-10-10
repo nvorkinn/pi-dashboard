@@ -32,7 +32,9 @@ Each renderer's identity, `.auth_broker_device`, lives in its volume (`/data`). 
 and the renderer stays the same device across restarts and upgrades; remove it and the renderer
 registers as a new one.
 
-There's no Fluent Bit in the container, so its health metrics (sent to `127.0.0.1:4318`) have nowhere to go: it logs a warning each minute.
+There's no Fluent Bit in the container. Its health metrics go to the host's own Fluent Bit at `127.0.0.1:4318` (the
+compose file uses host networking so the container can reach it), which also ships the host's logs; the renderer
+needs no token. Without a Fluent Bit listening there it logs a warning each minute.
 
 ## Day to day
 
