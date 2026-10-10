@@ -1,7 +1,7 @@
 # Ships this Pi's journal to VictoriaLogs and its host metrics to VictoriaMetrics. Installed to
 # /etc/fluent-bit/ by install.sh. FLUENT_BIT_TOKEN (the device secret) and DEVICE_NAME come from
-# /etc/fluent-bit/env, which countdown writes once the broker has accepted its registration; Fluent Bit
-# doesn't run before that (systemd/fluent-bit-env.conf).
+# /run/countdown/fluent-bit-env (RAM), which countdown writes once the broker has accepted its registration;
+# Fluent Bit doesn't run before that (systemd/fluent-bit-env.conf).
 service:
   flush: 5
 

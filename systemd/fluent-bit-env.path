@@ -2,7 +2,7 @@
 Description=Start Fluent Bit once countdown has registered, and restart it when the secret changes
 
 [Path]
-PathChanged=/etc/fluent-bit/env
+PathChanged=/run/countdown/fluent-bit-env
 Unit=fluent-bit-restart.service
 
 [Install]

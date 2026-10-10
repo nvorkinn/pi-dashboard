@@ -183,9 +183,11 @@ if ! command -v /opt/fluent-bit/bin/fluent-bit >/dev/null 2>&1; then
     apt-get install -y --no-install-recommends fluent-bit
 fi
 
-# countdown (running as the install user) writes /etc/fluent-bit/env once it has registered with the broker,
-# so the directory is the install user's. Fluent Bit's own unit only runs once that file exists.
-install -d -o "${SUDO_USER:-root}" -m 755 /etc/fluent-bit
+# countdown writes /run/countdown/fluent-bit-env (RAM) once it has registered with the broker, and Fluent Bit's own
+# unit only runs once that file exists.
+install -d -m 755 /etc/fluent-bit
+# Where countdown wrote it before it was kept in RAM: the secret was on the SD card.
+rm -f /etc/fluent-bit/env
 install -m 644 "$TMP_DIR/src/fluent-bit/fluent-bit.yaml" /etc/fluent-bit/fluent-bit.yaml
 
 install -d /etc/systemd/system/fluent-bit.service.d

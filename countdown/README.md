@@ -237,7 +237,7 @@ logged and retried at the next interval. The env file is only read when the serv
 starts, so restart countdown (`sudo systemctl restart countdown`) after editing it.
 
 Once the broker has accepted the registration, a standalone countdown (not `countdown-server`) writes the device secret and `DEVICE_NAME` to the file
-`FLUENT_BIT_ENV_FILE` points at (`/etc/fluent-bit/env`, set in the unit), which is what starts Fluent Bit shipping
+`FLUENT_BIT_ENV_FILE` points at (`/run/countdown/fluent-bit-env`, in RAM, set in the unit), which is what starts Fluent Bit shipping
 the Pi's logs and metrics (see the repo root's README). Without that variable set, it does nothing.
 
 Once installed:
