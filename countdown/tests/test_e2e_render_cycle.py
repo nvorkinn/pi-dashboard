@@ -14,18 +14,15 @@ from types import SimpleNamespace
 import pytest
 import responses
 from config_factory import make_config
-from opentelemetry.sdk.metrics.export import InMemoryMetricReader
 from PIL import Image
 
 from countdown_core.config_server.broker_client import BrokerClient
 from countdown_core.config_server.models import AppConfig
 from countdown_core.core import display_loop
-from countdown_core.core.api_registry import API_NAMES, ApiRegistry
 from countdown_core.core.display_loop import DisplayLoop
 from countdown_core.display_composers.base_composer import BaseComposer
 from countdown_core.display_composers.glow_composer import GlowComposer
 from countdown_core.glow.energy_panel import EnergyPanel
-from countdown_core.home_assistant.otlp_publisher import OtlpPublisher
 from countdown_core.spotify.spotify_panel import SpotifyPanel
 from countdown_core.spotify.spotify_top_panel import SpotifyTopPanel
 from countdown_core.tfl.combined_arrival_panel import CombinedArrivalPanel
@@ -149,10 +146,7 @@ def _build_loop(config: AppConfig, monkeypatch, pairing_code: str | None = None)
     # Via get_pairing_code_panel, to seed the broker's cache like fetch_app_config() does.
     pairing_code_panel = broker.get_pairing_code_panel(AppConfig.model_validate(_app_config_json(pairing_code)))
     monkeypatch.setattr(Image.Image, "show", lambda self, *a, **kw: None)
-    # Its own publisher, exporting to memory: run() starts it, and the default one would try the
-    # real collector.
-    registry = ApiRegistry(broker.registration, OtlpPublisher(API_NAMES, reader=InMemoryMetricReader()))
-    return DisplayLoop(broker, config, pairing_code_panel, api_reg=registry)
+    return DisplayLoop(broker, config, pairing_code_panel)
 
 
 def _spy_on_display_screen(loop: DisplayLoop, monkeypatch) -> list[dict]:
@@ -182,17 +176,6 @@ def _run_cycles(loop: DisplayLoop, monkeypatch, cycles: int = 1) -> None:
     monkeypatch.setattr(display_loop, "asyncio", SimpleNamespace(sleep=fake_sleep))
     with pytest.raises(_StopLoop):
         asyncio.run(loop.run())
-
-
-@responses.activate
-def test_run_starts_the_publisher_before_the_first_cycle(isolated_cwd, monkeypatch):
-    loop = _build_loop(make_config(), monkeypatch, pairing_code="ABC123")
-    monkeypatch.setattr(loop.display, "display_pairing_screen", lambda panel: None)
-    assert loop.api_reg.pub._provider is None
-
-    _run_cycles(loop, monkeypatch)
-
-    assert loop.api_reg.pub._provider is not None
 
 
 def _calls_to(url_prefix: str) -> int:
@@ -559,8 +542,7 @@ def test_run_asks_for_an_early_publish_only_when_the_stage_changes(isolated_cwd,
 
     _run_cycles(loop, monkeypatch, cycles=2)
 
-    # start() publishes at once, then waiting_for_broker -> pairing, then no change
-    assert published == ["waiting_for_broker", "pairing"]
+    assert published == ["pairing"]  # waiting_for_broker -> pairing, then no change
 
 
 @responses.activate
@@ -571,7 +553,7 @@ def test_run_forces_a_publish_when_setup_completes(isolated_cwd, monkeypatch):
 
     _run_cycles(loop, monkeypatch, cycles=2)
 
-    assert published == ["waiting_for_broker", "setup", "running"]  # the first is start()'s
+    assert published == ["setup", "running"]
 
 
 @responses.activate

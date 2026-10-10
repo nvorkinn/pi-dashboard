@@ -78,8 +78,11 @@ async def run(make_target: MakeTarget, standalone: bool) -> None:
     signal.signal(signal.SIGINT, handle_shutdown)
     signal.signal(signal.SIGTERM, handle_shutdown)
 
+    # Reporting health starts next, so a device still
+    # waiting on the broker says so.
     status = DeviceStatus()
     publisher = OtlpPublisher.from_env(API_NAMES, status)
+    publisher.start()
 
     # No default: crash loudly rather than silently talk to some baked-in URL.
     registrar = RendererRegistrar(os.environ["BROKER_URL"], standalone=standalone)
