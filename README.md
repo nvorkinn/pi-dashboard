@@ -109,8 +109,7 @@ that says whose it is, e.g. `sister-hat`. It's the second argument to
 `[a-z0-9_-]` becomes `-`, same rules as `countdown_credentials/device_name.py`) and
 written as `DEVICE_NAME=<name>` into `/etc/countdown/env` (loaded by countdown's systemd unit), replacing
 any `DEVICE_NAME` already there; countdown copies it into Fluent Bit's env once registered. It's also saved to
-`/etc/pi-setup/device-name`. Releases before the rename called it `DEVICE_ID` (and `/etc/pi-setup/device-id`);
-countdown still reads `DEVICE_ID` when there's no `DEVICE_NAME`, and the next `install.sh` replaces both.
+`/etc/pi-setup/device-name`.
 
 It isn't the `device_id` the auth broker gives a renderer when it registers.
 

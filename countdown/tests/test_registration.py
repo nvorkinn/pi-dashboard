@@ -38,7 +38,7 @@ def sleeps() -> Sleeps:
 
 
 def _seed(**data: str) -> None:
-    CREDENTIALS_FILE.write_text(json.dumps(data))
+    CREDENTIALS_FILE.write_bytes(credentials_key().encrypt(json.dumps(data).encode()))
 
 
 def _stored() -> dict:
@@ -113,16 +113,6 @@ def test_the_file_is_readable_by_its_owner_only(sleeps):
     assert stat.S_IMODE(CREDENTIALS_FILE.stat().st_mode) == 0o600
 
 
-def test_saving_makes_a_file_readable_by_others_owner_only(broker, sleeps):
-    broker.post(REGISTER_URL, status=201, json={"device_id": "device-123"})
-    _seed(device_secret="shh")
-    CREDENTIALS_FILE.chmod(0o644)
-
-    _register(_renderer(sleeps))
-
-    assert stat.S_IMODE(CREDENTIALS_FILE.stat().st_mode) == 0o600
-
-
 def test_a_file_with_only_a_secret_keeps_it(broker, sleeps):
     broker.post(REGISTER_URL, status=201)
     _seed(device_secret="shh")
@@ -170,17 +160,6 @@ def test_an_encrypted_file_is_read_back_with_the_same_key(sleeps):
     registration = _register(RendererRegistrar(BROKER_URL, standalone=True, sleep=sleeps, cipher=cipher))
 
     assert registration == RendererRegistration(BROKER_URL, first._device_secret, "device-123")
-
-
-def test_a_plain_file_from_before_the_key_is_kept_and_encrypted(sleeps):
-    cipher = Fernet(Fernet.generate_key())
-    _seed(device_id="a", device_secret="shh")
-
-    registration = _register(RendererRegistrar(BROKER_URL, standalone=True, sleep=sleeps, cipher=cipher))
-
-    assert registration == RendererRegistration(BROKER_URL, "shh", "a")
-    assert b"shh" not in CREDENTIALS_FILE.read_bytes()
-    assert _decrypted(cipher) == {"device_id": "a", "device_secret": "shh"}
 
 
 def test_an_encrypted_file_with_the_wrong_key_is_an_error_not_a_new_identity(sleeps):

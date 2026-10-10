@@ -149,16 +149,13 @@ class Registrar[R: Registration](ABC):
         if not self.credentials_file.exists():
             return
         raw = self.credentials_file.read_bytes()
-        plain = raw.lstrip().startswith(b"{")  # a file from before there was a key
         try:
-            data = json.loads(raw if plain else self._cipher.decrypt(raw))
+            data = json.loads(self._cipher.decrypt(raw))
         except InvalidToken as e:
             # Not starting a new identity over an unreadable file: that would orphan the device on the broker.
             raise RuntimeError(f"{self.credentials_file} wasn't encrypted with this device's credentials key") from e
         self._device_secret = data.get("device_secret", "")
         self._device_id = data.get("device_id")
-        if plain and self._device_secret:
-            self._save()
 
     def _save(self) -> None:
         data = {"device_secret": self._device_secret}
@@ -167,7 +164,6 @@ class Registrar[R: Registration](ABC):
         encrypted = self._cipher.encrypt(json.dumps(data).encode())
         # The secret is the device's identity, so only the app's own user may read it.
         with open(self.credentials_file, "wb", opener=_owner_only) as file:
-            os.fchmod(file.fileno(), 0o600)  # a file an older version wrote readable to everyone
             file.write(encrypted)
 
     def _new_secret(self) -> None:

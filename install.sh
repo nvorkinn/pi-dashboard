@@ -35,8 +35,6 @@ STATE_DIR="/etc/pi-setup"
 TOKEN_FILE="$STATE_DIR/github-token"
 KEY_FILE="$STATE_DIR/age-key.txt"
 DEVICE_NAME_FILE="$STATE_DIR/device-name"
-# What DEVICE_NAME_FILE was called before; replaced by it below.
-LEGACY_DEVICE_ID_FILE="$STATE_DIR/device-id"
 INSTALL_USER_FILE="$STATE_DIR/install-user"
 INSTALLED_TAG_FILE="$STATE_DIR/installed-tag"
 
@@ -48,14 +46,11 @@ TMP_DIR="$(mktemp -d)"
 chmod 755 "$TMP_DIR"
 trap 'rm -rf "$TMP_DIR"' EXIT
 
-PREVIOUS_NAME_FILE="$DEVICE_NAME_FILE"
-[ -f "$PREVIOUS_NAME_FILE" ] || PREVIOUS_NAME_FILE="$LEGACY_DEVICE_ID_FILE"
-if [ -f "$PREVIOUS_NAME_FILE" ] && [ "$(cat "$PREVIOUS_NAME_FILE")" != "$DEVICE_NAME" ]; then
-    echo "Warning: changing device name from \"$(cat "$PREVIOUS_NAME_FILE")\" to \"$DEVICE_NAME\"." >&2
+if [ -f "$DEVICE_NAME_FILE" ] && [ "$(cat "$DEVICE_NAME_FILE")" != "$DEVICE_NAME" ]; then
+    echo "Warning: changing device name from \"$(cat "$DEVICE_NAME_FILE")\" to \"$DEVICE_NAME\"." >&2
     echo "         Its logs and metrics will show up under the new name." >&2
 fi
 echo "$DEVICE_NAME" > "$DEVICE_NAME_FILE"
-rm -f "$LEGACY_DEVICE_ID_FILE"
 echo "Device name: $DEVICE_NAME"
 
 # The apps are installed for whoever ran sudo. check_update.sh runs this from a
@@ -155,14 +150,6 @@ write_env_file "$COUNTDOWN_ENV_FILE" "DEVICE_NAME=$DEVICE_NAME"
 chmod 644 "$COUNTDOWN_ENV_FILE"
 systemctl restart countdown
 
-# pi-telemetry, which fluent-bit replaced.
-if [ -d /opt/pi-telemetry ] || [ -d /etc/pi-telemetry ]; then
-    echo "Removing pi-telemetry..."
-    systemctl disable --now pi-telemetry.timer pi-telemetry.service 2>/dev/null || true
-    rm -rf /opt/pi-telemetry /etc/pi-telemetry /etc/systemd/system/pi-telemetry.service /etc/systemd/system/pi-telemetry.timer
-    systemctl daemon-reload
-fi
-
 echo
 echo "== logs =="
 install -d /etc/systemd/journald.conf.d
@@ -186,8 +173,6 @@ fi
 # countdown writes /run/countdown/fluent-bit-env (RAM) once it has registered with the broker, and Fluent Bit's own
 # unit only runs once that file exists.
 install -d -m 755 /etc/fluent-bit
-# Where countdown wrote it before it was kept in RAM: the secret was on the SD card.
-rm -f /etc/fluent-bit/env
 install -m 644 "$TMP_DIR/src/fluent-bit/fluent-bit.yaml" /etc/fluent-bit/fluent-bit.yaml
 
 install -d /etc/systemd/system/fluent-bit.service.d

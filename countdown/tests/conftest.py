@@ -14,8 +14,7 @@ def isolated_cwd(tmp_path, monkeypatch):
     # Where a key is made when the device wasn't given one.
     monkeypatch.setenv("XDG_CONFIG_HOME", str(tmp_path / "config"))
     monkeypatch.delenv("CREDENTIALS_DIRECTORY", raising=False)
-    for var in ("DEVICE_NAME", "DEVICE_ID"):
-        monkeypatch.delenv(var, raising=False)
+    monkeypatch.delenv("DEVICE_NAME", raising=False)
     return tmp_path
 
 
