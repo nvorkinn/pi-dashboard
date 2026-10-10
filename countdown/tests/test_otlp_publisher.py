@@ -1,6 +1,10 @@
 import asyncio
 import logging
+import socket
+import subprocess
+import sys
 import threading
+import time
 from datetime import UTC, datetime
 from http.server import BaseHTTPRequestHandler, HTTPServer
 from types import SimpleNamespace
@@ -231,6 +235,31 @@ def test_by_default_it_exports_protobuf_over_http_to_the_collector(monkeypatch):
     assert path == "/v1/metrics"
     assert content_type == "application/x-protobuf"
     assert "countdown.api.status" in names
+
+
+def test_exiting_is_not_held_up_by_a_collector_that_is_down():
+    """A container gets 10s to stop. Nothing listens on the port here (it's bound and closed to
+    get one that's free), so an export in flight retries until its timeout."""
+    with socket.socket() as sock:
+        sock.bind(("127.0.0.1", 0))
+        port = sock.getsockname()[1]
+    script = f"""
+import asyncio, sys
+from countdown_core.home_assistant import otlp_publisher
+otlp_publisher.METRICS_URL = "http://127.0.0.1:{port}/v1/metrics"
+
+async def main():
+    pub = otlp_publisher.OtlpPublisher(["tfl"], device_name="x")
+    pub.start()
+    await asyncio.sleep(0.5)  # the first export is still retrying
+    sys.exit(0)
+
+asyncio.run(main())
+"""
+    started = time.monotonic()
+    subprocess.run([sys.executable, "-c", script], check=True, capture_output=True)
+
+    assert time.monotonic() - started < otlp_publisher.EXPORT_TIMEOUT_MS / 1000 + 2
 
 
 # --- from the environment ------------------------------------------------------------
