@@ -17,11 +17,11 @@ jobs:
     timeout-minutes: 30
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
 
       # CRUCIAL: Wait for CI checks to complete first
       - name: Wait for CI checks to complete
-        uses: lewagon/wait-on-check-action@v1.3.4
+        uses: lewagon/wait-on-check-action@369769072fe522a3a8a85c03c96af1e5242a1994 # v1.9.1
         with:
           ref: ${{ github.event.pull_request.head.sha }}
           repo-token: ${{ secrets.GITHUB_TOKEN }}
@@ -35,13 +35,3 @@ jobs:
         run: gh pr review --approve ${{ github.event.pull_request.number }}
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-
-      # A merge made with GITHUB_TOKEN doesn't trigger workflows, so main would get no push
-      # runs (CI, CodeQL). AUTO_MERGE_TOKEN, a fine-grained PAT with Contents and Pull requests
-      # read/write on this repo, merges as a user instead. It can't do the approving above:
-      # GitHub won't let a PR's author approve their own PR.
-      - name: Enable auto-merge
-        if: success()
-        run: gh pr merge --auto --merge --delete-branch ${{ github.event.pull_request.number }}
-        env:
-          GH_TOKEN: ${{ secrets.AUTO_MERGE_TOKEN || secrets.GITHUB_TOKEN }}
