@@ -8,6 +8,7 @@ void runRetryTests();
 void runDisplayRegistrarTests();
 void runFrameClientTests();
 void runLogBufferTests();
+void runLineProtocolTests();
 
 int main() {
   UNITY_BEGIN();
@@ -16,5 +17,6 @@ int main() {
   runDisplayRegistrarTests();
   runFrameClientTests();
   runLogBufferTests();
+  runLineProtocolTests();
   return UNITY_END();
 }

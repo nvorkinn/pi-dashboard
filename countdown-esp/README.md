@@ -70,12 +70,16 @@ gcovr --root . --filter lib/ --gcov-executable "xcrun llvm-cov gcov" .pio/build/
 ```json
 {
   "role": "display",
-  "metrics": {"uptime_s": 3600, "free_heap": 182344, "min_free_heap": 150212, "free_psram": 4100000,
-              "wifi_rssi": -61, "reset_reason": 1, "logs_dropped": 0},
+  "metrics": "esp32,device_id={device_id} uptime_s=3600i,free_heap=182344i,min_free_heap=150212i,free_psram=4100000i,wifi_rssi=-61i,reset_reason=1i,logs_dropped=0i",
   "logs": [{"uptime_ms": 3599012, "level": "INFO", "message": "Got a frame (48000 bytes)"}]
 }
 ```
 
+- **`metrics`:** one [InfluxDB Line Protocol](https://docs.influxdata.com/influxdb/v2/reference/syntax/line-protocol/)
+  line, measurement `esp32`, every field an integer. It has no timestamp, so whatever stores it stamps
+  it with the time it arrives (the board has no wall clock). `{device_id}` is left for the broker to fill
+  in with the device it authenticated the poll as. The fields are `uptime_s`, `free_heap`, `min_free_heap`,
+  `free_psram`, `wifi_rssi`, `reset_reason` and `logs_dropped`.
 - **`logs`:** every line logged since the broker last answered, oldest first, from Wi-Fi set-up on.
   They're stamped with milliseconds since boot, since the board has no wall clock.
   An answer of 200, 202, 304 or 404 clears them. When there's no answer, a 401, or anything

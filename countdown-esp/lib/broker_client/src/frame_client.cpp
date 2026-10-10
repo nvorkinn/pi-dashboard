@@ -5,6 +5,7 @@
 #include <vector>
 
 #include "json.h"
+#include "line_protocol.h"
 #include "retry.h"
 
 namespace countdown {
@@ -22,13 +23,14 @@ const char* levelName(LogLevel level) {
   }
 }
 
-// {"role":"display","metrics":{"name":value,...},"logs":[{"uptime_ms":...,"level":...,"message":...},...]}
+// The metrics' InfluxDB measurement and tags. The broker swaps in the device_id it authenticated
+// the poll as, so the board never has to claim one.
+constexpr char kMetricsSeriesKey[] = "esp32,device_id={device_id}";
+
+// {"role":"display","metrics":"<line protocol>","logs":[{"uptime_ms":...,"level":...,"message":...},...]}
 std::string pollBody(const std::vector<Metric>& metrics, const std::deque<LogEntry>& logs) {
-  std::string body = R"({"role":"display","metrics":{)";
-  for (size_t i = 0; i < metrics.size(); ++i) {
-    body += (i ? "," : "") + jsonString(metrics[i].name) + ":" + std::to_string(metrics[i].value);
-  }
-  body += R"(},"logs":[)";
+  std::string body = R"({"role":"display","metrics":)" + jsonString(influxLine(kMetricsSeriesKey, metrics));
+  body += R"(,"logs":[)";
   for (size_t i = 0; i < logs.size(); ++i) {
     body += (i ? "," : "");
     body += R"({"uptime_ms":)" + std::to_string(logs[i].uptimeMs) + R"(,"level":")" + levelName(logs[i].level) +
