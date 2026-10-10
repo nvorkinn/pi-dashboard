@@ -10,7 +10,7 @@ import responses
 from cryptography.fernet import Fernet
 from test_utils import Sleeps, StopWaiting
 
-from countdown_credentials.credentials_key import KEY_NAME
+from countdown_credentials.credentials_key import KEY_NAME, credentials_key
 from countdown_credentials.registration import (
     CREDENTIALS_FILE,
     DEFAULT_RETRY_S,
@@ -42,7 +42,7 @@ def _seed(**data: str) -> None:
 
 
 def _stored() -> dict:
-    return json.loads(CREDENTIALS_FILE.read_text())
+    return json.loads(credentials_key().decrypt(CREDENTIALS_FILE.read_bytes()))
 
 
 def _renderer(sleeps: Sleeps, standalone: bool = True) -> RendererRegistrar:
@@ -141,7 +141,7 @@ def test_the_file_can_live_elsewhere(isolated_cwd, sleeps):
 
     DisplayRegistrar(BROKER_URL, credentials_file=path, sleep=sleeps)
 
-    assert set(json.loads(path.read_text())) == {"device_secret"}
+    assert set(json.loads(credentials_key().decrypt(path.read_bytes()))) == {"device_secret"}
     assert not CREDENTIALS_FILE.exists()
 
 
@@ -183,16 +183,6 @@ def test_a_plain_file_from_before_the_key_is_kept_and_encrypted(sleeps):
     assert _decrypted(cipher) == {"device_id": "a", "device_secret": "shh"}
 
 
-def test_an_encrypted_file_without_a_key_is_an_error_not_a_new_identity(sleeps):
-    RendererRegistrar(BROKER_URL, standalone=True, sleep=sleeps, cipher=Fernet(Fernet.generate_key()))
-    before = CREDENTIALS_FILE.read_bytes()
-
-    with pytest.raises(RuntimeError, match="no credentials key"):
-        _renderer(sleeps)
-
-    assert CREDENTIALS_FILE.read_bytes() == before
-
-
 def test_an_encrypted_file_with_the_wrong_key_is_an_error_not_a_new_identity(sleeps):
     RendererRegistrar(BROKER_URL, standalone=True, sleep=sleeps, cipher=Fernet(Fernet.generate_key()))
     before = CREDENTIALS_FILE.read_bytes()
@@ -215,10 +205,13 @@ def test_the_key_comes_from_systemds_credentials_directory(isolated_cwd, monkeyp
     assert _decrypted(Fernet(key)) == {"device_secret": registrar._device_secret}
 
 
-def test_without_a_key_the_file_stays_plain_json(sleeps):
+def test_without_a_key_one_is_made_for_the_user_and_kept(isolated_cwd, sleeps):
     registrar = _renderer(sleeps)
+    key_file = isolated_cwd / "config" / "countdown" / KEY_NAME
 
-    assert _stored() == {"device_secret": registrar._device_secret}
+    assert stat.S_IMODE(key_file.stat().st_mode) == 0o600
+    assert _decrypted(Fernet(key_file.read_bytes())) == {"device_secret": registrar._device_secret}
+    assert _renderer(sleeps)._device_secret == registrar._device_secret  # read back with the same key
 
 
 def test_a_trailing_slash_on_the_broker_url_is_dropped(sleeps):

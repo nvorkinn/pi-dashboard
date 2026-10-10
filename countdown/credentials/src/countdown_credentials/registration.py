@@ -149,36 +149,26 @@ class Registrar[R: Registration](ABC):
         if not self.credentials_file.exists():
             return
         raw = self.credentials_file.read_bytes()
-        if raw.lstrip().startswith(b"{"):
-            data = json.loads(raw)
-            encrypted = False
-        else:
+        plain = raw.lstrip().startswith(b"{")  # a file from before there was a key
+        try:
+            data = json.loads(raw if plain else self._cipher.decrypt(raw))
+        except InvalidToken as e:
             # Not starting a new identity over an unreadable file: that would orphan the device on the broker.
-            if self._cipher is None:
-                raise RuntimeError(f"{self.credentials_file} is encrypted, but this device has no credentials key")
-            try:
-                data = json.loads(self._cipher.decrypt(raw))
-            except InvalidToken as e:
-                raise RuntimeError(
-                    f"{self.credentials_file} wasn't encrypted with this device's credentials key"
-                ) from e
-            encrypted = True
+            raise RuntimeError(f"{self.credentials_file} wasn't encrypted with this device's credentials key") from e
         self._device_secret = data.get("device_secret", "")
         self._device_id = data.get("device_id")
-        if self._cipher is not None and not encrypted and self._device_secret:
-            self._save()  # a file from before there was a key
+        if plain and self._device_secret:
+            self._save()
 
     def _save(self) -> None:
         data = {"device_secret": self._device_secret}
         if self._device_id is not None:
             data["device_id"] = self._device_id
-        content = json.dumps(data).encode()
-        if self._cipher is not None:
-            content = self._cipher.encrypt(content)
+        encrypted = self._cipher.encrypt(json.dumps(data).encode())
         # The secret is the device's identity, so only the app's own user may read it.
         with open(self.credentials_file, "wb", opener=_owner_only) as file:
             os.fchmod(file.fileno(), 0o600)  # a file an older version wrote readable to everyone
-            file.write(content)
+            file.write(encrypted)
 
     def _new_secret(self) -> None:
         self._device_secret = secrets.token_urlsafe(24)
