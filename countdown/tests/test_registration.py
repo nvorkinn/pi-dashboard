@@ -7,8 +7,10 @@ import stat
 import pytest
 import requests
 import responses
+from cryptography.fernet import Fernet
 from test_utils import Sleeps, StopWaiting
 
+from countdown_credentials.credentials_key import KEY_NAME
 from countdown_credentials.registration import (
     CREDENTIALS_FILE,
     DEFAULT_RETRY_S,
@@ -141,6 +143,82 @@ def test_the_file_can_live_elsewhere(isolated_cwd, sleeps):
 
     assert set(json.loads(path.read_text())) == {"device_secret"}
     assert not CREDENTIALS_FILE.exists()
+
+
+# --- Encrypting the credentials file ------------------------------------------------
+
+
+def _decrypted(cipher: Fernet) -> dict:
+    return json.loads(cipher.decrypt(CREDENTIALS_FILE.read_bytes()))
+
+
+def test_with_a_key_the_file_is_encrypted_at_rest(sleeps):
+    cipher = Fernet(Fernet.generate_key())
+
+    registrar = RendererRegistrar(BROKER_URL, standalone=True, sleep=sleeps, cipher=cipher)
+
+    assert registrar._device_secret.encode() not in CREDENTIALS_FILE.read_bytes()
+    assert _decrypted(cipher) == {"device_secret": registrar._device_secret}
+    assert stat.S_IMODE(CREDENTIALS_FILE.stat().st_mode) == 0o600
+
+
+def test_an_encrypted_file_is_read_back_with_the_same_key(sleeps):
+    cipher = Fernet(Fernet.generate_key())
+    first = RendererRegistrar(BROKER_URL, standalone=True, sleep=sleeps, cipher=cipher)
+    first._matched("device-123")
+
+    registration = _register(RendererRegistrar(BROKER_URL, standalone=True, sleep=sleeps, cipher=cipher))
+
+    assert registration == RendererRegistration(BROKER_URL, first._device_secret, "device-123")
+
+
+def test_a_plain_file_from_before_the_key_is_kept_and_encrypted(sleeps):
+    cipher = Fernet(Fernet.generate_key())
+    _seed(device_id="a", device_secret="shh")
+
+    registration = _register(RendererRegistrar(BROKER_URL, standalone=True, sleep=sleeps, cipher=cipher))
+
+    assert registration == RendererRegistration(BROKER_URL, "shh", "a")
+    assert b"shh" not in CREDENTIALS_FILE.read_bytes()
+    assert _decrypted(cipher) == {"device_id": "a", "device_secret": "shh"}
+
+
+def test_an_encrypted_file_without_a_key_is_an_error_not_a_new_identity(sleeps):
+    RendererRegistrar(BROKER_URL, standalone=True, sleep=sleeps, cipher=Fernet(Fernet.generate_key()))
+    before = CREDENTIALS_FILE.read_bytes()
+
+    with pytest.raises(RuntimeError, match="no credentials key"):
+        _renderer(sleeps)
+
+    assert CREDENTIALS_FILE.read_bytes() == before
+
+
+def test_an_encrypted_file_with_the_wrong_key_is_an_error_not_a_new_identity(sleeps):
+    RendererRegistrar(BROKER_URL, standalone=True, sleep=sleeps, cipher=Fernet(Fernet.generate_key()))
+    before = CREDENTIALS_FILE.read_bytes()
+
+    with pytest.raises(RuntimeError, match="wasn't encrypted with this device's credentials key"):
+        RendererRegistrar(BROKER_URL, standalone=True, sleep=sleeps, cipher=Fernet(Fernet.generate_key()))
+
+    assert CREDENTIALS_FILE.read_bytes() == before
+
+
+def test_the_key_comes_from_systemds_credentials_directory(isolated_cwd, monkeypatch, sleeps):
+    key = Fernet.generate_key()
+    directory = isolated_cwd / "creds"
+    directory.mkdir()
+    (directory / KEY_NAME).write_bytes(key + b"\n")
+    monkeypatch.setenv("CREDENTIALS_DIRECTORY", str(directory))
+
+    registrar = _renderer(sleeps)
+
+    assert _decrypted(Fernet(key)) == {"device_secret": registrar._device_secret}
+
+
+def test_without_a_key_the_file_stays_plain_json(sleeps):
+    registrar = _renderer(sleeps)
+
+    assert _stored() == {"device_secret": registrar._device_secret}
 
 
 def test_a_trailing_slash_on_the_broker_url_is_dropped(sleeps):
