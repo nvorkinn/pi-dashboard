@@ -11,16 +11,7 @@ def isolated_cwd(tmp_path, monkeypatch):
     .auth_broker_device land there), with the app's env vars cleared."""
     monkeypatch.chdir(tmp_path)
     monkeypatch.delenv("BROKER_URL", raising=False)
-    # MqttPublisher.from_env() is disabled (makes no connection) without a host, so
-    # a developer's own exported MQTT settings mustn't switch it on inside a test.
-    for var in (
-        "MQTT_BROKER_HOST",
-        "MQTT_BROKER_PORT",
-        "MQTT_BROKER_USERNAME",
-        "MQTT_BROKER_PASSWORD",
-        "DEVICE_NAME",
-        "DEVICE_ID",
-    ):
+    for var in ("DEVICE_NAME", "DEVICE_ID"):
         monkeypatch.delenv(var, raising=False)
     return tmp_path
 

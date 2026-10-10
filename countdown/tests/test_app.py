@@ -195,7 +195,7 @@ def booted(monkeypatch):
         return "the target"
 
     fake_display = SimpleNamespace(panel_connected=True, shutdown=lambda: seen["order"].append("panel asleep"))
-    monkeypatch.setattr(app.MqttPublisher, "start", fake_start)
+    monkeypatch.setattr(app.OtlpPublisher, "start", fake_start)
     monkeypatch.setattr(RendererRegistrar, "register", fake_register)
     monkeypatch.setattr(app, "DisplayController", lambda target: seen.update(target=target) or fake_display)
     monkeypatch.setattr(app, "DisplayLoop", FakeLoop)

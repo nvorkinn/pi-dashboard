@@ -1,16 +1,16 @@
 import asyncio
-import json
 import logging
 
 import pytest
 from config_factory import make_config
+from opentelemetry.sdk.metrics.export import InMemoryMetricReader
 from test_utils import REGISTRATION
 
 from countdown_core.config_server.models import TflConfig, WeatherConfig
 from countdown_core.core.abstract_client import AbstractClient, ClientStatus
 from countdown_core.core.api_registry import API_NAMES, ApiRegistry, ClientClasses, FailedClient
 from countdown_core.glow.glow_client import GlowClient
-from countdown_core.home_assistant.mqtt_publisher import MqttPublisher
+from countdown_core.home_assistant.otlp_publisher import OtlpPublisher
 from countdown_core.notices.notice_board_client import NoticeBoardClient
 from countdown_core.spotify.spotify_client import SpotifyClient
 from countdown_core.system_screens.message_panel import MessagePanel
@@ -50,7 +50,7 @@ def unbuildable_spotify(monkeypatch):
 
 
 def registry_with(**clients: AbstractClient) -> ApiRegistry:
-    registry = ApiRegistry(REGISTRATION, MqttPublisher(API_NAMES))
+    registry = ApiRegistry(REGISTRATION, OtlpPublisher(API_NAMES))
     registry.clients.update(clients)
     return registry
 
@@ -74,7 +74,7 @@ def test_api_names_match_the_config_field_names():
 def test_on_config_update_registers_the_enabled_clients():
     config = make_config()
     config.spotify.enabled = True
-    registry = ApiRegistry(REGISTRATION, MqttPublisher(API_NAMES))
+    registry = ApiRegistry(REGISTRATION, OtlpPublisher(API_NAMES))
 
     asyncio.run(registry.on_config_update(config))
 
@@ -89,7 +89,7 @@ def test_on_config_update_registers_the_enabled_clients():
 def test_on_config_update_skips_disabled_clients():
     config = make_config()  # spotify is off until the broker says otherwise
     config.weather.enabled = False
-    registry = ApiRegistry(REGISTRATION, MqttPublisher(API_NAMES))
+    registry = ApiRegistry(REGISTRATION, OtlpPublisher(API_NAMES))
 
     asyncio.run(registry.on_config_update(config))
 
@@ -107,7 +107,7 @@ def test_on_config_update_initialises_new_clients_even_if_one_fails(monkeypatch)
 
     monkeypatch.setattr(TflClient, "initialise", broken)
     monkeypatch.setattr(WeatherClient, "initialise", healthy)
-    registry = ApiRegistry(REGISTRATION, MqttPublisher(API_NAMES))
+    registry = ApiRegistry(REGISTRATION, OtlpPublisher(API_NAMES))
 
     asyncio.run(registry.on_config_update(make_config()))
 
@@ -117,7 +117,7 @@ def test_on_config_update_initialises_new_clients_even_if_one_fails(monkeypatch)
 def test_on_config_update_survives_a_client_that_cannot_be_built(unbuildable_spotify):
     config = make_config()
     config.spotify.enabled = True
-    registry = ApiRegistry(REGISTRATION, MqttPublisher(API_NAMES))
+    registry = ApiRegistry(REGISTRATION, OtlpPublisher(API_NAMES))
 
     asyncio.run(registry.on_config_update(config))
 
@@ -126,7 +126,7 @@ def test_on_config_update_survives_a_client_that_cannot_be_built(unbuildable_spo
 
 
 def test_unchanged_config_keeps_the_existing_clients_and_their_panels():
-    registry = ApiRegistry(REGISTRATION, MqttPublisher(API_NAMES))
+    registry = ApiRegistry(REGISTRATION, OtlpPublisher(API_NAMES))
     asyncio.run(registry.on_config_update(make_config()))
     before = dict(registry.clients)
     registry.panels["tfl"] = "arrivals"
@@ -138,7 +138,7 @@ def test_unchanged_config_keeps_the_existing_clients_and_their_panels():
 
 
 def test_a_changed_config_replaces_only_that_client_and_drops_its_stale_panel():
-    registry = ApiRegistry(REGISTRATION, MqttPublisher(API_NAMES))
+    registry = ApiRegistry(REGISTRATION, OtlpPublisher(API_NAMES))
     asyncio.run(registry.on_config_update(make_config()))
     old_tfl, old_weather = registry.clients["tfl"], registry.clients["weather"]
     registry.panels.update(tfl="old arrivals", weather="sunny")
@@ -154,7 +154,7 @@ def test_a_changed_config_replaces_only_that_client_and_drops_its_stale_panel():
 
 
 def test_a_client_that_is_switched_off_is_dropped_with_its_panel():
-    registry = ApiRegistry(REGISTRATION, MqttPublisher(API_NAMES))
+    registry = ApiRegistry(REGISTRATION, OtlpPublisher(API_NAMES))
     asyncio.run(registry.on_config_update(make_config()))
     registry.panels["weather"] = "sunny"
     off = make_config()
@@ -169,7 +169,7 @@ def test_a_client_that_is_switched_off_is_dropped_with_its_panel():
 def test_a_change_the_client_says_is_irrelevant_does_not_rebuild_it():
     """Open-Meteo is keyless, so WeatherClient ignores api_key changes -- rebuilding
     would only throw away its cached coordinates and forecast."""
-    registry = ApiRegistry(REGISTRATION, MqttPublisher(API_NAMES))
+    registry = ApiRegistry(REGISTRATION, OtlpPublisher(API_NAMES))
     asyncio.run(registry.on_config_update(make_config()))
     weather = registry.clients["weather"]
     changed = make_config()
@@ -269,7 +269,7 @@ def test_update_all_says_a_client_that_has_never_succeeded_could_not_connect():
 
 
 def test_the_publisher_reports_the_registrys_own_clients_and_shares_its_status():
-    publisher = MqttPublisher(API_NAMES)
+    publisher = OtlpPublisher(API_NAMES)
     registry = ApiRegistry(REGISTRATION, publisher)
     registry.clients["tfl"] = FakeClient("arrivals")
 
@@ -289,20 +289,23 @@ def test_update_all_never_lets_one_clients_failure_escape(bad):
 def test_a_client_that_could_not_be_built_shows_as_an_error_in_the_health_payload(unbuildable_spotify):
     config = make_config()
     config.spotify.enabled = True
-    registry = ApiRegistry(REGISTRATION, MqttPublisher(API_NAMES))
+    registry = ApiRegistry(REGISTRATION, OtlpPublisher(API_NAMES))
 
     asyncio.run(registry.on_config_update(config))
 
-    payload = json.loads(registry.pub.build_state_payload())
-    assert payload["spotify"] == "error"
-    assert payload["problem"] is True
+    reader = InMemoryMetricReader()
+    registry.pub._reader = reader
+    asyncio.run(_start(registry.pub))
+    data = {m.name: m.data.data_points for m in reader.get_metrics_data().resource_metrics[0].scope_metrics[0].metrics}
+    assert {"api": "spotify", "status": "error"} in [dict(p.attributes) for p in data["countdown.api.status"]]
+    assert data["countdown.problem"][0].value == 1
 
 
 def test_a_client_that_could_not_be_built_is_reported_again_by_update_all_without_raising(unbuildable_spotify, caplog):
     caplog.set_level(logging.INFO)
     config = make_config()
     config.spotify.enabled = True
-    registry = ApiRegistry(REGISTRATION, MqttPublisher(API_NAMES))
+    registry = ApiRegistry(REGISTRATION, OtlpPublisher(API_NAMES))
     asyncio.run(registry.on_config_update(config))
     caplog.clear()
 
@@ -335,7 +338,7 @@ def test_available_is_the_built_clients_that_are_not_disabled():
 
 
 def test_available_leaves_out_glowmarkt_without_credentials_and_spotify_when_off():
-    registry = ApiRegistry(REGISTRATION, MqttPublisher(API_NAMES))
+    registry = ApiRegistry(REGISTRATION, OtlpPublisher(API_NAMES))
 
     asyncio.run(registry.on_config_update(make_config()))
 
@@ -346,7 +349,7 @@ def test_available_leaves_out_glowmarkt_without_credentials_and_spotify_when_off
 def test_available_leaves_out_glowmarkt_when_its_username_is_cleared(username):
     """The broker keeps glowmarkt.enabled true when the owner clears the credentials, so
     it's the credentials themselves that decide."""
-    registry = ApiRegistry(REGISTRATION, MqttPublisher(API_NAMES))
+    registry = ApiRegistry(REGISTRATION, OtlpPublisher(API_NAMES))
 
     asyncio.run(registry.on_config_update(make_config(glowmarkt={"username": username, "password": "pw"})))
 
@@ -357,7 +360,7 @@ def test_a_client_missing_what_it_needs_is_not_built_and_comes_back_fresh(monkey
     """Clearing Glowmarkt's username removes its client altogether (the broker leaves
     `enabled` true); putting it back builds a new one rather than reviving the old."""
     monkeypatch.setattr(GlowClient, "_initialise", lambda self: asyncio.sleep(0))  # no network
-    registry = ApiRegistry(REGISTRATION, MqttPublisher(API_NAMES))
+    registry = ApiRegistry(REGISTRATION, OtlpPublisher(API_NAMES))
     with_credentials = make_config(glowmarkt={"username": "me@example.com", "password": "pw"})
 
     asyncio.run(registry.on_config_update(with_credentials))
@@ -381,3 +384,8 @@ def test_show_stops_tells_the_tfl_client_how_many_to_fetch():
 
 def test_show_stops_without_a_tfl_client_does_nothing():
     registry_with(weather=FakeClient()).show_stops(4)
+
+
+async def _start(pub):
+    pub.start()
+    await asyncio.gather(*pub._tasks)

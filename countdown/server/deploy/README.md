@@ -32,7 +32,7 @@ Each renderer's identity, `.auth_broker_device`, lives in its volume (`/data`). 
 and the renderer stays the same device across restarts and upgrades; remove it and the renderer
 registers as a new one.
 
-Home Assistant reporting is off: there's no `MQTT_BROKER_HOST` on the server.
+There's no Fluent Bit in the container, so its health metrics (sent to `127.0.0.1:4318`) have nowhere to go: it logs a warning each minute.
 
 ## Day to day
 

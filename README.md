@@ -18,7 +18,7 @@ repo:
   encrypted config it hands them.
 
 The two apps are always deployed together and share config (`DEVICE_NAME` and
-the MQTT settings in `/etc/pi-telemetry/env`), so they're released together:
+the `DEVICE_NAME` in `/etc/pi-telemetry/env`), so they're released together:
 one tag builds the countdown wheel, the pi-telemetry binary and the secrets
 bundle, and `install.sh` installs exactly that tag. Each app is still its own
 systemd unit, and its own installer can be used on its own.
@@ -117,8 +117,8 @@ Releases before the rename called it `DEVICE_ID` (and `/etc/pi-setup/device-id`)
 
 It isn't the `device_id` the auth broker gives a renderer when it registers.
 
-Both apps use it in their MQTT client ID and topics, and pi-telemetry in its
-HA device, so their data lands under the same device in Home Assistant.
+pi-telemetry uses it in its MQTT client ID, topics and HA device, and countdown as the
+`host.name` on its OTLP metrics.
 Don't put `DEVICE_NAME` in the encrypted secrets -- they're shared by every
 Pi, and `install.sh` overwrites it anyway.
 

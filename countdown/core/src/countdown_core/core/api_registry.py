@@ -7,7 +7,7 @@ from countdown_core.config_server.models import ApiConfig, AppConfig
 from countdown_core.core.abstract_client import AbstractClient, ClientStatus
 from countdown_core.core.panel import Panel
 from countdown_core.glow.glow_client import GlowClient
-from countdown_core.home_assistant.mqtt_publisher import MqttPublisher
+from countdown_core.home_assistant.otlp_publisher import OtlpPublisher
 from countdown_core.notices.notice_board_client import NoticeBoardClient
 from countdown_core.spotify.spotify_client import SpotifyClient
 from countdown_core.tfl.tfl_client import TflClient
@@ -51,7 +51,7 @@ class FailedClient(AbstractClient):
 
 
 class ApiRegistry:
-    def __init__(self, registration: Registration, publisher: MqttPublisher):
+    def __init__(self, registration: Registration, publisher: OtlpPublisher):
         self.registration = registration  # handed to every client
         self.clients: dict[str, AbstractClient] = {}
         self.panels: dict[str, Panel | None] = {}  # None only from a DISABLED client
