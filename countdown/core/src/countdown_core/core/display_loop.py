@@ -54,6 +54,7 @@ class DisplayLoop:
 
     async def run(self) -> None:
         started = time.monotonic()
+        self.api_reg.pub.start()
         await self.api_reg.on_config_update(self.config)
         self._apply_layout()
         first_cycle_done = False
