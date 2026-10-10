@@ -103,6 +103,17 @@ fi
 mkdir -p "$APP_DIR"
 chown "$TARGET_USER" "$APP_DIR"
 
+# Encrypts .auth_broker_device at rest. One per device, made once and root's alone: the service gets it from systemd
+# (LoadCredential=), so it's never beside the file it protects. Losing it makes the file unreadable: delete
+# .auth_broker_device then and the device registers as a new one.
+CREDENTIALS_KEY_FILE=/etc/pi-setup/credentials-key
+if [ ! -f "$CREDENTIALS_KEY_FILE" ]; then
+    install -d -m 755 "$(dirname "$CREDENTIALS_KEY_FILE")"
+    # 32 random bytes, URL-safe base64: a Fernet key.
+    (umask 077 && head -c 32 /dev/urandom | base64 | tr '+/' '-_' > "$CREDENTIALS_KEY_FILE")
+fi
+chmod 600 "$CREDENTIALS_KEY_FILE"
+
 echo "Installing systemd unit..."
 sed \
     -e "s#@USER@#$TARGET_USER#" \

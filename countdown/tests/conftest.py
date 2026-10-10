@@ -11,6 +11,9 @@ def isolated_cwd(tmp_path, monkeypatch):
     .auth_broker_device land there), with the app's env vars cleared."""
     monkeypatch.chdir(tmp_path)
     monkeypatch.delenv("BROKER_URL", raising=False)
+    # Where a key is made when the device wasn't given one.
+    monkeypatch.setenv("XDG_CONFIG_HOME", str(tmp_path / "config"))
+    monkeypatch.delenv("CREDENTIALS_DIRECTORY", raising=False)
     for var in ("DEVICE_NAME", "DEVICE_ID"):
         monkeypatch.delenv(var, raising=False)
     return tmp_path

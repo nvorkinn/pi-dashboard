@@ -24,6 +24,15 @@ services:
     volumes:
       # The renderer's identity: lose it and it registers as a new device.
       - example-screen:/data
+    secrets:
+      # Encrypts that identity (.auth_broker_device) in the volume. Lose it and the volume's file is unreadable.
+      - source: example-screen-key
+        target: credentials-key
 
 volumes:
   example-screen:
+
+secrets:
+  # One key per screen; see README.md for making it.
+  example-screen-key:
+    file: ./keys/example-screen
