@@ -9,6 +9,9 @@ x-renderer: &renderer
   image: ghcr.io/nvorkinn/countdown-server:${COUNTDOWN_SERVER_VERSION:-latest}
   pull_policy: always
   restart: unless-stopped
+  # The host's own Fluent Bit listens for the renderer's OTLP metrics on 127.0.0.1:4318, which only the host's
+  # network namespace reaches. Nothing here publishes ports, so sharing it exposes nothing.
+  network_mode: host
 
 services:
   # Copy this block (and its volume below) for each screen.

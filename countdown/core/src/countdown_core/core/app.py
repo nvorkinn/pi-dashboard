@@ -17,6 +17,7 @@ from countdown_core.core.targets import DisplayTarget
 from countdown_core.home_assistant.device_status import DeviceStatus
 from countdown_core.home_assistant.otlp_publisher import OtlpPublisher
 from countdown_core.system_screens.pairing_code_panel import PairingCodePanel
+from countdown_credentials.log_shipping import enable_log_shipping
 from countdown_credentials.registration import RendererRegistrar, RendererRegistration
 
 logger = logging.getLogger(__name__)
@@ -89,6 +90,10 @@ async def run(make_target: MakeTarget, standalone: bool) -> None:
     # Nothing else happens until the device is registered, standalone or split alike: without it
     # there's no config to render, and nowhere a split renderer's frames could go.
     registration = await registrar.register()
+    if standalone:
+        # Only now: Fluent Bit's bearer token is the device secret, which the broker rejects until it's registered.
+        # A renderer for a separate screen (countdown-server) has the host's own Fluent Bit to report to instead.
+        enable_log_shipping(registration.device_secret)
 
     display = DisplayController(make_target(registration))
     status.display = display

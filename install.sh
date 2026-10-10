@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
-# Provisions a Pi with countdown, from one tagged release: decrypts countdown's secrets, runs its installer, and schedules
+# Provisions a Pi with countdown and Fluent Bit (which ships the Pi's logs and metrics), from one tagged
+# release: decrypts countdown's secrets, runs its installer, and schedules
 # check_update.sh to keep the Pi on the latest release. See README.md.
 #
 # Usage:
@@ -51,7 +52,7 @@ PREVIOUS_NAME_FILE="$DEVICE_NAME_FILE"
 [ -f "$PREVIOUS_NAME_FILE" ] || PREVIOUS_NAME_FILE="$LEGACY_DEVICE_ID_FILE"
 if [ -f "$PREVIOUS_NAME_FILE" ] && [ "$(cat "$PREVIOUS_NAME_FILE")" != "$DEVICE_NAME" ]; then
     echo "Warning: changing device name from \"$(cat "$PREVIOUS_NAME_FILE")\" to \"$DEVICE_NAME\"." >&2
-    echo "         Its metrics will show up under the new name." >&2
+    echo "         Its logs and metrics will show up under the new name." >&2
 fi
 echo "$DEVICE_NAME" > "$DEVICE_NAME_FILE"
 rm -f "$LEGACY_DEVICE_ID_FILE"
@@ -154,7 +155,7 @@ write_env_file "$COUNTDOWN_ENV_FILE" "DEVICE_NAME=$DEVICE_NAME"
 chmod 644 "$COUNTDOWN_ENV_FILE"
 systemctl restart countdown
 
-# pi-telemetry, which is gone.
+# pi-telemetry, which fluent-bit replaced.
 if [ -d /opt/pi-telemetry ] || [ -d /etc/pi-telemetry ]; then
     echo "Removing pi-telemetry..."
     systemctl disable --now pi-telemetry.timer pi-telemetry.service 2>/dev/null || true
@@ -170,6 +171,36 @@ install -m 644 "$TMP_DIR/src/systemd/90-pi-dashboard-journal.conf" /etc/systemd/
 systemctl restart systemd-journald
 
 echo
+echo "== fluent-bit =="
+if ! command -v /opt/fluent-bit/bin/fluent-bit >/dev/null 2>&1; then
+    echo "Installing Fluent Bit..."
+    install -d -m 755 /usr/share/keyrings
+    curl -fsSL https://packages.fluentbit.io/fluentbit.key | gpg --dearmor --yes -o /usr/share/keyrings/fluentbit-keyring.gpg
+    CODENAME="$(. /etc/os-release && echo "$VERSION_CODENAME")"
+    echo "deb [signed-by=/usr/share/keyrings/fluentbit-keyring.gpg] https://packages.fluentbit.io/debian/$CODENAME $CODENAME main" \
+        > /etc/apt/sources.list.d/fluent-bit.list
+    apt-get update
+    apt-get install -y --no-install-recommends fluent-bit
+fi
+
+# countdown (running as the install user) writes /etc/fluent-bit/env once it has registered with the broker,
+# so the directory is the install user's. Fluent Bit's own unit only runs once that file exists.
+install -d -o "${SUDO_USER:-root}" -m 755 /etc/fluent-bit
+install -m 644 "$TMP_DIR/src/fluent-bit/fluent-bit.yaml" /etc/fluent-bit/fluent-bit.yaml
+
+install -d /etc/systemd/system/fluent-bit.service.d
+sed "s|@USER@|${SUDO_USER:-root}|" "$TMP_DIR/src/systemd/fluent-bit-env.conf" \
+    > /etc/systemd/system/fluent-bit.service.d/env.conf
+chmod 644 /etc/systemd/system/fluent-bit.service.d/env.conf
+install -m 644 "$TMP_DIR/src/systemd/fluent-bit-env.path" "$TMP_DIR/src/systemd/fluent-bit-restart.service" \
+    /etc/systemd/system/
+systemctl daemon-reload
+systemctl enable fluent-bit fluent-bit-env.path
+systemctl start fluent-bit-env.path
+# Starts it if countdown has registered already, and stops the package's default instance if not.
+systemctl restart fluent-bit
+
+echo
 echo "== updates =="
 install -m 755 "$TMP_DIR/src/check_update.sh" /usr/local/sbin/pi-dashboard-check-update
 install -m 644 "$TMP_DIR/src/systemd/pi-dashboard-update.service" \
@@ -180,6 +211,7 @@ systemctl enable --now pi-dashboard-update.timer
 echo "$TAG" > "$INSTALLED_TAG_FILE"
 
 echo
-echo "Done. countdown is installed ($TAG)."
+echo "Done. countdown and fluent-bit are both installed ($TAG)."
 echo "  systemctl status countdown"
+echo "  systemctl status fluent-bit   # runs once countdown has registered"
 echo "  systemctl list-timers pi-dashboard-update.timer"

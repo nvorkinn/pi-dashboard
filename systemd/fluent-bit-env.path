@@ -1,0 +1,9 @@
+[Unit]
+Description=Start Fluent Bit once countdown has registered, and restart it when the secret changes
+
+[Path]
+PathChanged=/etc/fluent-bit/env
+Unit=fluent-bit-restart.service
+
+[Install]
+WantedBy=multi-user.target
