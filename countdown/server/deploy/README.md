@@ -21,12 +21,17 @@ docker build -f server/Dockerfile -t countdown-server:dev .
 
 ## Adding a screen
 
-1. In `docker-compose.yml`, copy the `example-screen` service and its two volumes, renaming all three
-   and setting `DEVICE_NAME` (it labels the device on the broker).
-2. `docker compose up -d <name>`.
+The renderers are the services in `docker-compose.yml`, and a release deploys them (below).
+
+1. Copy the `nikolai` service and its two volumes in `docker-compose.yml`, renaming all three and setting
+   `DEVICE_NAME` (it labels the device on the broker).
+2. Merge it and cut a release. The deploy creates the renderer, and updates the others.
 3. Set up the screen (`countdown-client` or the ESP32). The renderer and the screen each wait in
    the broker's pool until the other arrives, then become one device; `flask devices pending` on
    the broker shows who's waiting. The renderer then draws the pairing code for the screen.
+
+To remove one, delete its service. The next deploy stops and deletes it, **with its volumes**: the identity and
+its key. Adding it back registers a new device.
 
 Each renderer's identity, `.auth_broker_device`, lives in its volume (`/data`). Keep the volume
 and the renderer stays the same device across restarts and upgrades; remove it and the renderer
@@ -50,11 +55,27 @@ There's no Fluent Bit in the container. Its health metrics go to the host's own 
 compose file uses host networking so the container can reach it), which also ships the host's logs; the renderer
 needs no token. Without a Fluent Bit listening there it logs a warning each minute.
 
+## Deploying
+
+`release.yml`'s `deploy-renderers` job runs once a release's assets are uploaded. It waits for approval of the
+`deploy-renderers` environment, then sends `docker-compose.yml` and `deploy.sh` to the host over ssh, into
+`/opt/countdown-renderers`, and runs `deploy.sh <tag>`. That pins every renderer to the release's image in
+`.env`, pulls it, and brings up the renderers that are new or changed. The release is still a pre-release then, so
+renderers can be ahead of the Pis until it's promoted.
+
+Set up once, in the repo's Settings:
+
+- An environment `deploy-renderers`, with yourself as a required reviewer (without one, it deploys unasked).
+- Secrets `DEPLOY_USER`, `DEPLOY_HOST`, `ORACLE_SSH_TOKEN` (the private key) and `DEPLOY_SSH_KNOWN_HOSTS`. They're
+  the same values as auth-broker's.
+- On the host, a folder the deploy user can write: `sudo install -d -o <user> /opt/countdown-renderers`.
+
 ## Day to day
 
 ```sh
-docker compose logs -f <name>            # what a renderer is doing
-docker compose pull && docker compose up -d   # upgrade to the latest promoted release
+cd /opt/countdown-renderers
+docker compose logs -f <name>      # what a renderer is doing
+docker compose ps
 ```
 
-To hold back, set `COUNTDOWN_SERVER_VERSION=<tag>` in a `.env` next to `docker-compose.yml`.
+To hold back or roll back, re-run an older release's `deploy-renderers` job from the Actions tab.

@@ -118,3 +118,35 @@ jobs:
             secrets.zip \
             install.sh \
             --title "$GITHUB_REF_NAME" --generate-notes --prerelease
+
+  deploy-renderers:
+    # Brings up the renderers listed in countdown/server/deploy/docker-compose.yml on the Docker host, pinned to
+    # this release's image. It waits for the deploy-renderers environment's approval (Settings > Environments), as
+    # the release is still a pre-release at this point. The host gets the files over ssh, not from the release,
+    # because this repo is private.
+    needs: release
+    runs-on: ubuntu-latest
+    environment: deploy-renderers
+    concurrency:
+      group: deploy-renderers
+      cancel-in-progress: false
+    env:
+      DEPLOY_TARGET: ${{ secrets.DEPLOY_USER }}@${{ secrets.DEPLOY_HOST }}
+    steps:
+      - uses: actions/checkout@v7
+      - name: Set up SSH
+        env:
+          ORACLE_SSH_TOKEN: ${{ secrets.ORACLE_SSH_TOKEN }}
+          DEPLOY_SSH_KNOWN_HOSTS: ${{ secrets.DEPLOY_SSH_KNOWN_HOSTS }}
+        run: |
+          install -m 700 -d ~/.ssh
+          printf '%s\n' "$ORACLE_SSH_TOKEN" > ~/.ssh/id_deploy
+          chmod 600 ~/.ssh/id_deploy
+          printf '%s\n' "$DEPLOY_SSH_KNOWN_HOSTS" > ~/.ssh/known_hosts
+      - name: Deploy the renderers
+        run: |
+          # The tag is passed to a shell on the host, so keep it to safe characters.
+          [[ "$GITHUB_REF_NAME" =~ ^v[0-9]+(\.[0-9]+)*(-[0-9A-Za-z.]+)?$ ]] || { echo "Unexpected tag $GITHUB_REF_NAME" >&2; exit 1; }
+          tar -czf - -C countdown/server/deploy docker-compose.yml deploy.sh \
+            | ssh -i ~/.ssh/id_deploy "$DEPLOY_TARGET" \
+              "set -e; d=/opt/countdown-renderers; mkdir -p \$d; tar -xzf - -C \$d; DEPLOY_DIR=\$d bash \$d/deploy.sh $GITHUB_REF_NAME"
