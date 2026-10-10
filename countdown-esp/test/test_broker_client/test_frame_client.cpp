@@ -50,7 +50,7 @@ void test_the_first_tick_registers_then_polls_the_frame() {
   TEST_ASSERT_EQUAL_STD_STRING("POST", poll.method);
   TEST_ASSERT_EQUAL_STD_STRING(kFrameUrl, poll.url);
   TEST_ASSERT_EQUAL_STD_STRING(
-      R"({"role":"display","metrics":{"logs_dropped":0},)"
+      R"({"role":"display","metrics":"esp32,device_id={device_id} logs_dropped=0i",)"
       R"("logs":[{"uptime_ms":0,"level":"INFO","message":"Registered with the broker"}]})",
       poll.body);
   TEST_ASSERT_EQUAL_STD_STRING("shh", poll.bearer);
@@ -211,7 +211,8 @@ void test_polls_carry_the_metrics_and_how_many_lines_were_dropped() {
   c.client.tick();
 
   TEST_ASSERT_NOT_EQUAL(std::string::npos,
-                        c.lastBody().find(R"("metrics":{"free_heap":182344,"wifi_rssi":-61,"logs_dropped":0})"));
+                        c.lastBody().find(
+                            R"("metrics":"esp32,device_id={device_id} free_heap=182344i,wifi_rssi=-61i,logs_dropped=0i")"));
 }
 
 void test_polls_carry_the_logs_with_their_uptime_level_and_escaped_message() {
