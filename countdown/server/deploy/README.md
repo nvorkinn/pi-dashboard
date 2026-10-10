@@ -58,24 +58,22 @@ needs no token. Without a Fluent Bit listening there it logs a warning each minu
 ## Deploying
 
 `release.yml`'s `deploy-renderers` job runs once a release's assets are uploaded. It waits for approval of the
-`deploy-renderers` environment, then sends `docker-compose.yml` and `deploy.sh` to the host over ssh, into
-`/opt/countdown-renderers`, and runs `deploy.sh <tag>`. That pins every renderer to the release's image in
-`.env`, pulls it, and brings up the renderers that are new or changed. The release is still a pre-release then, so
-renderers can be ahead of the Pis until it's promoted.
+`deploy-renderers` environment, then runs `deploy.sh <tag>` on the runner against the host's Docker daemon over
+ssh (`DOCKER_HOST=ssh://...`), so the host needs nothing installed but Docker. That pins every renderer to the
+release's image, pulls it, and brings up the renderers that are new or changed. The release is still a
+pre-release then, so renderers can be ahead of the Pis until it's promoted.
 
 Set up once, in the repo's Settings:
 
 - An environment `deploy-renderers`, with yourself as a required reviewer (without one, it deploys unasked).
 - Secrets `DEPLOY_USER`, `DEPLOY_HOST`, `ORACLE_SSH_TOKEN` (the private key) and `DEPLOY_SSH_KNOWN_HOSTS`. They're
-  the same values as auth-broker's.
-- On the host, a folder the deploy user can write: `sudo install -d -o <user> /opt/countdown-renderers`.
+  the same values as auth-broker's. The user must be able to use Docker (be in the `docker` group).
 
 ## Day to day
 
 ```sh
-cd /opt/countdown-renderers
-docker compose logs -f <name>      # what a renderer is doing
-docker compose ps
+docker logs -f countdown-renderers-<name>-1   # what a renderer is doing, on the host
+docker ps --filter label=com.docker.compose.project=countdown-renderers
 ```
 
 To hold back or roll back, re-run an older release's `deploy-renderers` job from the Actions tab.
