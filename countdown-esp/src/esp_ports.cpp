@@ -52,7 +52,8 @@ class VectorStream : public Stream {
 EspHttp::EspHttp(const char* rootCerts) { client_.setCACert(rootCerts); }
 
 countdown::HttpResponse EspHttp::request(const std::string& method, const std::string& url,
-                                         const std::string& jsonBody, const std::string& bearer) {
+                                         const std::string& jsonBody, const std::string& bearer,
+                                         const std::string& ifNoneMatch) {
   countdown::HttpResponse response;
   HTTPClient http;
   http.setConnectTimeout(countdown::kRequestTimeoutS * 1000);
@@ -63,8 +64,11 @@ countdown::HttpResponse EspHttp::request(const std::string& method, const std::s
   }
   http.addHeader("Content-Type", "application/json");
   http.addHeader("Authorization", ("Bearer " + bearer).c_str());
-  const char* collected[] = {"Retry-After"};
-  http.collectHeaders(collected, 1);
+  if (!ifNoneMatch.empty()) {
+    http.addHeader("If-None-Match", ifNoneMatch.c_str());
+  }
+  const char* collected[] = {"Retry-After", "ETag"};
+  http.collectHeaders(collected, 2);
 
   const int status = http.sendRequest(method.c_str(), reinterpret_cast<uint8_t*>(const_cast<char*>(jsonBody.data())),
                                       jsonBody.size());
@@ -77,6 +81,9 @@ countdown::HttpResponse EspHttp::request(const std::string& method, const std::s
   response.status = status;
   if (http.hasHeader("Retry-After")) {
     response.retryAfter = http.header("Retry-After").c_str();
+  }
+  if (http.hasHeader("ETag")) {
+    response.etag = http.header("ETag").c_str();
   }
   const int size = http.getSize();
   if (size != 0) {

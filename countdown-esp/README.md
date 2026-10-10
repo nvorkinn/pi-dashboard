@@ -64,6 +64,9 @@ gcovr --root . --filter lib/ --gcov-executable "xcrun llvm-cov gcov" .pio/build/
    [What each poll sends](#what-each-poll-sends).
 4. Each new frame (a `200`) is drawn on the panel: wake it, send the frame, refresh (about 4 seconds),
    and put it back into deep sleep, as `countdown-client` does on the Pi.
+   The board remembers the frame's `ETag` and sends it as `If-None-Match` on later polls, so the broker
+   answers `304` with no body until the frame changes. It's kept in memory only: after a restart the
+   first poll fetches and draws the frame again.
 
 ## What each poll sends
 

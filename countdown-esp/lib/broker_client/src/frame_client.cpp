@@ -56,7 +56,7 @@ void FrameClient::tick() {
   metrics.push_back({"logs_dropped", static_cast<int64_t>(log_.dropped())});
   const std::deque<LogEntry>& logs = log_.entries();
   const uint64_t sentThrough = logs.empty() ? 0 : logs.back().seq;
-  const HttpResponse response = http_.request("POST", url, pollBody(metrics, logs), registrar_.secret());
+  const HttpResponse response = http_.request("POST", url, pollBody(metrics, logs), registrar_.secret(), etag_);
   if (!response.sent) {
     log_.warning("Couldn't fetch the frame: " + response.error);
     sleeper_.sleepSeconds(kDefaultRetryS);
@@ -73,7 +73,10 @@ void FrameClient::tick() {
       log_.info("Got a frame (" + std::to_string(response.body.size()) + " bytes)");
       // Where the Pi's client would crash (and systemd restart it), this logs and carries on
       // polling: the next frame the broker sends is drawn as usual.
-      if (!display_.show(response.body)) {
+      if (display_.show(response.body)) {
+        // Only a frame that's on the panel: one that couldn't be drawn is asked for again.
+        etag_ = response.etag.value_or("");
+      } else {
         log_.error("Couldn't draw the frame");
       }
       break;

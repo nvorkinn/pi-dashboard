@@ -22,6 +22,7 @@ struct SentRequest {
   std::string url;
   std::string body;
   std::string bearer;
+  std::string ifNoneMatch;
   // What the Store held as the device secret when the request went out.
   std::optional<std::string> storedSecret;
 };
@@ -45,19 +46,21 @@ class FakeHttp : public Http {
   explicit FakeHttp(Store& store) : store_(store) {}
 
   HttpResponse request(const std::string& method, const std::string& url, const std::string& jsonBody,
-                       const std::string& bearer) override {
-    requests.push_back({method, url, jsonBody, bearer, store_.get(kDeviceSecretKey)});
+                       const std::string& bearer, const std::string& ifNoneMatch) override {
+    requests.push_back({method, url, jsonBody, bearer, ifNoneMatch, store_.get(kDeviceSecretKey)});
     TEST_ASSERT_FALSE_MESSAGE(responses.empty(), "A request the test didn't script a response for");
     HttpResponse response = responses.front();
     responses.pop_front();
     return response;
   }
 
-  void reply(int status, std::optional<std::string> retryAfter = std::nullopt, const std::string& body = "") {
+  void reply(int status, std::optional<std::string> retryAfter = std::nullopt, const std::string& body = "",
+             std::optional<std::string> etag = std::nullopt) {
     HttpResponse response;
     response.sent = true;
     response.status = status;
     response.retryAfter = std::move(retryAfter);
+    response.etag = std::move(etag);
     response.body.assign(body.begin(), body.end());
     responses.push_back(response);
   }

@@ -22,7 +22,7 @@ void DisplayRegistrar::registerDevice() {
   while (true) {
     // The secret is URL-safe base64, so it needs no escaping.
     const std::string body = R"({"role":"display","secret":")" + secret_ + R"("})";
-    const HttpResponse response = http_.request("POST", url, body, secret_);
+    const HttpResponse response = http_.request("POST", url, body, secret_, "");
     if (!response.sent) {
       log_.warning("Couldn't register with the broker: " + response.error);
       sleeper_.sleepSeconds(kDefaultRetryS);

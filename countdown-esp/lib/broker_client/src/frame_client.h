@@ -2,6 +2,8 @@
 
 // Fetching finished frames from the broker: the port of countdown_client.client.Client.
 
+#include <string>
+
 #include "display_registrar.h"
 #include "log_buffer.h"
 #include "ports.h"
@@ -27,6 +29,9 @@ class FrameClient {
   LogBuffer& log_;
   Metrics& metrics_;
   bool registered_ = false;
+  // The ETag of the frame on the panel, sent as If-None-Match so the broker answers 304 instead of
+  // sending the same frame again. Empty until a frame has been drawn.
+  std::string etag_;
 };
 
 }  // namespace countdown
