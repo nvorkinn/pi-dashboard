@@ -91,8 +91,6 @@ echo "Installing the countdown wheels with uv tool..."
 # alongside. Never leave one out: uv would then look the name up on PyPI, where anyone could
 # publish a package by that name.
 run_as_target "uv tool install --force '$STANDALONE_WHEEL' --with '$CORE_WHEEL' --with '$CREDENTIALS_WHEEL' --with '$EPD_WHEEL'"
-# Releases before the core/standalone split installed a tool called just "countdown".
-run_as_target "uv tool uninstall countdown" >/dev/null 2>&1 || true
 
 EXEC_START="$(run_as_target "uv tool dir --bin")/countdown-standalone"
 if [ ! -e "$EXEC_START" ]; then

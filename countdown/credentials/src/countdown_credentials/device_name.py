@@ -31,8 +31,5 @@ def resolve_device_name(configured: str | None, hostname: str | None) -> str:
 
 
 def device_name_from_env() -> str:
-    """DEVICE_NAME, or DEVICE_ID from an env file an older install.sh wrote, or else the hostname."""
-    configured = next(
-        (v for v in (os.environ.get("DEVICE_NAME"), os.environ.get("DEVICE_ID")) if v and v.strip()), None
-    )
-    return resolve_device_name(configured, socket.gethostname())
+    """DEVICE_NAME, or else the hostname."""
+    return resolve_device_name(os.environ.get("DEVICE_NAME"), socket.gethostname())

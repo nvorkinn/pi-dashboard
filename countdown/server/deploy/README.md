@@ -45,8 +45,6 @@ volume (`<name>-key`, mounted at `/keys`), and needs no setup. Keep both volumes
 gone the encrypted file can't be read, and the renderer refuses to start rather than quietly becoming a new
 device. To start over, remove `.auth_broker_device` from the data volume.
 
-A renderer that already has a plain file keeps its identity: it's encrypted the first time it starts with the key.
-
 The key protects the data volume on its own, not the host: anyone who can read both volumes has both. To keep the
 key off the host's volumes altogether, mount it as a Docker secret named `credentials-key` instead, which the
 renderer uses in preference.

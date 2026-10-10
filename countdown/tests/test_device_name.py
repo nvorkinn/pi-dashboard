@@ -38,24 +38,10 @@ def test_from_env_reads_device_name(monkeypatch, hostname):
     assert device_name_from_env() == "sister-hat"
 
 
-def test_from_env_falls_back_to_the_device_id_an_older_install_wrote(monkeypatch, hostname):
-    monkeypatch.setenv("DEVICE_ID", "sister-hat")
-
-    assert device_name_from_env() == "sister-hat"
-
-
-def test_from_env_prefers_device_name_to_device_id(monkeypatch, hostname):
-    monkeypatch.setenv("DEVICE_NAME", "new-name")
-    monkeypatch.setenv("DEVICE_ID", "old-name")
-
-    assert device_name_from_env() == "new-name"
-
-
 def test_from_env_skips_a_blank_device_name(monkeypatch, hostname):
     monkeypatch.setenv("DEVICE_NAME", "  ")
-    monkeypatch.setenv("DEVICE_ID", "sister-hat")
 
-    assert device_name_from_env() == "sister-hat"
+    assert device_name_from_env() == "raspberrypi"
 
 
 def test_from_env_falls_back_to_the_hostname(hostname):

@@ -14,6 +14,7 @@ import countdown_epd
 from countdown_client import client as client_module
 from countdown_client import main as client_main
 from countdown_client.client import Client
+from countdown_credentials.credentials_key import credentials_key
 from countdown_credentials.registration import CREDENTIALS_FILE, DEFAULT_RETRY_S, REQUEST_TIMEOUT_S, DisplayRegistrar
 
 BROKER_URL = "https://broker.example.com"
@@ -24,7 +25,7 @@ FRAME_URL = f"{BROKER_URL}/api/frame"
 @pytest.fixture(autouse=True)
 def client_env(isolated_cwd, monkeypatch):
     monkeypatch.setenv("BROKER_URL", BROKER_URL)
-    CREDENTIALS_FILE.write_text(json.dumps({"device_secret": "shh"}))
+    CREDENTIALS_FILE.write_bytes(credentials_key().encrypt(json.dumps({"device_secret": "shh"}).encode()))
 
 
 @pytest.fixture
