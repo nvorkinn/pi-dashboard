@@ -9,19 +9,13 @@ repo:
   display. For a screen that only shows frames, its renderer runs as a Docker
   container next to the auth broker instead: see
   [`countdown/server/deploy/`](countdown/server/deploy/).
-- [`pi-telemetry/`](pi-telemetry/) -- a short-lived Rust binary, run once a
-  minute by a systemd timer, that reports Pi telemetry to Home Assistant over
-  MQTT.
 - [`countdown-esp/`](countdown-esp/) -- ESP32 firmware for the countdown
   (PlatformIO, Arduino, C++).
-- Root -- `install.sh`, which provisions a Pi with both, and `secrets/`, the
+- Root -- `install.sh`, which provisions a Pi with countdown, and `secrets/`, the
   encrypted config it hands them.
 
-The two apps are always deployed together and share config (`DEVICE_NAME` and
-the `DEVICE_NAME` in `/etc/pi-telemetry/env`), so they're released together:
-one tag builds the countdown wheel, the pi-telemetry binary and the secrets
-bundle, and `install.sh` installs exactly that tag. Each app is still its own
-systemd unit, and its own installer can be used on its own.
+Everything is released together: one tag builds the countdown wheel, the
+firmware and the secrets bundle, and `install.sh` installs exactly that tag.
 
 Uses the [`gh` CLI](https://cli.github.com) (bootstrapped automatically if
 missing) to resolve releases and download assets, since it handles
@@ -96,40 +90,36 @@ crash or reboot survive it. It keeps up to three days, in at most 50 MB.
 
 Push a `v*` tag on a commit that's on `main`; `.github/workflows/release.yml`
 builds everything and creates the GitHub release. The tag is the version of
-both apps -- it's stamped into the wheel and the binary at build time, so the
-`version` in `countdown/pyproject.toml` and `pi-telemetry/Cargo.toml` is just
-a placeholder and doesn't need bumping.
+the app -- it's stamped into the wheels at build time, so the
+`version` in `countdown/pyproject.toml` is just a placeholder and doesn't need bumping.
 
 Each app also has its own CI workflow that only runs when files under its
 folder change (`.github/workflows/countdown-ci.yml`,
-`.github/workflows/pi-telemetry-ci.yml`, `.github/workflows/firmware.yml`).
+`.github/workflows/firmware.yml`).
 
 ## Device name
 
-Each Pi needs a name that identifies it in Home Assistant -- pick something
+Each Pi needs a name that identifies it in its metrics -- pick something
 that says whose it is, e.g. `sister-hat`. It's the second argument to
 `install.sh`. The name is sanitized (trimmed, lowercased, anything outside
-`[a-z0-9_-]` becomes `-`, same rules as pi-telemetry's `device_name.rs`) and
-written as `DEVICE_NAME=<name>` into `/etc/pi-telemetry/env`, which both apps'
-systemd units load, replacing any `DEVICE_NAME` already there. It's also saved to `/etc/pi-setup/device-name`.
-Releases before the rename called it `DEVICE_ID` (and `/etc/pi-setup/device-id`); both apps still read
-`DEVICE_ID` when there's no `DEVICE_NAME`, and the next `install.sh` replaces both.
+`[a-z0-9_-]` becomes `-`, same rules as `countdown_credentials/device_name.py`) and
+written as `DEVICE_NAME=<name>` into `/etc/countdown/env` (loaded by countdown's systemd unit), replacing
+any `DEVICE_NAME` already there. It's also saved to
+`/etc/pi-setup/device-name`. Releases before the rename called it `DEVICE_ID` (and `/etc/pi-setup/device-id`);
+countdown still reads `DEVICE_ID` when there's no `DEVICE_NAME`, and the next `install.sh` replaces both.
 
 It isn't the `device_id` the auth broker gives a renderer when it registers.
 
-pi-telemetry uses it in its MQTT client ID, topics and HA device, and countdown as the
-`host.name` on its OTLP metrics.
+countdown sends it to the broker as the `X-Device-Name` header and as the `host.name` on its OTLP metrics.
 Don't put `DEVICE_NAME` in the encrypted secrets -- they're shared by every
 Pi, and `install.sh` overwrites it anyway.
 
-Re-running with a different name changes it, and HA will treat it as a
-new device (the old one's entities are orphaned), so `install.sh` warns
-when that happens. Re-run with the same name to keep it.
+Re-running with a different name changes it, and its metrics then show up under the new
+`host.name`, so `install.sh` warns when that happens. Re-run with the same name to keep it.
 
 ## How secrets work
 
-Each app's real secrets file (countdown's `.env`, pi-telemetry's
-`/etc/pi-telemetry/env`) is encrypted with [age](https://age-encryption.org)
+Each real secrets file (countdown's `.env`) is encrypted with [age](https://age-encryption.org)
 and committed here as `secrets/<app>.env.age`. `install.sh` gets them from
 the `secrets.zip` release asset (built by `.github/workflows/release.yml`)
 via `gh release download`, not a direct file fetch. There's one keypair for
@@ -146,29 +136,22 @@ all of it:
 
 If a given `secrets/<app>.env.age` doesn't exist yet, `install.sh` skips it
 and that app falls back to its own defaults (countdown gets its config from
-auth-broker anyway; pi-telemetry seeds a placeholder env you have to edit by
-hand).
+auth-broker anyway).
 
 ### Adding or updating a secret
 
-Edit the real file locally (e.g. a scratch copy of countdown's `.env` or
-pi-telemetry's `pi-telemetry/systemd/env.example` filled in with real values), then:
+Edit the real file locally (e.g. a scratch copy of countdown's `.env`), then:
 
 ```sh
 age -e -r age1mrlql83ne3jewsuqzemmlrxsdscn9sqlksl4uqhy8da5krn75usq5u46ak \
     -o secrets/countdown.env.age /path/to/real/.env
-
-age -e -r age1mrlql83ne3jewsuqzemmlrxsdscn9sqlksl4uqhy8da5krn75usq5u46ak \
-    -o secrets/pi-telemetry.env.age /path/to/real/env
 ```
 
 Commit the resulting `.age` file. It's ciphertext -- safe in git even
 though the repo is private anyway. Since `install.sh` only ever reads
 secrets from the release tag it was fetched at, a new secret doesn't take
 effect anywhere until you **cut a new release** (push a new tag) and re-run
-the installer against it. It also won't overwrite pi-telemetry's env if one
-already exists on disk -- delete `/etc/pi-telemetry/env` on the Pi first if
-you want the new encrypted value to actually take effect there.
+the installer against it.
 
 ### Rotating the age key
 

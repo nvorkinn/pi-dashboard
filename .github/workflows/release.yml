@@ -6,9 +6,6 @@ on:
       - "v*"
 
 env:
-  CARGO_TERM_COLOR: always
-  BIN_NAME: pi-telemetry
-  TARGET: aarch64-unknown-linux-gnu
   SERVER_IMAGE: ghcr.io/nvorkinn/countdown-server
 
 # Jobs that need more (packages, releases) ask for it themselves.
@@ -92,34 +89,9 @@ jobs:
     needs: verify-tag
     uses: ./.github/workflows/firmware.yml
 
-  build-rust:
-    needs: verify-tag
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v7
-      - name: Stamp version
-        run: |
-          version="${GITHUB_REF_NAME#v}"
-          sed -i -E '0,/^version = ".*"/s//version = "'"$version"'"/' pi-telemetry/Cargo.toml
-      - uses: dtolnay/rust-toolchain@stable
-        with:
-          targets: ${{ env.TARGET }}
-      - uses: taiki-e/install-action@v2
-        with:
-          tool: cross
-      - name: Build pi-telemetry
-        working-directory: pi-telemetry
-        run: |
-          cross build --release --target ${{ env.TARGET }}
-          cp target/${{ env.TARGET }}/release/${{ env.BIN_NAME }} ../${{ env.BIN_NAME }}-${{ env.TARGET }}
-      - uses: actions/upload-artifact@v4
-        with:
-          name: pi-telemetry-binary
-          path: ${{ env.BIN_NAME }}-${{ env.TARGET }}
-
   release:
     # The image too, so a GitHub release is only created once everything it ships exists.
-    needs: [build-python, build-server-image, build-rust, build-firmware]
+    needs: [build-python, build-server-image, build-firmware]
     runs-on: ubuntu-latest
     permissions:
       contents: write
@@ -129,9 +101,6 @@ jobs:
         with:
           name: countdown-wheel
           path: countdown/dist
-      - uses: actions/download-artifact@v4
-        with:
-          name: pi-telemetry-binary
       - uses: actions/download-artifact@v4
         with:
           name: firmware
@@ -145,7 +114,6 @@ jobs:
           gh release create "$GITHUB_REF_NAME" \
             countdown/dist/*.whl \
             countdown/packaging/systemd/countdown.service \
-            "${{ env.BIN_NAME }}-${{ env.TARGET }}" \
             firmware/*.bin \
             secrets.zip \
             install.sh \

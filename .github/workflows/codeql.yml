@@ -37,9 +37,6 @@ jobs:
             python:
               - 'countdown/**'
               - '.github/workflows/codeql.yml'
-            rust:
-              - 'pi-telemetry/**'
-              - '.github/workflows/codeql.yml'
             cpp:
               - 'countdown-esp/**'
               - '.github/workflows/codeql.yml'
@@ -55,7 +52,7 @@ jobs:
           if [ "$EVENT" = "pull_request" ]; then
             echo "languages=$CHANGED" >> "$GITHUB_OUTPUT"
           else
-            echo 'languages=["actions","python","rust","cpp"]' >> "$GITHUB_OUTPUT"
+            echo 'languages=["actions","python","cpp"]' >> "$GITHUB_OUTPUT"
           fi
 
   analyze:

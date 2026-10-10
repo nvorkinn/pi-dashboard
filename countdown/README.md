@@ -158,7 +158,7 @@ it.
 
 Each tagged release publishes the `countdown-standalone` and `countdown-core`
 wheels and a `countdown.service` unit to
-GitHub Releases (see `.github/workflows/release.yml` at the repo root; the release is shared with pi-telemetry, so the tag is the repo-wide one). `packaging/install.sh`
+GitHub Releases (see `.github/workflows/release.yml` at the repo root; the tag is the repo-wide one). `packaging/install.sh`
 downloads a release, installs it with `uv tool install` (as the
 `countdown-standalone` tool), and sets it up as a
 systemd service.
@@ -190,7 +190,7 @@ curl -fsSL -H "Authorization: Bearer $GITHUB_TOKEN" \
 From there `install.sh` uses the [`gh` CLI](https://cli.github.com), installing
 it if it's missing (see the [root README](../README.md) for why).
 
-If you're provisioning a Pi with pi-telemetry too, use the repo-root
+If you're provisioning a Pi, use the repo-root
 [`install.sh`](../README.md#install) instead -- it wraps this installer and
 installs everything else you need in one command.
 
@@ -221,7 +221,7 @@ secret file on the device at all.
 
 Countdown reports its health as OTLP/HTTP metrics (protobuf, via the OpenTelemetry Python SDK) to the local Fluent Bit's
 OpenTelemetry input at `http://127.0.0.1:4318/v1/metrics`. They're tagged with
-`host.name`, the `DEVICE_NAME` that `install.sh` wrote to `/etc/pi-telemetry/env`
+`host.name`, the `DEVICE_NAME` that `install.sh` wrote to `/etc/countdown/env`
 (see the repo root's README). Gauges:
 
 - `countdown.api.status`: 1 per API, with `api` and `status` attributes
@@ -235,6 +235,9 @@ device still registering with the broker shows up (as `waiting_for_broker`). Met
 are sent once a minute, and straight away when the stage changes. A failed send is
 logged and retried at the next interval. The env file is only read when the service
 starts, so restart countdown (`sudo systemctl restart countdown`) after editing it.
+
+The service also loads `/etc/countdown/env` (if it exists) for `DEVICE_NAME`, which the repo-root `install.sh` writes.
+The file is only read when the service starts.
 
 Once installed:
 
