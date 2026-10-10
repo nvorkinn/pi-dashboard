@@ -19,7 +19,9 @@ METRICS_URL = "http://127.0.0.1:4318/v1/metrics"
 
 # Once a minute, like pi-telemetry.
 EXPORT_INTERVAL_MS = 60_000
-EXPORT_TIMEOUT_MS = 10_000
+# Per export, retries included. With no collector listening an export retries until this is up, and
+# an export in flight holds up the app's exit, which a container only gets 10s for.
+EXPORT_TIMEOUT_MS = 3_000
 UNHEALTHY = frozenset({ClientStatus.ERROR, ClientStatus.FATAL})
 
 
@@ -62,6 +64,8 @@ class OtlpPublisher:
         self._provider = MeterProvider(
             resource=Resource.create({SERVICE_NAME: "countdown", HOST_NAME: self.device_name}),
             metric_readers=[reader],
+            # No final export at exit: the SDK's would retry against a collector that's down.
+            shutdown_on_exit=False,
         )
         meter = self._provider.get_meter("countdown")
         meter.create_observable_gauge("countdown.api.status", [self._api_status], "1")
