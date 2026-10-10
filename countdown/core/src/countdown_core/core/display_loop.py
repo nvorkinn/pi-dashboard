@@ -12,7 +12,7 @@ from countdown_core.config_server.models import (
 )
 from countdown_core.core.api_registry import API_NAMES, ApiRegistry
 from countdown_core.core.display import DisplayController
-from countdown_core.home_assistant.mqtt_publisher import MqttPublisher
+from countdown_core.home_assistant.otlp_publisher import OtlpPublisher
 from countdown_core.system_screens.pairing_code_panel import PairingCodePanel
 from countdown_core.system_screens.setup_panel import SetupPanel
 
@@ -48,12 +48,13 @@ class DisplayLoop:
         self.interval = config.interval
         self.display = display if display is not None else DisplayController()
         # Without a registry of its own, one whose publisher reports nowhere.
-        self.api_reg = api_reg if api_reg is not None else ApiRegistry(broker.registration, MqttPublisher(API_NAMES))
+        self.api_reg = api_reg if api_reg is not None else ApiRegistry(broker.registration, OtlpPublisher(API_NAMES))
         self._setup_shown: list[str] | None = None
         self._published_stage: str | None = None
 
     async def run(self) -> None:
         started = time.monotonic()
+        self.api_reg.pub.start()
         await self.api_reg.on_config_update(self.config)
         self._apply_layout()
         first_cycle_done = False
@@ -82,7 +83,7 @@ class DisplayLoop:
             except Exception as e:
                 logger.exception(f"Unexpected error: {e}")
 
-            # The publisher reports every minute by itself; a new stage is worth telling HA at once.
+            # The publisher reports every minute by itself; a new stage is worth reporting at once.
             stage = self.api_reg.status.stage
             if stage != self._published_stage:
                 self.api_reg.pub.publish_soon()

@@ -185,17 +185,12 @@ def booted(monkeypatch):
         seen["order"].append("config")
         return make_config(), "the pairing panel"
 
-    def fake_start(publisher):
-        seen["order"].append("publish")
-        seen["publisher"] = publisher
-
     def make_target(registration):
         seen["order"].append("target")
         seen["target_registration"] = registration
         return "the target"
 
     fake_display = SimpleNamespace(panel_connected=True, shutdown=lambda: seen["order"].append("panel asleep"))
-    monkeypatch.setattr(app.MqttPublisher, "start", fake_start)
     monkeypatch.setattr(RendererRegistrar, "register", fake_register)
     monkeypatch.setattr(app, "DisplayController", lambda target: seen.update(target=target) or fake_display)
     monkeypatch.setattr(app, "DisplayLoop", FakeLoop)
@@ -213,10 +208,10 @@ def booted(monkeypatch):
     return boot
 
 
-def test_run_reports_to_home_assistant_from_the_start_and_does_nothing_else_until_registered(booted):
+def test_run_does_nothing_else_until_registered(booted):
     seen = booted()
 
-    assert seen["order"] == ["signals", "publish", "register", "target", "config", "loop"]
+    assert seen["order"] == ["signals", "register", "target", "config", "loop"]
 
 
 @pytest.mark.parametrize("signum", [signal.SIGINT, signal.SIGTERM])
@@ -233,7 +228,7 @@ def test_stopping_while_registering_exits_with_no_display_to_sleep(booted):
         booted(stop_while_registering=True)
 
     assert stopped.value.code == 0
-    assert booted.seen["order"] == ["signals", "publish", "register"]  # no display made, so none to sleep
+    assert booted.seen["order"] == ["signals", "register"]  # no display made, so none to sleep
 
 
 def test_stopping_once_there_is_a_display_puts_the_panel_to_sleep(booted):
@@ -263,11 +258,10 @@ def test_run_shares_the_one_registration_between_the_target_the_broker_and_the_r
     assert seen["registry"].registration is REGISTRATION
 
 
-def test_run_hands_the_publisher_it_started_to_the_registry_with_one_device_status(booted):
+def test_run_hands_the_registry_a_publisher_not_yet_started_with_one_device_status(booted):
     seen = booted()
 
     registry = seen["registry"]
-    assert registry.pub is seen["publisher"]
-    assert registry.status is seen["publisher"].device_status
+    assert registry.pub._provider is None  # the display loop starts it
     assert registry.status.display is seen["display"]
     assert registry.status.last_broker_sync is not None

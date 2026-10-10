@@ -15,7 +15,7 @@ from countdown_core.core.display import DisplayController
 from countdown_core.core.display_loop import DisplayLoop
 from countdown_core.core.targets import DisplayTarget
 from countdown_core.home_assistant.device_status import DeviceStatus
-from countdown_core.home_assistant.mqtt_publisher import MqttPublisher
+from countdown_core.home_assistant.otlp_publisher import OtlpPublisher
 from countdown_core.system_screens.pairing_code_panel import PairingCodePanel
 from countdown_credentials.registration import RendererRegistrar, RendererRegistration
 
@@ -78,11 +78,8 @@ async def run(make_target: MakeTarget, standalone: bool) -> None:
     signal.signal(signal.SIGINT, handle_shutdown)
     signal.signal(signal.SIGTERM, handle_shutdown)
 
-    # Reporting to Home Assistant starts next, from the host's own settings, so a device still
-    # waiting on the broker says so.
     status = DeviceStatus()
-    publisher = MqttPublisher.from_env(API_NAMES, status)
-    publisher.start()
+    publisher = OtlpPublisher.from_env(API_NAMES, status)
 
     # No default: crash loudly rather than silently talk to some baked-in URL.
     registrar = RendererRegistrar(os.environ["BROKER_URL"], standalone=standalone)

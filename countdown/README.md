@@ -27,7 +27,7 @@ the device is in one of three stages:
   no API is polled.
 - *running*: the dashboard.
 
-After each cycle the loop publishes health over MQTT (see
+After each cycle the loop publishes health over OTLP (see
 [Deploying](#deploying-to-a-raspberry-pi)) and re-reads the config from the
 broker. The broker has no change notification, so this poll is how changes to
 stops, credentials and so on reach the device, and how the pairing code stays
@@ -219,22 +219,22 @@ Glowmarkt credentials, which are the frame owner's own energy account and
 never shared with other devices -- comes from there, so there's no local
 secret file on the device at all.
 
-Reporting API health to Home Assistant is optional and configured the same way as
-[pi-telemetry](../pi-telemetry/), which it sits alongside: the
-service loads `/etc/pi-telemetry/env` (if it exists) for `MQTT_BROKER_HOST`,
-`MQTT_BROKER_PORT`, `MQTT_BROKER_USERNAME`, `MQTT_BROKER_PASSWORD` and `DEVICE_NAME`.
-With no `MQTT_BROKER_HOST` it doesn't publish at all. Countdown adds a status sensor
-per API and an "API problem" sensor to the same Home Assistant device as
-pi-telemetry's (same `DEVICE_NAME`), publishing to `pi-telemetry/<DEVICE_NAME>/countdown/state`.
+Countdown reports its health as OTLP/HTTP metrics (protobuf, via the OpenTelemetry Python SDK) to the local Fluent Bit's
+OpenTelemetry input at `http://127.0.0.1:4318/v1/metrics`. They're tagged with
+`host.name`, the `DEVICE_NAME` that `install.sh` wrote to `/etc/pi-telemetry/env`
+(see the repo root's README). Gauges:
+
+- `countdown.api.status`: 1 per API, with `api` and `status` attributes
+- `countdown.problem`: 1 while any API is in `error` or `fatal`
+- `countdown.stage`: 1, with a `stage` attribute
+- `countdown.display.connected`: whether the panel is connected
+- `countdown.broker.last_sync`: Unix time of the last broker sync (absent until the first)
 
 It reports from the moment the app starts, from its own background task, so a
-device still registering with the broker shows up (as `waiting_for_broker`).
-Discovery is retained and re-sent on every connect; the state (each API's
-status, the device's stage, whether the panel is connected, and the last broker
-sync) is published once a minute, and straight away when the stage changes. Countdown uses its own MQTT client ID and topics, so it never kicks off
-or overwrites pi-telemetry's. Entities go unavailable after 3 minutes without
-an update. The env file is only read when the service starts, so restart countdown
-(`sudo systemctl restart countdown`) after installing pi-telemetry or editing it.
+device still registering with the broker shows up (as `waiting_for_broker`). Metrics
+are sent once a minute, and straight away when the stage changes. A failed send is
+logged and retried at the next interval. The env file is only read when the service
+starts, so restart countdown (`sudo systemctl restart countdown`) after editing it.
 
 Once installed:
 
