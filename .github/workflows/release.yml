@@ -118,3 +118,31 @@ jobs:
             secrets.zip \
             install.sh \
             --title "$GITHUB_REF_NAME" --generate-notes --prerelease
+
+  deploy-renderers:
+    # Brings up the renderers listed in countdown/server/deploy/docker-compose.yml, pinned to this release's image.
+    # It runs entirely here: the runner drives the Docker host's daemon over ssh (DOCKER_HOST), so the host needs
+    # nothing installed but Docker. It waits for the deploy-renderers environment's approval (Settings >
+    # Environments), as the release is still a pre-release at this point.
+    needs: release
+    runs-on: ubuntu-latest
+    environment: deploy-renderers
+    concurrency:
+      group: deploy-renderers
+      cancel-in-progress: false
+    env:
+      DOCKER_HOST: ssh://${{ secrets.DEPLOY_USER }}@${{ secrets.DEPLOY_HOST }}
+    steps:
+      - uses: actions/checkout@v7
+      - name: Set up SSH
+        env:
+          ORACLE_SSH_TOKEN: ${{ secrets.ORACLE_SSH_TOKEN }}
+          DEPLOY_SSH_KNOWN_HOSTS: ${{ secrets.DEPLOY_SSH_KNOWN_HOSTS }}
+        run: |
+          install -m 700 -d ~/.ssh
+          printf '%s\n' "$ORACLE_SSH_TOKEN" > ~/.ssh/id_deploy
+          chmod 600 ~/.ssh/id_deploy
+          printf '%s\n' "$DEPLOY_SSH_KNOWN_HOSTS" > ~/.ssh/known_hosts
+          printf 'Host *\n  IdentityFile ~/.ssh/id_deploy\n  IdentitiesOnly yes\n' > ~/.ssh/config
+      - name: Deploy the renderers
+        run: bash countdown/server/deploy/deploy.sh "$GITHUB_REF_NAME"

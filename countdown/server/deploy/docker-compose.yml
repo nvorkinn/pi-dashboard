@@ -1,33 +1,36 @@
-# Renderers for screens that only show frames (countdown-client, or the ESP32), one service per
-# screen. Each renders its device's dashboard and hands the frames to the broker. See README.md.
+# The renderers for screens that only show frames (countdown-client, or the ESP32): one service per screen,
+# each drawing its device's dashboard and handing the frames to the broker. This file is the list of them.
+# A release deploys it to the host (deploy.sh, run by release.yml); see README.md.
 
 # Fixed, so the volumes (each renderer's identity) keep their names wherever this file lives.
 name: countdown-renderers
 
 x-renderer: &renderer
-  # :latest is the newest promoted release, so what the Pis run. Pin a tag in .env to hold back.
+  # deploy.sh pins this to the release being deployed, in .env. Without one (running this by hand), :latest is
+  # the newest promoted release, so what the Pis run.
   image: ghcr.io/nvorkinn/countdown-server:${COUNTDOWN_SERVER_VERSION:-latest}
   pull_policy: always
   restart: unless-stopped
   # The host's own Fluent Bit listens for the renderer's OTLP metrics on 127.0.0.1:4318, which only the host's
   # network namespace reaches. Nothing here publishes ports, so sharing it exposes nothing.
   network_mode: host
+  environment: &renderer-environment
+    BROKER_URL: https://auth.nikolaivorkinn.com
 
 services:
-  # Copy this block (and its volume below) for each screen.
-  example-screen:
+  nikolai:
     <<: *renderer
     environment:
-      BROKER_URL: https://auth.nikolaivorkinn.com
+      <<: *renderer-environment
       # Labels the device on the broker; lowercase letters, digits, _ and -.
-      DEVICE_NAME: example-screen
+      DEVICE_NAME: nikolai
     volumes:
       # The renderer's identity: lose it and it registers as a new device.
-      - example-screen:/data
+      - nikolai:/data
       # The key that encrypts that identity, made on first start. Its own volume, so a copy of /data isn't
       # a copy of the identity. Lose it and the identity can't be read: see README.md.
-      - example-screen-key:/keys
+      - nikolai-key:/keys
 
 volumes:
-  example-screen:
-  example-screen-key:
+  nikolai:
+  nikolai-key:
