@@ -282,6 +282,73 @@ void test_logs_are_kept_after_a_401() {
   });
 }
 
+void test_the_first_poll_has_no_if_none_match() {
+  Client c;
+  c.board.http.reply(201);
+  c.board.http.reply(202);
+
+  c.client.tick();
+
+  TEST_ASSERT_EQUAL_STD_STRING("", c.board.http.requests[0].ifNoneMatch);  // Registering never has one
+  TEST_ASSERT_EQUAL_STD_STRING("", c.board.http.requests[1].ifNoneMatch);
+}
+
+void test_a_drawn_frames_etag_is_sent_as_if_none_match_from_then_on() {
+  Client c;
+  c.board.http.reply(201);
+  c.board.http.reply(200, "30", "frame", R"("abc123")");
+  c.board.http.reply(304);
+  c.board.http.reply(304);
+
+  c.client.tick();
+  c.client.tick();
+  c.client.tick();
+
+  TEST_ASSERT_EQUAL_STD_STRING(R"("abc123")", c.board.http.requests[2].ifNoneMatch);
+  TEST_ASSERT_EQUAL_STD_STRING(R"("abc123")", c.board.http.requests[3].ifNoneMatch);
+}
+
+void test_a_newer_frames_etag_replaces_the_old_one() {
+  Client c;
+  c.board.http.reply(201);
+  c.board.http.reply(200, "30", "frame", R"("old")");
+  c.board.http.reply(200, "30", "frame", R"("new")");
+  c.board.http.reply(304);
+
+  c.client.tick();
+  c.client.tick();
+  c.client.tick();
+
+  TEST_ASSERT_EQUAL_STD_STRING(R"("new")", c.board.http.requests.back().ifNoneMatch);
+}
+
+void test_a_frame_that_couldnt_be_drawn_is_asked_for_again() {
+  Client c;
+  c.board.display.succeeds = false;
+  c.board.http.reply(201);
+  c.board.http.reply(200, "30", "frame", R"("abc123")");
+  c.board.http.reply(200, "30", "frame", R"("abc123")");
+
+  c.client.tick();
+  c.client.tick();
+
+  TEST_ASSERT_EQUAL_STD_STRING("", c.board.http.requests.back().ifNoneMatch);
+}
+
+void test_a_frame_without_an_etag_forgets_the_old_one() {
+  Client c;
+  c.board.http.reply(201);
+  c.board.http.reply(200, "30", "frame", R"("abc123")");
+  c.board.http.reply(200, "30", "frame");
+  c.board.http.reply(304);
+
+  c.client.tick();
+  c.client.tick();
+  c.client.tick();
+
+  TEST_ASSERT_EQUAL_STD_STRING("", c.board.http.requests.back().ifNoneMatch);
+}
+
 }  // namespace
 
 void runFrameClientTests() {
@@ -305,4 +372,9 @@ void runFrameClientTests() {
   RUN_TEST(test_logs_are_kept_when_the_broker_is_unreachable);
   RUN_TEST(test_logs_are_kept_after_a_500);
   RUN_TEST(test_logs_are_kept_after_a_401);
+  RUN_TEST(test_the_first_poll_has_no_if_none_match);
+  RUN_TEST(test_a_drawn_frames_etag_is_sent_as_if_none_match_from_then_on);
+  RUN_TEST(test_a_newer_frames_etag_replaces_the_old_one);
+  RUN_TEST(test_a_frame_that_couldnt_be_drawn_is_asked_for_again);
+  RUN_TEST(test_a_frame_without_an_etag_forgets_the_old_one);
 }

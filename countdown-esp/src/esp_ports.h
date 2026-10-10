@@ -26,8 +26,8 @@ class NvsStore : public countdown::Store {
 class EspHttp : public countdown::Http {
  public:
   explicit EspHttp(const char* rootCerts);
-  countdown::HttpResponse request(const std::string& method, const std::string& url,
-                                  const std::string& jsonBody, const std::string& bearer) override;
+  countdown::HttpResponse request(const std::string& method, const std::string& url, const std::string& jsonBody,
+                                  const std::string& bearer, const std::string& ifNoneMatch) override;
 
  private:
   WiFiClientSecure client_;

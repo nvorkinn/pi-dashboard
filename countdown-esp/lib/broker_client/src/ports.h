@@ -18,15 +18,18 @@ struct HttpResponse {
   std::string error;
   int status = 0;
   std::optional<std::string> retryAfter;
+  // The ETag header as the server sent it, quotes and all.
+  std::optional<std::string> etag;
   std::vector<uint8_t> body;
 };
 
 class Http {
  public:
   virtual ~Http() = default;
-  // Sends `jsonBody` as application/json, with `bearer` as the Authorization bearer token.
-  virtual HttpResponse request(const std::string& method, const std::string& url,
-                               const std::string& jsonBody, const std::string& bearer) = 0;
+  // Sends `jsonBody` as application/json, with `bearer` as the Authorization bearer token and, unless
+  // it's empty, `ifNoneMatch` as the If-None-Match header.
+  virtual HttpResponse request(const std::string& method, const std::string& url, const std::string& jsonBody,
+                               const std::string& bearer, const std::string& ifNoneMatch) = 0;
 };
 
 // Survives reboots: NVS on the board.
