@@ -3,9 +3,6 @@ import pytest
 from countdown_credentials import device_name
 from countdown_credentials.device_name import device_name_from_env, resolve_device_name
 
-# pi-telemetry's device_name.rs, ported -- must resolve identically, or the two
-# processes end up as two separate HA devices for the same host.
-
 
 def test_explicit_device_name_wins_over_hostname():
     assert resolve_device_name("sister-hat", "raspberrypi") == "sister-hat"

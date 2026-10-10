@@ -17,7 +17,7 @@ logger = logging.getLogger(__name__)
 # The local Fluent Bit's OpenTelemetry input (OTLP/HTTP).
 METRICS_URL = "http://127.0.0.1:4318/v1/metrics"
 
-# Once a minute, like pi-telemetry.
+# Once a minute.
 EXPORT_INTERVAL_MS = 60_000
 # Per export, retries included. With no collector listening an export retries until this is up, and
 # an export in flight holds up the app's exit, which a container only gets 10s for.

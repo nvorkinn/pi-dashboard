@@ -10,8 +10,8 @@ WorkingDirectory=@WORKING_DIRECTORY@
 Environment=BROKER_URL=https://auth.nikolaivorkinn.com
 # Otherwise stdout is block-buffered under systemd and output reaches the journal late.
 Environment=PYTHONUNBUFFERED=1
-# Shared with pi-telemetry. Optional: without it health reporting to Home Assistant is off.
-EnvironmentFile=-/etc/pi-telemetry/env
+# DEVICE_NAME, written by the repo-root install.sh. Optional: without it the hostname is used.
+EnvironmentFile=-/etc/countdown/env
 ExecStart=@EXEC_START@
 Restart=always
 RestartSec=5

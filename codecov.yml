@@ -7,9 +7,6 @@ flag_management:
     - name: countdown
       paths:
         - countdown/
-    - name: pi-telemetry
-      paths:
-        - pi-telemetry/
     - name: countdown-esp
       paths:
         - countdown-esp/
