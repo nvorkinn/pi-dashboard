@@ -33,7 +33,7 @@ void setup() {
   static EspClock clock;
   // Everything logs through this, so the broker gets the lines from Wi-Fi set-up on.
   static countdown::LogBuffer log(serialLog, clock);
-  connectWifi(store, log);
+  connectWifi(store, log, BROKER_URL);
 
   // Made after Wi-Fi is up, so a new device secret comes from the RNG at its most random.
   static EspHttp http(kBrokerRootCerts);
