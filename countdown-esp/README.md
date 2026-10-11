@@ -51,12 +51,14 @@ gcovr --root . --filter lib/ --gcov-executable "xcrun llvm-cov gcov" .pio/build/
 ## First boot
 
 1. With no Wi-Fi saved in NVS (`WIFI_SSID`, `WIFI_PASSWORD`), or if the saved network can't be joined
-   within 30 seconds, the board opens a set-up portal: an open Wi-Fi network named `countdown-XXXX`.
-   Join it and pick the network on the page that opens (or browse to `192.168.4.1`). The board saves
-   what you enter to NVS and closes the portal once it's connected. If nobody sets it up within
-   5 minutes, it restarts and tries the saved network again.
-   On an iPhone, if the set-up page doesn't appear within a few seconds, tap ⓘ next to the network,
-   turn off **Limit IP Address Tracking**, and rejoin. Opening Safari at `http://192.168.4.1` works too.
+   within 30 seconds, the board opens a set-up portal: an open Wi-Fi network named `ePaper-Dashboard-XXXX`.
+   On an iPhone no pop-up appears (the board answers Apple's connectivity check): join the network, open
+   Safari and go to any plain-http site such as `example.com`, which redirects to the set-up page. If
+   Safari insists on https, browse to `http://192.168.4.1` instead. Pick the network and save: the board
+   joins it, closes the portal, and Safari opens the broker by itself once the phone is back online
+   (if the password was wrong, the page returns to the set-up page after a minute). On Android the
+   set-up page opens in its own sheet, with no redirect afterwards. If nobody sets it up within
+   5 minutes, the board restarts and tries the saved network again.
 2. It makes a device secret (like Python's `secrets.token_urlsafe(24)`), saves it to NVS as
    `device_secret`, and registers with the broker. It registers again on every boot, with the same secret.
 3. It polls `/api/frame` with a `POST`, waiting as long as the broker's `Retry-After` says (60 seconds
@@ -140,8 +142,10 @@ connector, or Wi-Fi only reaches a few metres.
 - `src/`: the ESP32 side: `main.cpp`, the ports' implementations (`esp_ports.cpp`), the Wi-Fi set-up
   portal (`wifi_setup.cpp`), the HAT's wires over SPI (`esp_epd_bus.cpp`) and the broker's pinned root
   certificates (`root_certs.h`)
+- `lib/portal/`: `captive_probe.h`, which recognises Apple's connectivity-check hosts (plain C++, tested on the host)
 - `test/test_broker_client/`: Unity tests for `lib/broker_client`, with fakes of the ports
 - `test/test_epd/`: Unity tests for `lib/epd`, against a fake HAT that records every command and wire change
+- `test/test_portal/`: Unity tests for `lib/portal`
 - `include/`: project headers
 
 ## CI
