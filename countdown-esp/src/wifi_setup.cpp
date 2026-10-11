@@ -6,6 +6,7 @@
 #include <WiFiManager.h>
 
 #include <string>
+#include <vector>
 
 #include "captive_probe.h"
 
@@ -16,6 +17,17 @@ constexpr char kPasswordKey[] = "WIFI_PASSWORD";
 constexpr char kHostname[] = "countdown-esp-nikolai";
 constexpr unsigned long kConnectTimeoutMs = 30 * 1000;
 constexpr int kPortalTimeoutS = 5 * 60;
+
+// The Countdown logo above the portal's heading, as a CSS background so it needs no extra request
+// (phones' captive-portal browsers can be fussy), and hides the "WiFiManager" heading it replaces. The SVG is URL-encoded inside the data URI.
+// Hides the "No AP set" box on the start page. It's the only <div class="msg"> with no text beyond
+// that, and the board never has a driver-saved network (see WiFi.persistent(false)), so it's always
+// there and reads as an error. The "Saving Credentials" page uses the same class, so leave it alone.
+const char kHideNoApScript[] = R"JS(<script>document.addEventListener('DOMContentLoaded',function(){
+if(location.pathname==='/wifisave')return;
+[].forEach.call(document.querySelectorAll('.msg'),function(m){if(m.className==='msg'&&m.textContent.trim()==='No AP set')m.style.display='none'})})</script>)JS";
+
+const char kLogoStyle[] = R"CSS(<style>.wrap>h1{display:none}.wrap::before{content:'';display:block;height:40px;margin:0 auto 16px;background:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 177 35'%3E%3Crect width='177' height='35' rx='17.5' fill='%23EE2E24'/%3E%3Ctext x='16' y='25' font-family='-apple-system,BlinkMacSystemFont,system-ui,Inter,Helvetica,Arial,sans-serif' font-size='20.8' font-weight='900' letter-spacing='1.04' textLength='145' lengthAdjust='spacing' fill='%23FFF'%3ECOUNTDOWN%3C/text%3E%3C/svg%3E") center/contain no-repeat}</style>)CSS";
 
 const char* statusName(wl_status_t status) {
   switch (status) {
@@ -60,12 +72,35 @@ String portalName() {
 // Answers every URL WiFiManager has no page for (phones' captive-portal checks, favicon.ico) with a
 // redirect to the portal. Without it they fall through to WiFiManager's onNotFound, which redirects
 // too, but only after WebServer has logged "request handler not found" for each one.
+void redirectToPortal(WebServer& server) {
+  server.sendHeader("Location", "http://" + WiFi.softAPIP().toString() + "/", true);
+  server.send(302, "text/plain", "");
+}
+
 class RedirectToPortal : public RequestHandler {
  public:
   bool canHandle(HTTPMethod, String) override { return true; }
   bool handle(WebServer& server, HTTPMethod, String) override {
-    server.sendHeader("Location", "http://" + WiFi.softAPIP().toString() + "/", true);
-    server.send(302, "text/plain", "");
+    redirectToPortal(server);
+    return true;
+  }
+};
+
+// The boards are given away, so the portal only offers Wi-Fi set-up. Hiding the menu entries isn't
+// enough, as the pages stay reachable by URL: Info (/info), firmware update (/u, /update), erase
+// (/erase), restart (/r), and exit/close (/exit, /close).
+class HideMaintenancePages : public RequestHandler {
+ public:
+  bool canHandle(HTTPMethod, String uri) override {
+    for (const char* page : {"/info", "/u", "/update", "/erase", "/r", "/exit", "/close"}) {
+      if (uri == page) {
+        return true;
+      }
+    }
+    return false;
+  }
+  bool handle(WebServer& server, HTTPMethod, String) override {
+    redirectToPortal(server);
     return true;
   }
 };
@@ -112,10 +147,15 @@ if(!v[0]&&v[1])location.href=u;else if(v[0]&&Date.now()-s>60000)location.href='/
 void runPortal(countdown::Store& store, countdown::Log& log, const std::string& afterSetupUrl) {
   PortalManager manager;
   // Must outlive manager: it keeps the pointer.
-  const String head = redirectScript(afterSetupUrl);
+  const String head = String(kLogoStyle) + kHideNoApScript + redirectScript(afterSetupUrl);
   manager.setCustomHeadElement(head.c_str());
   // Runs before WiFiManager registers its own pages, so this handler is asked first.
-  manager.setWebServerCallback([&manager]() { manager.server->addHandler(new AppleProbeSuccess(manager)); });
+  manager.setWebServerCallback([&manager]() {
+    manager.server->addHandler(new AppleProbeSuccess(manager));
+    manager.server->addHandler(new HideMaintenancePages());
+  });
+  std::vector<const char*> menu = {"wifi"};
+  manager.setMenu(menu);
   // Verbose, not DEV: DEV logs the Wi-Fi password.
   manager.setDebugOutput(true, WM_DEBUG_VERBOSE);
   // Non-blocking, so the loop below can stop the portal as soon as Wi-Fi is up.
